@@ -36,14 +36,14 @@ lines in sync.")
   (eq (current-buffer) (car vdiff-buffers)))
 
 (defun vdiff-buffer-b-p ()
-  (eq (current-buffer) (nth 1 vdiff-buffers)))
+  (eq (current-buffer) (cadr vdiff-buffers)))
 
 (defun vdiff-buffer-p ()
   (memq (current-buffer) vdiff-buffers))
 
 (defun vdiff-other-buffer ()
   (if (vdiff-buffer-a-p)
-      (nth 1 vdiff-buffers)
+      (cadr vdiff-buffers)
     (car vdiff-buffers)))
 
 (defun vdiff-other-window ()
@@ -92,7 +92,7 @@ lines in sync.")
 
 (defmacro vdiff-with-both-buffers (&rest body)
   `(when (and (buffer-live-p (car vdiff-buffers))
-              (buffer-live-p (nth 1 vdiff-buffers)))
+              (buffer-live-p (cadr vdiff-buffers)))
      (dolist (buf vdiff-buffers)
        (with-current-buffer buf
          ,@body))))
@@ -105,13 +105,13 @@ lines in sync.")
                           vdiff-diff-program
                           vdiff-diff-program-args
                           (car vdiff-temp-files)
-                          (nth 1 vdiff-temp-files))
+                          (cadr vdiff-temp-files))
                          " "))
          proc)
     (with-current-buffer (car vdiff-buffers)
       (write-region nil nil (car vdiff-temp-files)))
-    (with-current-buffer (nth 1 vdiff-buffers)
-      (write-region nil nil (nth 1 vdiff-temp-files)))
+    (with-current-buffer (cadr vdiff-buffers)
+      (write-region nil nil (cadr vdiff-temp-files)))
     (with-current-buffer (get-buffer-create vdiff-process-buffer)
       (erase-buffer))
     (when proc
@@ -196,6 +196,8 @@ lines in sync.")
   (save-excursion
     (dolist (header vdiff-diff-data)
       (let* ((code (nth 0 header))
+             (a-buffer (car vdiff-buffers))
+             (b-buffer (cadr vdiff-buffers))
              (a-range (nth 1 header))
              (a-beg (car a-range))
              (a-end (if (cdr-safe a-range)
@@ -212,33 +214,33 @@ lines in sync.")
              (b-length (1+ (- b-end b-beg))))
         (cond ((string= code "d")
                (vdiff-add-subtraction-overlays
-                (nth 1 vdiff-buffers) b-beg a-norm-range a-length)
+                b-buffer b-beg a-norm-range a-length)
                (vdiff-add-change-overlays
-                (car vdiff-buffers) a-beg a-length b-norm-range t))
+                a-buffer a-beg a-length b-norm-range t))
               ((string= code "a")
                (vdiff-add-subtraction-overlays
-                (car vdiff-buffers) a-beg b-norm-range b-length)
+                a-buffer a-beg b-norm-range b-length)
                (vdiff-add-change-overlays
-                (nth 1 vdiff-buffers) b-beg b-length a-norm-range t))
+                b-buffer b-beg b-length a-norm-range t))
               ((and (string= code "c") (> a-length b-length))
                (vdiff-add-change-overlays
-                (car vdiff-buffers) a-beg a-length b-norm-range)
+                a-buffer a-beg a-length b-norm-range)
                (vdiff-add-change-overlays
-                (nth 1 vdiff-buffers) b-beg b-length a-norm-range)
+                b-buffer b-beg b-length a-norm-range)
                (vdiff-add-subtraction-overlays
-                (nth 1 vdiff-buffers) b-end nil (- a-length b-length)))
+                b-buffer b-end nil (- a-length b-length)))
               ((and (string= code "c") (< a-length b-length))
                (vdiff-add-change-overlays
-                (car vdiff-buffers) a-beg a-length b-norm-range)
+                a-buffer a-beg a-length b-norm-range)
                (vdiff-add-change-overlays
-                (nth 1 vdiff-buffers) b-beg b-length a-norm-range)
+                b-buffer b-beg b-length a-norm-range)
                (vdiff-add-subtraction-overlays
-                (car vdiff-buffers) a-end nil (- b-length a-length)))
+                a-buffer a-end nil (- b-length a-length)))
               ((string= code "c")
                (vdiff-add-change-overlays
-                (car vdiff-buffers) a-beg a-length b-norm-range)
+                a-buffer a-beg a-length b-norm-range)
                (vdiff-add-change-overlays
-                (nth 1 vdiff-buffers) b-beg b-length a-norm-range)))))))
+                b-buffer b-beg b-length a-norm-range)))))))
 
 ;; * Moving changes
 
