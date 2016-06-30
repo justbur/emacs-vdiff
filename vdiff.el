@@ -1,3 +1,7 @@
+(defcustom vdiff-lock-scrolling t
+  "Whether to lock scrolling by default when starting
+  `vdiff-mode'.")
+
 (defcustom vdiff-diff-program "diff"
   "diff program to use.")
 
@@ -529,11 +533,15 @@ lines in sync.")
   (if vdiff-mode
       (progn
         (setq cursor-in-non-selected-windows nil)
-        (add-hook 'after-save-hook #'vdiff-refresh nil t))
+        (add-hook 'after-save-hook #'vdiff-refresh nil t)
+        (when vdiff-lock-scrolling
+          (vdiff-scroll-lock-mode 1)))
     (setq cursor-in-non-selected-windows t)
     (setq vdiff-diff-data nil)
     (vdiff-remove-all-overlays)
-    (remove-hook 'after-save-hook #'vdiff-refresh t)))
+    (remove-hook 'after-save-hook #'vdiff-refresh t)
+    (when vdiff-scroll-lock-mode
+      (vdiff-scroll-lock-mode -1))))
 
 (define-minor-mode vdiff-scroll-lock-mode
   " "
