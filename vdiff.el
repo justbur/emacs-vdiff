@@ -25,7 +25,6 @@ lines in sync.")
 (defvar vdiff-diff-data nil)
 (defvar vdiff-diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
-(defvar vdiff-window-starts nil)
 (defvar vdiff-inhibit-window-switch nil)
 (defvar vdiff-scroll-command-cnt 0)
 (defvar vdiff-inhibit-sync nil)
@@ -511,10 +510,6 @@ lines in sync.")
                        (split-window-horizontally)))
       (find-file-other-window B)
       (setq vdiff-buffers (list a-buffer (window-buffer b-window)))
-      (setq vdiff-window-starts
-            (mapcar (lambda (buf)
-                      (window-start (get-buffer-window buf)))
-                    vdiff-buffers))
       (vdiff-with-both-buffers
        (vdiff-mode 1))
       (vdiff-refresh))))
