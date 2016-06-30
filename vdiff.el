@@ -1,3 +1,30 @@
+;;; vdiff.el --- Like vimdiff  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2016 Justin Burkett
+
+;; Author: Justin Burkett <justin@burkett.cc>
+;; URL: https://github.com/justbur/emacs-vdiff
+;; Version: 0
+;; Keywords:
+;; Package-Requires: ((emacs "24.3"))
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;;; Code:
+
 (defcustom vdiff-lock-scrolling t
   "Whether to lock scrolling by default when starting
   `vdiff-mode'.")
@@ -553,3 +580,6 @@ lines in sync.")
     (vdiff-with-both-buffers
      (remove-hook 'after-save-hook #'vdiff-refresh t)
      (remove-hook 'window-scroll-functions #'vdiff-scroll-other t))))
+
+(provide 'vdiff)
+;;; vdiff.el ends here
