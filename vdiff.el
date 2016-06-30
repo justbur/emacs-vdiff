@@ -1,11 +1,31 @@
-(defvar vdiff-buffer-a nil)
-(defvar vdiff-buffer-b nil)
+(defcustom vdiff-diff-program "diff"
+  "diff program to use.")
+
+(defcustom vdiff-diff-program-args ""
+  "Extra arguments to pass to diff. If this is set wrong, you may
+break vdiff.")
+
+(defcustom vdiff-copied-commands '(next-line
+                                   previous-line
+                                   evil-next-line
+                                   evil-previous-line
+                                   beginning-of-buffer
+                                   end-of-buffer)
+  "Commands that should be executed in other vdiff buffer to keep
+lines in sync.")
+
+(defvar vdiff-buffers nil)
+(defvar vdiff-temp-files (list (make-temp-file "vdiff-temp-a-")
+                               (make-temp-file "vdiff-temp-b-")))
 (defvar vdiff-process-buffer " *vdiff*")
 (defvar vdiff-diff-data nil)
-(defvar vdiff-diff-data-w-text nil)
 (defvar vdiff-diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
-(defvar vdiff-diff-program (executable-find "diff"))
+(defvar vdiff-window-starts nil)
+(defvar vdiff-inhibit-window-switch nil)
+(defvar vdiff-scroll-command-cnt 0)
+(defvar vdiff-inhibit-sync nil)
+(defvar vdiff-line-map nil)
 
 ;; * Utilities
 
@@ -13,16 +33,18 @@
   (when str (string-to-int str)))
 
 (defun vdiff-buffer-a-p ()
-  (eq (current-buffer) vdiff-buffer-a))
+  (eq (current-buffer) (car vdiff-buffers)))
 
 (defun vdiff-buffer-b-p ()
-  (eq (current-buffer) vdiff-buffer-b))
+  (eq (current-buffer) (nth 1 vdiff-buffers)))
 
 (defun vdiff-buffer-p ()
-  (memq (current-buffer) (list vdiff-buffer-a vdiff-buffer-b)))
+  (memq (current-buffer) vdiff-buffers))
 
 (defun vdiff-other-buffer ()
-  (if (vdiff-buffer-a-p) vdiff-buffer-b vdiff-buffer-a))
+  (if (vdiff-buffer-a-p)
+      (nth 1 vdiff-buffers)
+    (car vdiff-buffers)))
 
 (defun vdiff-other-window ()
   (get-buffer-window (vdiff-other-buffer)))
@@ -56,8 +78,6 @@
       (let ((range (overlay-get ovr 'vdiff-range)))
         (goto-char (if up (car range) (cdr range)))))))
 
-(defvar vdiff-inhibit-window-switch nil)
-
 (defmacro vdiff-with-other-window (&rest body)
   `(when (and (vdiff-buffer-p)
               (not vdiff-inhibit-window-switch)
@@ -70,58 +90,65 @@
              ,@body)
          (setq vdiff-inhibit-window-switch nil)))))
 
-;; (defun vdiff-diff-sentinel (process event)
-;;   (cond ((string= event "finished\n"))
-;;         ((string-match "exited abnormally with code \\([0-9]+\\)\n" event)
-;;          (user-error "%s" event))))
+(defmacro vdiff-with-both-buffers (&rest body)
+  `(when (and (buffer-live-p (car vdiff-buffers))
+              (buffer-live-p (nth 1 vdiff-buffers)))
+     (dolist (buf vdiff-buffers)
+       (with-current-buffer buf
+         ,@body))))
 
-
-(defun vdiff-parse-diff-output ()
-  (setq vdiff-diff-data nil)
-  (let (res)
-    (with-current-buffer vdiff-process-buffer
-      (goto-char (point-min))
-      (while (re-search-forward vdiff-diff-code-regexp nil t)
-        (push (list (match-string 3)
-                    (cons (vdiff-maybe-int (match-string 1))
-                          (vdiff-maybe-int (match-string 2)))
-                    (cons (vdiff-maybe-int (match-string 4))
-                          (vdiff-maybe-int (match-string 5))))
-              res)))
-    (setq vdiff-diff-data (nreverse res))))
-
-(defun vdiff-calc-diff ()
-  (let ((file-a (make-temp-file "vdiff-a-"))
-        (file-b (make-temp-file "vdiff-b-"))
-        line-string hunk-header a-lines b-lines res
-        message-log-max)
-    (with-current-buffer vdiff-buffer-a
-      (write-region nil nil file-a))
-    (with-current-buffer vdiff-buffer-b
-      (write-region nil nil file-b))
+(defun vdiff-refresh ()
+  "Asynchronously refresh diff information."
+  (interactive)
+  (let* ((cmd (mapconcat #'identity
+                         (list
+                          vdiff-diff-program
+                          vdiff-diff-program-args
+                          (car vdiff-temp-files)
+                          (nth 1 vdiff-temp-files))
+                         " "))
+         proc)
+    (with-current-buffer (car vdiff-buffers)
+      (write-region nil nil (car vdiff-temp-files)))
+    (with-current-buffer (nth 1 vdiff-buffers)
+      (write-region nil nil (nth 1 vdiff-temp-files)))
     (with-current-buffer (get-buffer-create vdiff-process-buffer)
       (erase-buffer))
-    (call-process vdiff-diff-program
-                  nil vdiff-process-buffer nil
-                  file-a file-b)
-    (vdiff-parse-diff-output)))
+    (when proc
+      (kill-process proc))
+    (setq proc (start-process-shell-command
+                vdiff-process-buffer
+                vdiff-process-buffer
+                cmd))
+    (set-process-sentinel proc #'vdiff-diff-refresh-1)))
+
+(defun vdiff-diff-refresh-1 (proc event)
+  (cond ((string-match-p "exited abnormally with code 1" event)
+         (setq vdiff-diff-data nil)
+         (let (res)
+           (with-current-buffer vdiff-process-buffer
+             (goto-char (point-min))
+             (while (re-search-forward vdiff-diff-code-regexp nil t)
+               (push (list (match-string 3)
+                           (cons (vdiff-maybe-int (match-string 1))
+                                 (vdiff-maybe-int (match-string 2)))
+                           (cons (vdiff-maybe-int (match-string 4))
+                                 (vdiff-maybe-int (match-string 5))))
+                     res)))
+           (setq vdiff-diff-data (nreverse res)))
+         (vdiff-refresh-overlays))
+        ((string= event "finished\n"))
+        ((string-match-p "exited abnormally with code" event)
+         (message "vdiff process error: %s" event))))
 
 (defun vdiff-remove-all-overlays ()
-  (with-current-buffer vdiff-buffer-a
-    (remove-overlays))
-  (with-current-buffer vdiff-buffer-b
-    (remove-overlays)))
+  (vdiff-with-both-buffers (remove-overlays)))
 
 (defun vdiff-save-buffers ()
-  (with-current-buffer vdiff-buffer-a
-    (save-buffer))
-  (with-current-buffer vdiff-buffer-b
-    (save-buffer)))
+  (interactive)
+  (vdiff-with-both-buffers (save-buffer)))
 
 ;; * Add overlays
-
-(defvar vdiff-subtraction-overlays '())
-(defvar vdiff-change-overlays '())
 
 (defun vdiff-add-subtraction-overlays
     (buffer start-line target-range amount)
@@ -133,7 +160,8 @@
       (dotimes (i amount)
         (push
          (make-string
-          (1- (window-width (get-buffer-window vdiff-buffer-a))) ?-)
+          (1- (window-width (get-buffer-window buffer)))
+          ?-)
          text))
       (let ((ovr (make-overlay position (1+ position))))
         (overlay-put ovr 'before-string 
@@ -143,8 +171,7 @@
                        "\n")
                       'face '(:background "#440000")))
         (overlay-put ovr 'vdiff-type 'subtraction) 
-        (overlay-put ovr 'vdiff-target-range target-range)
-        (push ovr vdiff-subtraction-overlays)))))
+        (overlay-put ovr 'vdiff-target-range target-range)))))
 
 (defun vdiff-add-change-overlays
     (buffer start-line lines target-range &optional addition)
@@ -161,13 +188,10 @@
                                             'addition
                                           'change))
         (overlay-put ovr 'vdiff-range (cons beg end))
-        (overlay-put ovr 'vdiff-target-range target-range)
-        (push ovr vdiff-change-overlays)))))
+        (overlay-put ovr 'vdiff-target-range target-range)))))
 
-(defun vdiff-refresh-diff-overlays ()
-  (interactive)
+(defun vdiff-refresh-overlays ()
   (vdiff-remove-all-overlays)
-  (vdiff-calc-diff)
   (vdiff-refresh-line-maps)
   (save-excursion
     (dolist (header vdiff-diff-data)
@@ -188,37 +212,37 @@
              (b-length (1+ (- b-end b-beg))))
         (cond ((string= code "d")
                (vdiff-add-subtraction-overlays
-                vdiff-buffer-b b-beg a-norm-range a-length)
+                (nth 1 vdiff-buffers) b-beg a-norm-range a-length)
                (vdiff-add-change-overlays
-                vdiff-buffer-a a-beg a-length b-norm-range t))
+                (car vdiff-buffers) a-beg a-length b-norm-range t))
               ((string= code "a")
                (vdiff-add-subtraction-overlays
-                vdiff-buffer-a a-beg b-norm-range b-length)
+                (car vdiff-buffers) a-beg b-norm-range b-length)
                (vdiff-add-change-overlays
-                vdiff-buffer-b b-beg b-length a-norm-range t))
+                (nth 1 vdiff-buffers) b-beg b-length a-norm-range t))
               ((and (string= code "c") (> a-length b-length))
                (vdiff-add-change-overlays
-                vdiff-buffer-a a-beg a-length b-norm-range)
+                (car vdiff-buffers) a-beg a-length b-norm-range)
                (vdiff-add-change-overlays
-                vdiff-buffer-b b-beg b-length a-norm-range)
+                (nth 1 vdiff-buffers) b-beg b-length a-norm-range)
                (vdiff-add-subtraction-overlays
-                vdiff-buffer-b b-end nil (- a-length b-length)))
+                (nth 1 vdiff-buffers) b-end nil (- a-length b-length)))
               ((and (string= code "c") (< a-length b-length))
                (vdiff-add-change-overlays
-                vdiff-buffer-a a-beg a-length b-norm-range)
+                (car vdiff-buffers) a-beg a-length b-norm-range)
                (vdiff-add-change-overlays
-                vdiff-buffer-b b-beg b-length a-norm-range)
+                (nth 1 vdiff-buffers) b-beg b-length a-norm-range)
                (vdiff-add-subtraction-overlays
-                vdiff-buffer-a a-end nil (- b-length a-length)))
+                (car vdiff-buffers) a-end nil (- b-length a-length)))
               ((string= code "c")
                (vdiff-add-change-overlays
-                vdiff-buffer-a a-beg a-length b-norm-range)
+                (car vdiff-buffers) a-beg a-length b-norm-range)
                (vdiff-add-change-overlays
-                vdiff-buffer-b b-beg b-length a-norm-range)))))))
+                (nth 1 vdiff-buffers) b-beg b-length a-norm-range)))))))
 
 ;; * Moving changes
 
-(defun vdiff-push-changes (beg end &optional pull)
+(defun vdiff-send-changes (beg end &optional receive)
   (interactive
    (if (region-active-p)
        (list (region-beginning) (region-end))
@@ -234,12 +258,12 @@
     (dolist (ovr ovrs)
       (cond ((memq (overlay-get ovr 'vdiff-type)
                    '(change addition))
-             (vdiff-push-pull-change-overlay ovr pull))
+             (vdiff-transmit-change-overlay ovr receive))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
-             (vdiff-push-pull-subtraction-overlay ovr pull))))
-    (vdiff-refresh-diff-overlays)))
+             (vdiff-transmit-subtraction-overlay ovr receive))))
+    (vdiff-refresh)))
 
-(defun vdiff-pull-changes (beg end)
+(defun vdiff-receive-changes (beg end)
   (interactive
    (if (region-active-p)
        (list (region-beginning) (region-end))
@@ -251,17 +275,17 @@
                (forward-line -1)
                (line-beginning-position)))
            (line-end-position))))
-  (vdiff-push-changes beg end t))
+  (vdiff-send-changes beg end t))
 
-(defun vdiff-push-pull-change-overlay (chg-ovr &optional pull)
+(defun vdiff-transmit-change-overlay (chg-ovr &optional receive)
   (cond ((not (overlayp chg-ovr))
          (message "No change found"))
-        (pull
+        (receive
          (let* ((target-rng (overlay-get chg-ovr 'vdiff-target-range))
                 (pos (vdiff-pos-at-line-beginning
                       (car target-rng) (vdiff-other-buffer))))
            (vdiff-with-other-window
-            (vdiff-push-changes pos (1+ pos)))))
+            (vdiff-send-changes pos (1+ pos)))))
         (t
          (let* ((addition (eq 'addition (overlay-get chg-ovr 'vdiff-type)))
                 (target-rng (overlay-get chg-ovr 'vdiff-target-range))
@@ -280,15 +304,15 @@
                                 (point))))
              (insert text))))))
 
-(defun vdiff-push-pull-subtraction-overlay (sub-ovr &optional pull)
+(defun vdiff-transmit-subtraction-overlay (sub-ovr &optional receive)
   (cond ((not (overlayp sub-ovr))
          (message "No change found"))
-        (pull
+        (receive
          (let* ((target-rng (overlay-get sub-ovr 'vdiff-target-range))
                 (pos (vdiff-pos-at-line-beginning
                       (car target-rng) (vdiff-other-buffer))))
            (vdiff-with-other-window
-            (vdiff-push-changes pos (1+ pos)))))
+            (vdiff-send-changes pos (1+ pos)))))
         (t
          (let* ((target-rng
                  (overlay-get sub-ovr 'vdiff-target-range)))
@@ -302,8 +326,6 @@
                                 (point)))))))))
 
 ;; * Scrolling and line syncing
-
-(defvar vdiff-line-map nil)
 
 (defun vdiff-refresh-line-maps ()
   (let (new-map)
@@ -351,7 +373,7 @@
 (defun vdiff-goto-corresponding-line (line in-b)
   (interactive (list (line-number-at-pos)
                      (not (vdiff-buffer-a-p))))
-  (vdiff-refresh-diff-overlays)
+  (vdiff-refresh)
   (let* ((new-line (vdiff-translate-line line in-b))
          (new-pos (vdiff-pos-at-line-beginning new-line)))
     (select-window (vdiff-other-window))
@@ -375,9 +397,6 @@
   (vdiff-with-other-window
    (recenter)))
 
-(defvar vdiff-window-a-start nil)
-(defvar vdiff-window-b-start nil)
-
 (defun vdiff-pos-at-line-beginning (line &optional buffer)
   (with-current-buffer (or buffer (current-buffer))
     (save-excursion
@@ -385,8 +404,8 @@
       (line-beginning-position))))
 
 (defun vdiff-scroll-other (window window-start)
-  (let ((win-a (get-buffer-window vdiff-buffer-a))
-        (win-b (get-buffer-window vdiff-buffer-b)))
+  (let ((win-a (get-buffer-window (car vdiff-buffers)))
+        (win-b (get-buffer-window (nth 1 vdiff-buffers))))
     (when (and (eq window (selected-window))
                (window-live-p win-a)
                (window-live-p win-b)
@@ -394,8 +413,8 @@
       (let* ((in-b (eq window win-b))
              (this-window (if in-b win-b win-a))
              (other-window (if in-b win-a win-b))
-             (other-buffer (if in-b vdiff-buffer-a
-                             vdiff-buffer-b))
+             (other-buffer (if in-b (car vdiff-buffers)
+                             (nth 1 vdiff-buffers)))
              (this-line (line-number-at-pos (point)))
              (other-line (vdiff-translate-line
                           this-line in-b))
@@ -411,18 +430,10 @@
 
 (defun vdiff-toggle-lock ()
   (interactive)
-  (with-current-buffer vdiff-buffer-a
+  (with-current-buffer (car vdiff-buffers)
     (vdiff-sync-line (line-number-at-pos) t)
     (scroll-all-mode)))
 
-(defvar vdiff-scroll-command-cnt 0)
-(defvar vdiff-copied-commands '(next-line
-                                previous-line
-                                evil-next-line
-                                evil-previous-line
-                                beginning-of-buffer
-                                end-of-buffer))
-(defvar vdiff-inhibit-sync nil)
 
 (defun vdiff-sync-scroll ()
   ;; Use real-this-command because evil-next-line and evil-previous-line pretend
@@ -473,7 +484,6 @@
         (setq next (previous-overlay-change (point))))
       (vdiff-sync-and-center))))
 
-
 ;; * Entry points
  
 (defun vdiff-files (A B &optional horizontal)
@@ -484,57 +494,57 @@
                    (format "[File 1 %s] File 2: "
                            (file-name-nondirectory file-a)))
                   current-prefix-arg)))
-  (let (a-window b-window)
+  (let (a-window b-window a-buffer)
     (delete-other-windows)
     (find-file A)
     (goto-char (point-min))
-    (setq vdiff-buffer-a (current-buffer))
-    (setq b-window (if horizontal
-                       (split-window-vertically)
-                     (split-window-horizontally)))
-    (find-file-other-window B)
-    (setq vdiff-buffer-b (window-buffer b-window))
-    (setq vdiff-window-a-start
-          (window-start (get-buffer-window vdiff-buffer-a)))
-    (setq vdiff-window-b-start (window-start b-window))
-    (with-current-buffer vdiff-buffer-a
-      (vdiff-mode 1))
-    (with-current-buffer vdiff-buffer-b
-      (vdiff-mode 1))
-    (vdiff-refresh-diff-overlays)))
+    (setq a-buffer (current-buffer))
+    (save-selected-window
+      (setq b-window (if horizontal
+                         (split-window-vertically)
+                       (split-window-horizontally)))
+      (find-file-other-window B)
+      (setq vdiff-buffers (list a-buffer (window-buffer b-window)))
+      (setq vdiff-window-starts
+            (mapcar (lambda (buf)
+                      (window-start (get-buffer-window buf)))
+                    vdiff-buffers))
+      (vdiff-with-both-buffers
+       (vdiff-mode 1))
+      (vdiff-refresh))))
 
 (defvar vdiff-mode-map (make-sparse-keymap))
 (define-key vdiff-mode-map "\C-l"  'vdiff-sync-and-center)
 (define-key vdiff-mode-map "\C-cg" 'vdiff-goto-corresponding-line)
 (define-key vdiff-mode-map "\C-cn" 'vdiff-next-change)
 (define-key vdiff-mode-map "\C-cp" 'vdiff-previous-change)
-(define-key vdiff-mode-map "\C-ct" 'vdiff-push-changes)
-(define-key vdiff-mode-map "\C-co" 'vdiff-pull-changes)
+(define-key vdiff-mode-map "\C-cs" 'vdiff-send-changes)
+(define-key vdiff-mode-map "\C-cr" 'vdiff-receive-changes)
 
 (define-minor-mode vdiff-mode
   " "
   nil " VDIFF" 'vdiff-mode-map
   (if vdiff-mode
       (progn
-        ;; (add-hook 'evil-insert-state-exit-hook
-        ;;           #'vdiff-refresh-diff-overlays)
         (setq cursor-in-non-selected-windows nil)
-        (add-hook 'after-save-hook #'vdiff-refresh-diff-overlays nil t)
-        (add-hook 'window-scroll-functions #'vdiff-scroll-other)
-        (add-hook 'post-command-hook #'vdiff-sync-scroll)
-        )
-    ;; (add-hook 'evil-insert-state-exit-hook
-    ;;           #'vdiff-refresh-diff-overlays)
+        (add-hook 'after-save-hook #'vdiff-refresh nil t))
     (setq cursor-in-non-selected-windows t)
     (setq vdiff-diff-data nil)
-    (setq vdiff-diff-data-w-text nil)
     (vdiff-remove-all-overlays)
-    (remove-hook 'post-command-hook #'vdiff-sync-scroll)
-    (remove-hook 'after-save-hook #'vdiff-refresh-diff-overlays t)
-    (remove-hook 'window-scroll-functions #'vdiff-scroll-other)))
+    (remove-hook 'after-save-hook #'vdiff-refresh t)))
 
-;; (evil-define-minor-mode-key 'normal vdiff-mode
-;;   (kbd "<up>") 'vdiff-previous-change
-;;   (kbd "<right>") 'vdiff-push-changes
-;;   (kbd "<left>") 'vdiff-pull-changes
-;;   (kbd "<down>") 'vdiff-next-change)
+(define-minor-mode vdiff-scroll-lock-mode
+  " "
+  nil nil nil
+  (if vdiff-scroll-lock-mode
+      (progn
+        (unless vdiff-mode
+          (vdiff-mode 1))
+        (message "Scrolling locked")
+        (vdiff-with-both-buffers
+         (add-hook 'window-scroll-functions #'vdiff-scroll-other nil t)
+         (add-hook 'post-command-hook #'vdiff-sync-scroll nil t)))
+    (message "Scrolling unlocked")
+    (vdiff-with-both-buffers
+     (remove-hook 'after-save-hook #'vdiff-refresh t)
+     (remove-hook 'window-scroll-functions #'vdiff-scroll-other t))))
