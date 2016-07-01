@@ -50,6 +50,9 @@ declaration the key bindings in vdiff buffers are
 | =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |
 | =C-l=   | =vdiff-sync-and-center=         | Recenter both buffers at current line              |
 
+To start vdiff, use either =vdiff-files= to select two files or =vdiff-buffers=
+to select two open buffers.
+
 ** Further customization
    
 The current customization options and there defaults are
