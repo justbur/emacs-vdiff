@@ -22,6 +22,7 @@ welcome. A rough TODO list is
 2. Improve scrolling/syncing position between buffers
 3. Three way diffs
 4. Other missing features from vimdiff
+5. Add tests
 
 ** Installation and Usage
 
