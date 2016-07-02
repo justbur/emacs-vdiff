@@ -375,12 +375,12 @@ lines hidden."
   (vdiff--remove-all-overlays)
   (vdiff--refresh-line-maps)
   (save-excursion
-    (let ((a-last-post-end 1)
+    (let ((a-buffer (car vdiff--buffers))
+          (b-buffer (cadr vdiff--buffers))
+          (a-last-post-end 1)
           (b-last-post-end 1))
       (dolist (header vdiff--diff-data)
-        (let* ((a-buffer (car vdiff--buffers))
-               (b-buffer (cadr vdiff--buffers))
-               (code (nth 0 header))
+        (let* ((code (nth 0 header))
                (a-range (nth 1 header))
                (b-range (nth 2 header))
                (a-beg (car a-range))
@@ -433,7 +433,15 @@ lines hidden."
                  (vdiff--add-change-overlays
                   a-buffer a-beg a-length b-norm-range)
                  (vdiff--add-change-overlays
-                  b-buffer b-beg b-length a-norm-range))))))))
+                  b-buffer b-beg b-length a-norm-range)))))
+      (vdiff--add-folds
+       a-buffer b-buffer
+       (cons a-last-post-end
+             (with-current-buffer a-buffer
+               (line-number-at-pos (point-max))))
+       (cons b-last-post-end
+             (with-current-buffer b-buffer
+               (line-number-at-pos (point-max))))))))
 
 ;; * Moving changes
 
