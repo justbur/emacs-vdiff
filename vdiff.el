@@ -138,6 +138,31 @@ lines hidden."
   :group 'vdiff
   :type 'string)
 
+(defface vdiff-addition-face
+  '((t :background "#27321C"))
+  "Face for additions"
+  :group 'vdiff)
+
+(defface vdiff-change-face
+  '((t :background "#4C3A25"))
+  "Face for changes"
+  :group 'vdiff)
+
+(defface vdiff-closed-fold-face
+  '((t :inherit region))
+  "Face for closed folds"
+  :group 'vdiff)
+
+(defface vdiff-open-fold-face
+  '((t :background "#282828"))
+  "Face for open folds"
+  :group 'vdiff)
+
+(defface vdiff-subtraction-face
+  '((t :background "#3F1B1B"))
+  "Face for changes"
+  :group 'vdiff)
+
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
 (defvar vdiff--process-buffer " *vdiff*")
@@ -294,7 +319,7 @@ lines hidden."
       (push (make-string (1- (vdiff--min-window-width)) ?-) string))
     (propertize
      (concat (mapconcat #'identity string "\n") "\n")
-     'face '(:background "#440000"))))
+     'face 'vdiff-subtraction-face)))
 
 (defun vdiff--add-subtraction-overlays (buffer start-line target-range amount)
   (with-current-buffer buffer
@@ -317,8 +342,8 @@ lines hidden."
                       (point))))
       (let ((ovr (make-overlay beg end)))
         (overlay-put ovr 'face (if addition
-                                   '(:background "#004422")
-                                 '(:background "#353500")))
+                                   'vdiff-addition-face
+                                 'vdiff-change-face))
         (overlay-put ovr 'vdiff--type (if addition
                                          'addition
                                        'change))
@@ -352,8 +377,8 @@ lines hidden."
                      (make-string (- (vdiff--min-window-width)
                                      (length text) 1) ?-)
                      "\n")
-             'face 'region)))
-      (overlay-put ovr 'face '(:background "#111"))
+             'face 'vdiff-closed-fold-face)))
+      (overlay-put ovr 'face 'vdiff-open-fold-face)
       (overlay-put ovr 'vdiff-fold-text text)
       (overlay-put ovr 'vdiff-type 'fold)
       ovr)))
