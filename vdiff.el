@@ -132,8 +132,7 @@ the buffer here, because those are handled differently."
   :type '(repeat symbol))
 
 (defvar vdiff--buffers nil)
-(defvar vdiff--temp-files (list (make-temp-file "vdiff--temp-a-")
-                               (make-temp-file "vdiff--temp-b-")))
+(defvar vdiff--temp-files nil)
 (defvar vdiff--process-buffer " *vdiff*")
 (defvar vdiff--diff-data nil)
 (defvar vdiff--diff-code-regexp
@@ -656,8 +655,9 @@ asked to select two files."
                        (split-window-horizontally)))
       (find-file-other-window file-b)
       (setq vdiff--buffers (list buffer-a (window-buffer window-b)))
-      (vdiff-mode 1)
-      (vdiff-refresh))))
+      (vdiff-mode 1))
+    (vdiff-mode 1)
+    (vdiff-refresh)))
 
 ;;;###autoload
 (defun vdiff-buffers (buffer-a buffer-b &optional horizontal)
@@ -711,6 +711,9 @@ changes. This will be enabled automatically after calling
 commands like `vdiff-files' or `vdiff-buffers'."
   nil " vdiff" 'vdiff-mode-map
   (cond (vdiff-mode
+         (setq vdiff--temp-files
+               (list (make-temp-file "vdiff--temp-a-")
+                     (make-temp-file "vdiff--temp-b-")))
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
          (when vdiff-lock-scrolling
