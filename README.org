@@ -26,7 +26,7 @@ welcome. A rough TODO list is
    
 ** Screenshot
 
-[[./img/screenshot.png]]
+[[./img/wide-screen.png]]
 
 ** Installation and Usage
 
