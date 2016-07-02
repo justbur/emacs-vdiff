@@ -665,7 +665,7 @@ in other vdiff buffer. If called interactively, either open fold
 at point or on prior line. If the region is active open all folds
 in the region."
   (interactive (vdiff--region-or-close-overlay))
-  (dolist (ovr (overlays-at beg))
+  (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
         (dolist (ovr1 (list ovr other-fold))
@@ -678,7 +678,7 @@ in other vdiff buffer. If called interactively, either close fold
 at point or on prior line. If the region is active close all
 folds in the region."
   (interactive (vdiff--region-or-close-overlay))
-  (dolist (ovr (overlays-at beg))
+  (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
         (dolist (ovr1 (list ovr other-fold))
