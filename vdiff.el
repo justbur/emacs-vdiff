@@ -39,12 +39,7 @@
 ;; vimdiff. vdiff does not assume you use evil-mode, but is compatible with it.
 
 ;; vdiff is a work in progress, so use it at your own risk. Contributions are very
-;; welcome. A rough TODO list is
-
-;; 1. Implement folding
-;; 2. Improve scrolling/syncing position between buffers
-;; 3. Three way diffs
-;; 4. Other missing features from vimdiff
+;; welcome.
 
 ;; ** Installation and Usage
 
@@ -130,6 +125,18 @@ lines in sync. There is no need to include commands that scroll
 the buffer here, because those are handled differently."
   :group 'vdiff
   :type '(repeat symbol))
+
+(defcustom vdiff-fold-padding 2
+  "Unchanged lines to leave unfolded around a fold"
+  :group 'vdiff
+  :type 'integer)
+
+(defcustom vdiff-fold-format-string "+ %s --- %s lines "
+  "Format string for text on closed folds. First element is the
+code on the first line being covered. The second is the number of
+lines hidden."
+  :group 'vdiff
+  :type 'string)
 
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
@@ -284,7 +291,7 @@ the buffer here, because those are handled differently."
 (defun vdiff--make-subtraction-string (length)
   (let (string)
     (dotimes (_ length)
-      (push (make-string (vdiff--min-window-width) ?-) string))
+      (push (make-string (1- (vdiff--min-window-width)) ?-) string))
     (propertize
      (concat (mapconcat #'identity string "\n") "\n")
      'face '(:background "#440000"))))
@@ -321,77 +328,133 @@ the buffer here, because those are handled differently."
           (overlay-put ovr 'after-string
                        (vdiff--make-subtraction-string subtraction-padding)))))))
 
+(defun vdiff--make-fold (buffer range)
+  (with-current-buffer buffer
+    (let* ((beg-line (+ vdiff-fold-padding (car range)))
+           (end-line (1+ (- (cdr range) vdiff-fold-padding)))
+           (fold-start (vdiff--pos-at-line-beginning beg-line))
+           (summ-text (buffer-substring-no-properties
+                       fold-start
+                       (min (save-excursion
+                              (goto-char fold-start)
+                              (line-end-position))
+                            (+ fold-start
+                               (- (vdiff--min-window-width) 20)))))
+           (fold-end
+            (vdiff--pos-at-line-beginning end-line))
+           (ovr (make-overlay fold-start fold-end))
+           (text (format vdiff-fold-format-string
+                         summ-text
+                         (1+ (- end-line beg-line))))
+           (text
+            (propertize
+             (concat text
+                     (make-string (- (vdiff--min-window-width)
+                                     (length text) 1) ?-)
+                     "\n")
+             'face 'region)))
+      (overlay-put ovr 'face '(:background "#111"))
+      (overlay-put ovr 'vdiff-fold-text text)
+      (overlay-put ovr 'vdiff-type 'fold)
+      ovr)))
+
+(defun vdiff--add-folds (a-buffer b-buffer a-range b-range)
+  (when (and (> (1+ (- (cdr a-range) (car a-range)))
+                (* 2 vdiff-fold-padding))
+             (> (- (cdr a-range) (car a-range)) 2))
+    (let ((a-fold (vdiff--make-fold a-buffer a-range))
+          (b-fold (vdiff--make-fold b-buffer b-range)))
+      (overlay-put a-fold 'display (overlay-get a-fold 'vdiff-fold-text))
+      (overlay-put a-fold 'vdiff-fold-open nil)
+      (overlay-put a-fold 'vdiff-other-fold b-fold)
+      (overlay-put b-fold 'display (overlay-get b-fold 'vdiff-fold-text))
+      (overlay-put b-fold 'vdiff-fold-open nil)
+      (overlay-put b-fold 'vdiff-other-fold a-fold))))
+
 (defun vdiff--refresh-overlays ()
   (vdiff--remove-all-overlays)
   (vdiff--refresh-line-maps)
   (save-excursion
-    (dolist (header vdiff--diff-data)
-      (let* ((code (nth 0 header))
-             (a-buffer (car vdiff--buffers))
-             (b-buffer (cadr vdiff--buffers))
-             (a-range (nth 1 header))
-             (a-beg (car a-range))
-             (a-end (if (cdr-safe a-range)
-                        (cdr a-range)
-                      (car a-range)))
-             (a-norm-range (cons a-beg a-end))
-             (a-length (1+ (- a-end a-beg)))
-             (b-range (nth 2 header))
-             (b-beg (car b-range))
-             (b-end (if (cdr-safe b-range)
-                        (cdr b-range)
-                      (car b-range)))
-             (b-norm-range (cons b-beg b-end))
-             (b-length (1+ (- b-end b-beg))))
-        (cond ((string= code "d")
-               (vdiff--add-subtraction-overlays
-                b-buffer b-beg a-norm-range a-length)
-               (vdiff--add-change-overlays
-                a-buffer a-beg a-length b-norm-range t))
+    (let ((a-last-post-end 1)
+          (b-last-post-end 1))
+      (dolist (header vdiff--diff-data)
+        (let* ((a-buffer (car vdiff--buffers))
+               (b-buffer (cadr vdiff--buffers))
+               (code (nth 0 header))
+               (a-range (nth 1 header))
+               (b-range (nth 2 header))
+               (a-beg (car a-range))
+               (a-end (if (cdr-safe a-range)
+                          (cdr a-range)
+                        (car a-range)))
+               (a-norm-range (cons a-beg a-end))
+               (a-length (1+ (- a-end a-beg)))
+               (b-beg (car b-range))
+               (b-end (if (cdr-safe b-range)
+                          (cdr b-range)
+                        (car b-range)))
+               (b-norm-range (cons b-beg b-end))
+               (b-length (1+ (- b-end b-beg))))
 
-              ((string= code "a")
-               (vdiff--add-subtraction-overlays
-                a-buffer a-beg b-norm-range b-length)
-               (vdiff--add-change-overlays
-                b-buffer b-beg b-length a-norm-range t))
+          (vdiff--add-folds
+           a-buffer b-buffer
+           (cons a-last-post-end (1- a-beg))
+           (cons b-last-post-end (1- b-beg)))
+          (setq a-last-post-end (1+ a-end))
+          (setq b-last-post-end (1+ b-end))
 
-              ((and (string= code "c") (> a-length b-length))
-               (vdiff--add-change-overlays
-                a-buffer a-beg a-length b-norm-range)
-               (vdiff--add-change-overlays
-                b-buffer b-beg b-length a-norm-range
-                nil (- a-length b-length)))
+          (cond ((string= code "d")
+                 (vdiff--add-subtraction-overlays
+                  b-buffer b-beg a-norm-range a-length)
+                 (vdiff--add-change-overlays
+                  a-buffer a-beg a-length b-norm-range t))
 
-              ((and (string= code "c") (< a-length b-length))
-               (vdiff--add-change-overlays
-                a-buffer a-beg a-length b-norm-range
-                nil (- b-length a-length))
-               (vdiff--add-change-overlays
-                b-buffer b-beg b-length a-norm-range))
+                ((string= code "a")
+                 (vdiff--add-subtraction-overlays
+                  a-buffer a-beg b-norm-range b-length)
+                 (vdiff--add-change-overlays
+                  b-buffer b-beg b-length a-norm-range t))
 
-              ((string= code "c")
-               (vdiff--add-change-overlays
-                a-buffer a-beg a-length b-norm-range)
-               (vdiff--add-change-overlays
-                b-buffer b-beg b-length a-norm-range)))))))
+                ((and (string= code "c") (> a-length b-length))
+                 (vdiff--add-change-overlays
+                  a-buffer a-beg a-length b-norm-range)
+                 (vdiff--add-change-overlays
+                  b-buffer b-beg b-length a-norm-range
+                  nil (- a-length b-length)))
+
+                ((and (string= code "c") (< a-length b-length))
+                 (vdiff--add-change-overlays
+                  a-buffer a-beg a-length b-norm-range
+                  nil (- b-length a-length))
+                 (vdiff--add-change-overlays
+                  b-buffer b-beg b-length a-norm-range))
+
+                ((string= code "c")
+                 (vdiff--add-change-overlays
+                  a-buffer a-beg a-length b-norm-range)
+                 (vdiff--add-change-overlays
+                  b-buffer b-beg b-length a-norm-range))))))))
 
 ;; * Moving changes
+
+(defun vdiff--region-or-close-overlay ()
+  (if (region-active-p)
+      (list (region-beginning) (region-end))
+    (list (if (or (= (line-number-at-pos) 1)
+                  (vdiff--overlay-at-point
+                   nil (line-beginning-position)))
+              (line-beginning-position)
+            (save-excursion
+              (forward-line -1)
+              (line-beginning-position)))
+          (line-end-position))))
 
 (defun vdiff-send-changes (beg end &optional receive)
   "Send these changes to other vdiff buffer. If the region is
 active, send all changes found in the region. Otherwise use the
 changes under point or on the immediately preceding line."
   (interactive
-   (if (region-active-p)
-       (list (region-beginning) (region-end))
-     (list (if (or (= (line-number-at-pos) 1)
-                   (vdiff--overlay-at-point
-                    nil (line-beginning-position)))
-               (line-beginning-position)
-             (save-excursion
-               (forward-line -1)
-               (line-beginning-position)))
-           (line-end-position))))
+   (vdiff--region-or-close-overlay))
   (let* ((ovrs (overlays-in beg end)))
     (dolist (ovr ovrs)
       (cond ((memq (overlay-get ovr 'vdiff--type)
@@ -409,17 +472,7 @@ changes under point or on the immediately preceding line."
 other vdiff buffer. If the region is active, receive all
 corresponding changes found in the region. Otherwise use the
 changes under point or on the immediately preceding line."
-  (interactive
-   (if (region-active-p)
-       (list (region-beginning) (region-end))
-     (list (if (or (= (line-number-at-pos) 1)
-                   (vdiff--overlay-at-point
-                    nil (line-beginning-position)))
-               (line-beginning-position)
-             (save-excursion
-               (forward-line -1)
-               (line-beginning-position)))
-           (line-end-position))))
+  (interactive (vdiff--region-or-close-overlay))
   (vdiff-send-changes beg end t))
 
 (defun vdiff--transmit-change-overlay (chg-ovr &optional receive)
@@ -598,6 +651,43 @@ buffer and center both buffers at this line."
             (vdiff--translate-line
              this-line (vdiff--buffer-a-p)))))))))
 
+(defun vdiff-open-fold (beg end)
+  "Open folds between BEG and END, as well as corresponding ones
+in other vdiff buffer. If called interactively, either open fold
+at point or on prior line. If the region is active open all folds
+in the region."
+  (interactive (vdiff--region-or-close-overlay))
+  (dolist (ovr (overlays-at beg))
+    (when (eq (overlay-get ovr 'vdiff-type) 'fold)
+      (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
+        (dolist (ovr1 (list ovr other-fold))
+          (overlay-put ovr1 'vdiff-fold-open t)
+          (overlay-put ovr1 'display nil))))))
+
+(defun vdiff-close-fold (beg end)
+  "Close folds between BEG and END, as well as corresponding ones
+in other vdiff buffer. If called interactively, either close fold
+at point or on prior line. If the region is active close all
+folds in the region."
+  (interactive (vdiff--region-or-close-overlay))
+  (dolist (ovr (overlays-at beg))
+    (when (eq (overlay-get ovr 'vdiff-type) 'fold)
+      (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
+        (dolist (ovr1 (list ovr other-fold))
+          (overlay-put ovr1 'vdiff-fold-open nil)
+          (overlay-put ovr1 'display
+                       (overlay-get ovr1 'vdiff-fold-text)))))))
+
+(defun vdiff-open-all-folds ()
+  "Open all folds in both buffers"
+  (interactive)
+  (vdiff-open-fold (point-min) (point-max)))
+
+(defun vdiff-close-all-folds ()
+  "Close all folds in both buffers"
+  (interactive)
+  (vdiff-close-fold (point-min) (point-max)))
+
 ;; * Movement
 
 (defun vdiff-next-change ()
@@ -702,6 +792,10 @@ asked to select two buffers."
     (define-key map "s" 'vdiff-send-changes)
     (define-key map "r" 'vdiff-receive-changes)
     (define-key map "w" 'vdiff-save-buffers)
+    (define-key map "o" 'vdiff-open-fold)
+    (define-key map "O" 'vdiff-open-all-folds)
+    (define-key map "c" 'vdiff-close-fold)
+    (define-key map "C" 'vdiff-close-all-folds)
     map))
 
 (define-minor-mode vdiff-mode

@@ -18,12 +18,11 @@ vimdiff. vdiff does not assume you use evil-mode, but is compatible with it.
 vdiff is a work in progress, so use it at your own risk. Contributions are very
 welcome. A rough TODO list is
 
-1. Implement folding
-2. Improve scrolling/syncing position between buffers
-3. Three way diffs
-4. Other missing features from vimdiff
-5. Add tests
-6. Improve faces
+1. Improve scrolling/syncing position between buffers
+2. Three way diffs
+3. Other missing features from vimdiff
+4. Add tests
+5. Improve faces
 
 ** Installation and Usage
 
@@ -49,6 +48,10 @@ declaration the key bindings in vdiff buffers are
 | =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
 | =C-c r= | =vdiff-receive-changes=         | Receive the corresponding hunk from other buffer   |
 | =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |
+| =C-c o= | =vdiff-open-fold=               | Open fold at point or in region                    |
+| =C-c O= | =vdiff-open-all-folds=          | Open all folds in buffer                           |
+| =C-c c= | =vdiff-close-fold=              | Close fold at point or in region                   |
+| =C-c C= | =vdiff-close-all-folds=         | Close all folds in buffer                          |
 | =C-l=   | =vdiff-sync-and-center=         | Recenter both buffers at current line              |
 
 To start vdiff, use either =vdiff-files= to select two files or =vdiff-buffers=
