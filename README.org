@@ -23,6 +23,10 @@ welcome. A rough TODO list is
 3. Other missing features from vimdiff
 4. Add tests
 5. Improve faces
+   
+** Screenshot
+
+[[./img/screenshot.png]]
 
 ** Installation and Usage
 
@@ -82,3 +86,4 @@ The current customization options and there defaults are
                                   beginning-of-buffer
                                   end-of-buffer))
 #+END_SRC
+
