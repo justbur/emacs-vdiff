@@ -804,19 +804,18 @@ asked to select two buffers."
         (format "[Buffer 1 %s] Buffer 2: " buffer-a)
         (window-buffer (next-window (selected-window)))))
       current-prefix-arg)))
-  (let (window-b)
-    (delete-other-windows)
-    (switch-to-buffer buffer-a)
-    (goto-char (point-min))
-    (save-selected-window
-      (setq window-b (if horizontal
-                         (split-window-vertically)
-                       (split-window-horizontally)))
-      (switch-to-buffer-other-window buffer-b)
-      (setq vdiff--buffers (list buffer-a buffer-b))
-      (vdiff--with-both-buffers
-       (vdiff-mode 1))
-      (vdiff-refresh))))
+  (delete-other-windows)
+  (switch-to-buffer buffer-a)
+  (goto-char (point-min))
+  (save-selected-window
+    (if horizontal
+        (split-window-vertically)
+      (split-window-horizontally))
+    (switch-to-buffer-other-window buffer-b)
+    (setq vdiff--buffers (list buffer-a buffer-b))
+    (vdiff--with-both-buffers
+     (vdiff-mode 1))
+    (vdiff-refresh)))
 
 (defvar vdiff-mode-map
   (let ((map (make-sparse-keymap)))
