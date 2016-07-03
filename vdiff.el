@@ -695,7 +695,10 @@ in the region."
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
         (dolist (ovr1 (list ovr other-fold))
           (overlay-put ovr1 'vdiff-fold-open t)
-          (overlay-put ovr1 'display nil))))))
+          (overlay-put ovr1 'display nil)
+          (overlay-put ovr1 'line-prefix
+                       (propertize " "
+                        'display '(left-fringe vertical-bar))))))))
 
 (defun vdiff-close-fold (beg end)
   "Close folds between BEG and END, as well as corresponding ones
@@ -708,6 +711,7 @@ folds in the region."
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
         (dolist (ovr1 (list ovr other-fold))
           (overlay-put ovr1 'vdiff-fold-open nil)
+          (overlay-put ovr1 'line-prefix nil)
           (overlay-put ovr1 'display
                        (overlay-get ovr1 'vdiff-fold-text)))))))
 
