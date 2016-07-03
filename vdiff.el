@@ -480,7 +480,9 @@ lines hidden."
             (save-excursion
               (forward-line -1)
               (line-beginning-position)))
-          (line-end-position))))
+          (save-excursion
+            (forward-line 1)
+            (point)))))
 
 (defun vdiff-send-changes (beg end &optional receive)
   "Send these changes to other vdiff buffer. If the region is
