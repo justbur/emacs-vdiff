@@ -128,7 +128,7 @@ the buffer here, because those are handled differently."
   :group 'vdiff
   :type '(repeat symbol))
 
-(defcustom vdiff-fold-padding 2
+(defcustom vdiff-fold-padding 6
   "Unchanged lines to leave unfolded around a fold"
   :group 'vdiff
   :type 'integer)
