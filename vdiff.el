@@ -332,9 +332,7 @@ lines hidden."
 (defun vdiff--add-subtraction-overlays (buffer start-line target-range amount)
   (with-current-buffer buffer
     (vdiff--move-to-line start-line)
-    (end-of-line)
-    (let* ((position (1+ (point)))
-           (ovr (make-overlay position (1+ position))))
+    (let* ((ovr (make-overlay (point) (1+ (point)))))
       (overlay-put ovr 'before-string 
                    (vdiff--make-subtraction-string amount))
       (overlay-put ovr 'vdiff-target-range target-range)
@@ -436,6 +434,12 @@ lines hidden."
                (b-norm-range (cons b-beg b-end))
                (b-length (1+ (- b-end b-beg))))
 
+          ;; Adjust line number for subtractions
+          (when (string= code "a")
+            (cl-incf a-beg))
+          (when (string= code "d")
+            (cl-incf b-beg))
+          
           (vdiff--add-folds
            a-buffer b-buffer
            (cons a-last-post-end (1- a-beg))
