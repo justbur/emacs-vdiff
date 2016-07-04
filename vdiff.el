@@ -209,30 +209,36 @@ lines hidden."
   (goto-char (point-min))
   (forward-line (1- n)))
 
-(defun vdiff--overlay-at-point (&optional prior pos)
+(defun vdiff--overlay-at-pos (&optional pos)
   (let ((pos (or pos (point))))
     (catch 'yes
-      (dolist (ovr (overlays-at
-                    (if prior
-                        (max (point-min)
-                             (1- pos))
-                      pos)))
-        (when (overlay-get ovr 'vdiff--type)
+      (dolist (ovr (overlays-at pos))
+        (when (overlay-get ovr 'vdiff-type)
           (throw 'yes ovr))))))
+
+(defun vdiff--change-at-point-p ()
+  (let ((ovr (vdiff--overlay-at-pos)))
+    (and (overlayp ovr)
+         (overlay-get ovr 'vdiff-type)
+         (not (eq (overlay-get ovr 'vdiff-type) 'fold)))))
 
 (defun vdiff--overlays-in-region (beg end)
   (let (ovrs)
     (dolist (ovr (overlays-in beg end))
-      (when (overlay-get ovr 'vdiff--type)
+      (when (overlay-get ovr 'vdiff-type)
         (push ovr ovrs)))
     (nreverse ovrs)))
 
-(defun vdiff--maybe-exit-overlay (&optional up)
-  (let* ((ovr (vdiff--overlay-at-point up))
-         (type (when ovr (overlay-get ovr 'vdiff--type))))
-    (when (memq type '(addition change))
-      (let ((range (overlay-get ovr 'vdiff--range)))
-        (goto-char (if up (car range) (cdr range)))))))
+(defun vdiff--maybe-exit-overlay (&optional up no-fold)
+  (let* ((ovr (vdiff--overlay-at-pos))
+         (type (when ovr (overlay-get ovr 'vdiff-type))))
+    (when (and type
+               (or (not no-fold)
+                   (not (eq type 'fold))))
+      (goto-char
+       (if up
+           (1- (overlay-start ovr))
+         (1+ (overlay-end ovr)))))))
 
 (defmacro vdiff--with-other-window (&rest body)
   `(when (and (vdiff--buffer-p)
@@ -329,8 +335,8 @@ lines hidden."
            (ovr (make-overlay position (1+ position))))
       (overlay-put ovr 'before-string 
                    (vdiff--make-subtraction-string amount))
-      (overlay-put ovr 'vdiff--target-range target-range)
-      (overlay-put ovr 'vdiff--type 'subtraction))))
+      (overlay-put ovr 'vdiff-target-range target-range)
+      (overlay-put ovr 'vdiff-type 'subtraction))))
 
 (defun vdiff--add-change-overlays
     (buffer start-line lines target-range
@@ -344,11 +350,10 @@ lines hidden."
         (overlay-put ovr 'face (if addition
                                    'vdiff-addition-face
                                  'vdiff-change-face))
-        (overlay-put ovr 'vdiff--type (if addition
+        (overlay-put ovr 'vdiff-type (if addition
                                          'addition
                                        'change))
-        (overlay-put ovr 'vdiff--range (cons beg end))
-        (overlay-put ovr 'vdiff--target-range target-range)
+        (overlay-put ovr 'vdiff-target-range target-range)
         (when subtraction-padding
           (overlay-put ovr 'after-string
                        (vdiff--make-subtraction-string subtraction-padding)))))))
@@ -472,10 +477,12 @@ lines hidden."
 
 (defun vdiff--region-or-close-overlay ()
   (if (region-active-p)
-      (list (region-beginning) (region-end))
+      (prog1
+        (list (region-beginning) (region-end))
+        (deactivate-mark))
     (list (if (or (= (line-number-at-pos) 1)
-                  (vdiff--overlay-at-point
-                   nil (line-beginning-position)))
+                  (vdiff--overlay-at-pos
+                   (line-beginning-position)))
               (line-beginning-position)
             (save-excursion
               (forward-line -1)
@@ -492,13 +499,10 @@ changes under point or on the immediately preceding line."
    (vdiff--region-or-close-overlay))
   (let* ((ovrs (overlays-in beg end)))
     (dolist (ovr ovrs)
-      (cond ((memq (overlay-get ovr 'vdiff--type)
+      (cond ((memq (overlay-get ovr 'vdiff-type)
                    '(change addition))
              (vdiff--transmit-change-overlay ovr receive))
-            ((eq (overlay-get ovr 'vdiff--type) 'change-subtraction)
-             (vdiff--transmit-subtraction-overlay
-              (overlay-get ovr 'vdiff--change-overlay) receive))
-            ((eq (overlay-get ovr 'vdiff--type) 'subtraction)
+            ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
              (vdiff--transmit-subtraction-overlay ovr receive))))
     (vdiff-refresh)))
 
@@ -514,14 +518,14 @@ changes under point or on the immediately preceding line."
   (cond ((not (overlayp chg-ovr))
          (message "No change found"))
         (receive
-         (let* ((target-rng (overlay-get chg-ovr 'vdiff--target-range))
+         (let* ((target-rng (overlay-get chg-ovr 'vdiff-target-range))
                 (pos (vdiff--pos-at-line-beginning
                       (car target-rng) (vdiff--other-buffer))))
            (vdiff--with-other-window
             (vdiff-send-changes pos (1+ pos)))))
         (t
-         (let* ((addition (eq 'addition (overlay-get chg-ovr 'vdiff--type)))
-                (target-rng (overlay-get chg-ovr 'vdiff--target-range))
+         (let* ((addition (eq 'addition (overlay-get chg-ovr 'vdiff-type)))
+                (target-rng (overlay-get chg-ovr 'vdiff-target-range))
                 (text (buffer-substring-no-properties
                        (overlay-start chg-ovr)
                        (overlay-end chg-ovr))))
@@ -541,14 +545,14 @@ changes under point or on the immediately preceding line."
   (cond ((not (overlayp sub-ovr))
          (message "No change found"))
         (receive
-         (let* ((target-rng (overlay-get sub-ovr 'vdiff--target-range))
+         (let* ((target-rng (overlay-get sub-ovr 'vdiff-target-range))
                 (pos (vdiff--pos-at-line-beginning
                       (car target-rng) (vdiff--other-buffer))))
            (vdiff--with-other-window
             (vdiff-send-changes pos (1+ pos)))))
         (t
          (let* ((target-rng
-                 (overlay-get sub-ovr 'vdiff--target-range)))
+                 (overlay-get sub-ovr 'vdiff-target-range)))
            (when target-rng
              (with-current-buffer (vdiff--other-buffer)
                (vdiff--move-to-line (car target-rng))
@@ -729,33 +733,35 @@ folds in the region."
 
 ;; * Movement
 
-(defun vdiff-next-change ()
-  "Jump to next change in this buffer."
-  (interactive)
-  (vdiff--maybe-exit-overlay)
-  (let ((next (next-overlay-change (point))))
-    (if (= next (point-max))
-        (message "No more changes")
-      (goto-char next)
-      (while (and (not (eobp))
-                  (not (vdiff--overlay-at-point)))
-        (goto-char next)
-        (setq next (next-overlay-change (point))))
-      (vdiff-sync-and-center))))
+(defun vdiff--nth-change (&optional n)
+  (let* ((n (or n 1))
+         (reverse (< n 0))
+         pnt)
+    (save-excursion
+      (dotimes (i (abs n))
+        ;; Escape current overlay
+        (vdiff--maybe-exit-overlay reverse)
+        (setq pnt (point))
+        ;; Find next overlay
+        (while (and (not (or (eobp) (bobp)))
+                    (not (vdiff--change-at-point-p)))
+          (setq pnt
+                (goto-char (if reverse
+                               (previous-overlay-change pnt)
+                             (next-overlay-change pnt)))))))
+    pnt))
 
-(defun vdiff-previous-change ()
+(defun vdiff-next-change (arg)
+  "Jump to next change in this buffer."
+  (interactive "p")
+  (let ((count (or arg 1)))
+    (goto-char (vdiff--nth-change count))))
+
+(defun vdiff-previous-change (arg)
   "Jump to previous change in this buffer."
-  (interactive)
-  (vdiff--maybe-exit-overlay t)
-  (let ((next (previous-overlay-change (point))))
-    (if (= next (point-min))
-        (message "No more changes")
-      (goto-char next)
-      (while (and (not (bobp))
-                  (not (vdiff--overlay-at-point)))
-        (goto-char next)
-        (setq next (previous-overlay-change (point))))
-      (vdiff-sync-and-center))))
+  (interactive "p")
+  (let ((count (or (- arg) -1)))
+    (goto-char (vdiff--nth-change count))))
 
 ;; * Entry points
 
