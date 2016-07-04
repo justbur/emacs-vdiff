@@ -748,7 +748,7 @@ folds in the region."
          (reverse (< n 0))
          pnt)
     (save-excursion
-      (dotimes (i (abs n))
+      (dotimes (_i (abs n))
         ;; Escape current overlay
         (vdiff--maybe-exit-overlay reverse)
         (setq pnt (point))
@@ -851,6 +851,8 @@ asked to select two buffers."
     (define-key map "c" 'vdiff-close-fold)
     (define-key map "C" 'vdiff-close-all-folds)
     map))
+
+(defvar vdiff-scroll-lock-mode)
 
 (define-minor-mode vdiff-mode
   "Minor mode active in a vdiff session. This sets up key
