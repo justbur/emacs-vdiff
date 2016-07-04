@@ -15,8 +15,8 @@ great until you want to edit the buffers directly. I prefer the way vimdiff
 works, but I am also not necessarily interested in perfectly emulating
 vimdiff. vdiff does not assume you use evil-mode, but is compatible with it.
 
-vdiff is a work in progress, so use it at your own risk. Contributions are very
-welcome. A rough TODO list is
+vdiff is a work in progress, so use it at your own risk. Contributions and
+suggestions are very welcome. A rough TODO list is
 
 1. Improve scrolling/syncing position between buffers
 2. Three way diffs
