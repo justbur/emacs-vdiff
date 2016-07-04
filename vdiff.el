@@ -92,6 +92,8 @@
 
 ;;; Code:
 
+(require 'cl-lib)
+
 (defgroup vdiff nil
   "Diff tool that is like vimdiff"
   :tag "Vdiff"
@@ -691,7 +693,7 @@ buffer and center both buffers at this line."
          (let ((vdiff--inhibit-sync t))
            (call-interactively real-this-command))
          (if (< vdiff--scroll-command-cnt 40)
-             (incf vdiff--scroll-command-cnt)
+             (cl-incf vdiff--scroll-command-cnt)
            ;; (message "syncing lines")
            (setq vdiff--scroll-command-cnt 0)
            (vdiff--move-to-line
