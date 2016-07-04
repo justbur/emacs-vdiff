@@ -255,9 +255,8 @@ lines hidden."
          (setq vdiff--inhibit-window-switch nil)))))
 
 (defmacro vdiff--with-both-buffers (&rest body)
-  `(when (and (buffer-live-p (car vdiff--buffers))
-              (buffer-live-p (cadr vdiff--buffers)))
-     (dolist (buf vdiff--buffers)
+  `(dolist (buf vdiff--buffers)
+     (when (buffer-live-p buf)
        (with-current-buffer buf
          ,@body))))
 
@@ -312,7 +311,8 @@ lines hidden."
          (message "vdiff process error: %s" event))))
 
 (defun vdiff--remove-all-overlays ()
-  (vdiff--with-both-buffers (remove-overlays)))
+  (vdiff--with-both-buffers
+   (remove-overlays (point-min) (point-max) 'vdiff t)))
 
 (defun vdiff-save-buffers ()
   "Save all vdiff buffers."
@@ -336,7 +336,8 @@ lines hidden."
       (overlay-put ovr 'before-string 
                    (vdiff--make-subtraction-string amount))
       (overlay-put ovr 'vdiff-target-range target-range)
-      (overlay-put ovr 'vdiff-type 'subtraction))))
+      (overlay-put ovr 'vdiff-type 'subtraction)
+      (overlay-put ovr 'vdiff t))))
 
 (defun vdiff--add-change-overlays
     (buffer start-line lines target-range
@@ -353,6 +354,7 @@ lines hidden."
         (overlay-put ovr 'vdiff-type (if addition
                                          'addition
                                        'change))
+        (overlay-put ovr 'vdiff t)
         (overlay-put ovr 'vdiff-target-range target-range)
         (when subtraction-padding
           (overlay-put ovr 'after-string
@@ -386,6 +388,7 @@ lines hidden."
       (overlay-put ovr 'face 'vdiff-open-fold-face)
       (overlay-put ovr 'vdiff-fold-text text)
       (overlay-put ovr 'vdiff-type 'fold)
+      (overlay-put ovr 'vdiff t)
       ovr)))
 
 (defun vdiff--add-folds (a-buffer b-buffer a-range b-range)
