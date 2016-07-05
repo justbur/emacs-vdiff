@@ -177,7 +177,6 @@ lines hidden."
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
 (defvar vdiff--inhibit-window-switch nil)
-(defvar vdiff--scroll-command-cnt 0)
 (defvar vdiff--inhibit-sync nil)
 (defvar vdiff--line-map nil)
 
@@ -613,14 +612,24 @@ changes under point or on the immediately preceding line."
 (defun vdiff--translate-line (line &optional B-to-A)
   (let ((nearest-line
          (catch 'closest
-           (let (closest)
+           (let (prev-entry)
              (dolist (entry vdiff--line-map)
-               (if (> (if B-to-A
-                          (cdr entry)
-                        (car entry)) line)
-                   (throw 'closest closest)
-                 (setq closest entry)))
-             (throw 'closest closest)))))
+               (let ((map-line
+                      (if B-to-A (cdr entry) (car entry)))
+                     (prev-map-line
+                      (when prev-entry
+                        (if B-to-A (cdr prev-entry) (car prev-entry)))))
+                 (cond ((< map-line line)
+                        (setq prev-entry entry))
+                       ((= map-line line)
+                        (throw 'closest entry))
+                       ((and prev-map-line
+                             (< (- line prev-map-line)
+                                (- map-line line)))
+                        (throw 'closest prev-entry))
+                       (t
+                        (throw 'closest entry)))))
+             (throw 'closest prev-entry)))))
     (cond ((and nearest-line B-to-A)
            (+ (- line (cdr nearest-line)) (car nearest-line)))
           (nearest-line
@@ -697,21 +706,22 @@ buffer and center both buffers at this line."
   ;; they are next-line and previous-line
   (when (and (memq real-this-command vdiff-mirrored-commands)
              (not vdiff--inhibit-sync))
-    (let ((this-line (line-number-at-pos))
+    (let* ((this-line (line-number-at-pos))
+           (other-line (vdiff--translate-line
+                        this-line (vdiff--buffer-b-p)))
           ;; This is necessary to not screw up the cursor column after calling
           ;; next-line or previous-line again from the other buffer
           temporary-goal-column)
       (vdiff--with-other-window
        (ignore-errors
          (let ((vdiff--inhibit-sync t))
-           (call-interactively real-this-command))
-         (if (< vdiff--scroll-command-cnt 40)
-             (cl-incf vdiff--scroll-command-cnt)
-           ;; (message "syncing lines")
-           (setq vdiff--scroll-command-cnt 0)
-           (vdiff--move-to-line
-            (vdiff--translate-line
-             this-line (vdiff--buffer-a-p)))))))))
+           (when (or
+                  (not (memq this-command '(next-line previous-line)))
+                  (and (eq this-command 'next-line)
+                       (< (line-number-at-pos) other-line))
+                  (and (eq this-command 'previous-line)
+                       (> (line-number-at-pos) other-line)))
+             (call-interactively real-this-command))))))))
 
 (defun vdiff-open-fold (beg end)
   "Open folds between BEG and END, as well as corresponding ones
@@ -899,8 +909,7 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (when (process-live-p vdiff--process-buffer)
            (kill-process vdiff--process-buffer))
          (when (buffer-live-p vdiff--process-buffer)
-           (kill-buffer vdiff--process-buffer))
-         (setq vdiff--scroll-command-cnt 0))))
+           (kill-buffer vdiff--process-buffer)))))
 
 (define-minor-mode vdiff-scroll-lock-mode
   "Lock scrolling between vdiff buffers. This minor mode will be
