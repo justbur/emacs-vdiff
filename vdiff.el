@@ -846,6 +846,11 @@ asked to select two buffers."
      (vdiff-mode 1))
     (vdiff-refresh)))
 
+(defun vdiff-exit ()
+  (interactive)
+  (dolist (buf vdiff--buffers)
+    (vdiff-mode -1)))
+
 (defvar vdiff-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-l"  'vdiff-sync-and-center)
