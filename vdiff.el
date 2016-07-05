@@ -179,6 +179,7 @@ lines hidden."
 (defvar vdiff--inhibit-window-switch nil)
 (defvar vdiff--inhibit-sync nil)
 (defvar vdiff--line-map nil)
+(defvar vdiff--folds nil)
 
 ;; * Utilities
 
@@ -366,8 +367,8 @@ lines hidden."
 
 (defun vdiff--make-fold (buffer range)
   (with-current-buffer buffer
-    (let* ((beg-line (+ vdiff-fold-padding (car range)))
-           (end-line (1+ (- (cdr range) vdiff-fold-padding)))
+    (let* ((beg-line (car range))
+           (end-line (cdr range))
            (fold-start (vdiff--pos-at-line-beginning beg-line))
            (summ-text (buffer-substring-no-properties
                        fold-start
@@ -395,27 +396,46 @@ lines hidden."
       (overlay-put ovr 'vdiff t)
       ovr)))
 
-(defun vdiff--add-folds (a-buffer b-buffer a-range b-range)
-  ;; Ranges include padding
-  (when (and (> (1+ (- (cdr a-range) (car a-range)))
-                (+ (* 2 vdiff-fold-padding)
-                   vdiff-min-fold-size)))
-    (let ((a-fold (vdiff--make-fold a-buffer a-range))
-          (b-fold (vdiff--make-fold b-buffer b-range)))
-      (overlay-put a-fold 'display (overlay-get a-fold 'vdiff-fold-text))
-      (overlay-put a-fold 'vdiff-fold-open nil)
-      (overlay-put a-fold 'vdiff-other-fold b-fold)
-      (overlay-put b-fold 'display (overlay-get b-fold 'vdiff-fold-text))
-      (overlay-put b-fold 'vdiff-fold-open nil)
-      (overlay-put b-fold 'vdiff-other-fold a-fold)
-      (when (and (eq (current-buffer) a-buffer)
-                 (>= (point) (overlay-start a-fold))
-                 (<= (point) (overlay-end a-fold)))
-        (vdiff-open-fold (point) (1+ (point))))
-      (when (and (eq (current-buffer) b-buffer)
-                 (>= (point) (overlay-start b-fold))
-                 (<= (point) (overlay-end b-fold)))
-        (vdiff-open-fold (point) (1+ (point)))))))
+(defun vdiff--narrow-fold-range (range)
+  (cons (+ vdiff-fold-padding (car range))
+        (1+ (- (cdr range) vdiff-fold-padding))))
+
+(defun vdiff--point-in-fold-p (buf fold)
+  (and (eq (current-buffer) buf)
+       (>= (point) (overlay-start fold))
+       (<= (point) (overlay-end fold))))
+
+(defun vdiff--add-folds (a-buffer b-buffer folds)
+  (let (new-folds)
+    (dolist (fold folds)
+      (let ((a-range (vdiff--narrow-fold-range (car fold)))
+            (b-range (vdiff--narrow-fold-range (cdr fold))))
+        (cond ((assoc a-range vdiff--folds)
+               ;; Restore any overlays on same range
+               (let* ((a-fold (cadr (assoc a-range vdiff--folds)))
+                      (b-fold (caddr (assoc a-range vdiff--folds)))
+                      (a-beg (vdiff--pos-at-line-beginning (car a-range) a-buffer))
+                      (a-end (vdiff--pos-at-line-beginning (cdr a-range) a-buffer))
+                      (b-beg (vdiff--pos-at-line-beginning (car b-range) b-buffer))
+                      (b-end (vdiff--pos-at-line-beginning (cdr b-range) b-buffer)))
+                 (move-overlay a-fold a-beg a-end a-buffer)
+                 (move-overlay b-fold b-beg b-end b-buffer)
+                 (push (list a-range a-fold b-fold) new-folds)))
+              ((> (1+ (- (cdr a-range) (car a-range))) vdiff-min-fold-size)
+               ;; Ranges include padding
+               (let ((a-fold (vdiff--make-fold a-buffer a-range))
+                     (b-fold (vdiff--make-fold b-buffer b-range)))
+                 (overlay-put a-fold 'display (overlay-get a-fold 'vdiff-fold-text))
+                 (overlay-put a-fold 'vdiff-fold-open nil)
+                 (overlay-put a-fold 'vdiff-other-fold b-fold)
+                 (overlay-put b-fold 'display (overlay-get b-fold 'vdiff-fold-text))
+                 (overlay-put b-fold 'vdiff-fold-open nil)
+                 (overlay-put b-fold 'vdiff-other-fold a-fold)
+                 (when (or (vdiff--point-in-fold-p a-buffer a-fold)
+                           (vdiff--point-in-fold-p b-buffer b-fold))
+                   (vdiff-open-fold (point) (1+ (point))))
+                 (push (list a-range a-fold b-fold) new-folds))))))
+    (setq vdiff--folds new-folds)))
 
 (defun vdiff--refresh-overlays ()
   (vdiff--remove-all-overlays)
@@ -424,7 +444,8 @@ lines hidden."
     (let ((a-buffer (car vdiff--buffers))
           (b-buffer (cadr vdiff--buffers))
           (a-last-post-end 1)
-          (b-last-post-end 1))
+          (b-last-post-end 1)
+          folds)
       (dolist (header vdiff--diff-data)
         (let* ((code (nth 0 header))
                (a-range (nth 1 header))
@@ -448,10 +469,9 @@ lines hidden."
           (when (string= code "d")
             (cl-incf b-beg))
           
-          (vdiff--add-folds
-           a-buffer b-buffer
-           (cons a-last-post-end (1- a-beg))
-           (cons b-last-post-end (1- b-beg)))
+          (push (cons (cons a-last-post-end (1- a-beg))
+                      (cons b-last-post-end (1- b-beg)))
+                folds)
           (setq a-last-post-end (1+ a-end))
           (setq b-last-post-end (1+ b-end))
 
@@ -486,14 +506,14 @@ lines hidden."
                   a-buffer a-beg a-length b-norm-range)
                  (vdiff--add-change-overlays
                   b-buffer b-beg b-length a-norm-range)))))
-      (vdiff--add-folds
-       a-buffer b-buffer
-       (cons a-last-post-end
-             (with-current-buffer a-buffer
-               (line-number-at-pos (point-max))))
-       (cons b-last-post-end
-             (with-current-buffer b-buffer
-               (line-number-at-pos (point-max))))))))
+      (push (cons (cons a-last-post-end
+                        (with-current-buffer a-buffer
+                          (line-number-at-pos (point-max))))
+                  (cons b-last-post-end
+                        (with-current-buffer b-buffer
+                          (line-number-at-pos (point-max)))))
+            folds)
+      (vdiff--add-folds a-buffer b-buffer folds))))
 
 ;; * Moving changes
 
