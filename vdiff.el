@@ -133,6 +133,11 @@ the buffer here, because those are handled differently."
   :group 'vdiff
   :type 'integer)
 
+(defcustom vdiff-min-fold-size 4
+  "Minimum number of lines to fold"
+  :group 'vdiff
+  :type 'integer)
+
 (defcustom vdiff-fold-format-string "+ %s --- %s lines "
   "Format string for text on closed folds. First element is the
 code on the first line being covered. The second is the number of
@@ -377,7 +382,7 @@ lines hidden."
            (ovr (make-overlay fold-start fold-end))
            (text (format vdiff-fold-format-string
                          summ-text
-                         (1+ (- end-line beg-line))))
+                         (- end-line beg-line)))
            (text
             (propertize
              (concat text
@@ -392,9 +397,10 @@ lines hidden."
       ovr)))
 
 (defun vdiff--add-folds (a-buffer b-buffer a-range b-range)
+  ;; Ranges include padding
   (when (and (> (1+ (- (cdr a-range) (car a-range)))
-                (* 2 vdiff-fold-padding))
-             (> (- (cdr a-range) (car a-range)) 2))
+                (+ (* 2 vdiff-fold-padding)
+                   vdiff-min-fold-size)))
     (let ((a-fold (vdiff--make-fold a-buffer a-range))
           (b-fold (vdiff--make-fold b-buffer b-range)))
       (overlay-put a-fold 'display (overlay-get a-fold 'vdiff-fold-text))
