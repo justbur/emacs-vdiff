@@ -180,6 +180,7 @@ lines hidden."
 (defvar vdiff--inhibit-sync nil)
 (defvar vdiff--line-map nil)
 (defvar vdiff--folds nil)
+(defvar vdiff--all-folds-open nil)
 
 ;; * Utilities
 
@@ -425,11 +426,19 @@ lines hidden."
                ;; Ranges include padding
                (let ((a-fold (vdiff--make-fold a-buffer a-range))
                      (b-fold (vdiff--make-fold b-buffer b-range)))
-                 (overlay-put a-fold 'display (overlay-get a-fold 'vdiff-fold-text))
-                 (overlay-put a-fold 'vdiff-fold-open nil)
+                 (dolist (fold (list a-fold b-fold))
+                   (cond (vdiff--all-folds-open
+                          (overlay-put fold 'line-prefix
+                                       (propertize
+                                        " " 'display '(left-fringe vertical-bar)))
+                          (overlay-put fold 'display nil)
+                          (overlay-put fold 'vdiff-fold-open t))
+                         (t
+                          (overlay-put fold 'line-prefix nil)
+                          (overlay-put fold 'display 
+                                       (overlay-get fold 'vdiff-fold-text))
+                          (overlay-put fold 'vdiff-fold-open nil))))
                  (overlay-put a-fold 'vdiff-other-fold b-fold)
-                 (overlay-put b-fold 'display (overlay-get b-fold 'vdiff-fold-text))
-                 (overlay-put b-fold 'vdiff-fold-open nil)
                  (overlay-put b-fold 'vdiff-other-fold a-fold)
                  (when (or (vdiff--point-in-fold-p a-buffer a-fold)
                            (vdiff--point-in-fold-p b-buffer b-fold))
@@ -769,6 +778,7 @@ folds in the region."
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
         (dolist (ovr1 (list ovr other-fold))
+          (setq vdiff--all-folds-open nil)
           (overlay-put ovr1 'vdiff-fold-open nil)
           (overlay-put ovr1 'line-prefix nil)
           (overlay-put ovr1 'display
@@ -777,11 +787,13 @@ folds in the region."
 (defun vdiff-open-all-folds ()
   "Open all folds in both buffers"
   (interactive)
+  (setq vdiff--all-folds-open t)
   (vdiff-open-fold (point-min) (point-max)))
 
 (defun vdiff-close-all-folds ()
   "Close all folds in both buffers"
   (interactive)
+  (setq vdiff--all-folds-open nil)
   (vdiff-close-fold (point-min) (point-max)))
 
 ;; * Movement
