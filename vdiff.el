@@ -161,7 +161,7 @@ lines hidden."
   :group 'vdiff)
 
 (defface vdiff-open-fold-face
-  '((t :background "#282828"))
+  '((t :inherit default))
   "Face for open folds"
   :group 'vdiff)
 
