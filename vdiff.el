@@ -446,6 +446,9 @@ lines hidden."
                  (push (list a-range a-fold b-fold) new-folds))))))
     (setq vdiff--folds new-folds)))
 
+(defun vdiff--remove-fold-overlays (_)
+  (setq vdiff--folds nil))
+
 (defun vdiff--refresh-overlays ()
   (vdiff--remove-all-overlays)
   (vdiff--refresh-line-maps)
@@ -928,12 +931,14 @@ commands like `vdiff-files' or `vdiff-buffers'."
                      (make-temp-file "vdiff--temp-b-")))
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
+         (add-hook 'window-size-change-functions 'vdiff--remove-fold-overlays)
          (when vdiff-lock-scrolling
            (vdiff-scroll-lock-mode 1)))
         (t
          (vdiff--remove-all-overlays)
          (setq cursor-in-non-selected-windows t)
          (remove-hook 'after-save-hook #'vdiff-refresh t)
+         (remove-hook 'window-size-change-functions 'vdiff--remove-fold-overlays)
          (when vdiff-scroll-lock-mode
            (vdiff-scroll-lock-mode -1))
          (setq vdiff--diff-data nil)
