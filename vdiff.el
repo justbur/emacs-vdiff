@@ -146,12 +146,12 @@ lines hidden."
   :type 'string)
 
 (defface vdiff-addition-face
-  '((t :background "#27321C"))
+  '((t :inherit diff-added))
   "Face for additions"
   :group 'vdiff)
 
 (defface vdiff-change-face
-  '((t :background "#4C3A25"))
+  '((t :inherit diff-changed))
   "Face for changes"
   :group 'vdiff)
 
@@ -166,7 +166,7 @@ lines hidden."
   :group 'vdiff)
 
 (defface vdiff-subtraction-face
-  '((t :background "#3F1B1B"))
+  '((t :inherit diff-removed))
   "Face for changes"
   :group 'vdiff)
 
