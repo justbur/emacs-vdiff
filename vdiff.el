@@ -892,6 +892,7 @@ asked to select two buffers."
   (interactive)
   (dolist (buf vdiff--buffers)
     (vdiff-mode -1)))
+(defalias 'vdiff-quit 'vdiff-exit)
 
 (defvar vdiff-mode-map
   (let ((map (make-sparse-keymap)))
@@ -905,6 +906,7 @@ asked to select two buffers."
     (define-key map "p" 'vdiff-previous-change)
     (define-key map "s" 'vdiff-send-changes)
     (define-key map "r" 'vdiff-receive-changes)
+    (define-key map "q" 'vdiff-quit)
     (define-key map "w" 'vdiff-save-buffers)
     (define-key map "o" 'vdiff-open-fold)
     (define-key map "O" 'vdiff-open-all-folds)

@@ -46,16 +46,17 @@ declaration the key bindings in vdiff buffers are
 
 | Key     | Command                         | Description                                        |
 |---------+---------------------------------+----------------------------------------------------|
+| =C-c g= | =vdiff-goto-corresponding-line= | Jump to the corresponding line in the other buffer |
 | =C-c n= | =vdiff-next-change=             | Move to next change in buffer                      |
 | =C-c p= | =vdiff-previous-change=         | Move to previous change in buffer                  |
-| =C-c g= | =vdiff-goto-corresponding-line= | Jump to the corresponding line in the other buffer |
-| =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
 | =C-c r= | =vdiff-receive-changes=         | Receive the corresponding hunk from other buffer   |
-| =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |
-| =C-c o= | =vdiff-open-fold=               | Open fold at point or in region                    |
-| =C-c O= | =vdiff-open-all-folds=          | Open all folds in buffer                           |
+| =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
 | =C-c c= | =vdiff-close-fold=              | Close fold at point or in region                   |
 | =C-c C= | =vdiff-close-all-folds=         | Close all folds in buffer                          |
+| =C-c o= | =vdiff-open-fold=               | Open fold at point or in region                    |
+| =C-c O= | =vdiff-open-all-folds=          | Open all folds in buffer                           |
+| =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |
+| =C-c q= | =vdiff-quit=                    | Quit vdiff                                         |
 | =C-l=   | =vdiff-sync-and-center=         | Recenter both buffers at current line              |
 
 To start vdiff, use either =vdiff-files= to select two files or =vdiff-buffers=
