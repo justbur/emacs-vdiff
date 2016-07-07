@@ -138,12 +138,12 @@ the buffer here, because those are handled differently."
   :group 'vdiff
   :type 'integer)
 
-(defcustom vdiff-fold-format-string "+ %s --- %s lines "
-  "Format string for text on closed folds. First element is the
-code on the first line being covered. The second is the number of
-lines hidden."
+(defcustom vdiff-fold-string-function 'vdiff-fold-string-default
+  "Function that returns the string printed for a closed
+fold. The arguments passed are the number of lines folded, the
+text on the first line, and the width of the buffer."
   :group 'vdiff
-  :type 'string)
+  :type 'function)
 
 (defface vdiff-addition-face
   '((t :inherit diff-added))
@@ -367,31 +367,41 @@ lines hidden."
           (overlay-put ovr 'after-string
                        (vdiff--make-subtraction-string subtraction-padding)))))))
 
+(defun vdiff-fold-string-default (lines first-line width)
+  "Produces default format line for closed folds. See
+`vdiff-fold-string-function'."
+  (let ((first-line (string-trim-left first-line))
+        (start (format "+--%d lines: " lines))
+        (width (1- width)))
+    (if (> (+ 1 (length first-line) (length start)) width)
+        (concat start
+                (substring-no-properties
+                 first-line 0 (- width (length start)))
+                "\n")
+        (concat start
+                first-line
+                (make-string (- width (length start) (length first-line)) ?-)
+                "\n"))))
+
 (defun vdiff--make-fold (buffer range)
   (with-current-buffer buffer
     (let* ((beg-line (car range))
            (end-line (cdr range))
            (fold-start (vdiff--pos-at-line-beginning beg-line))
-           (summ-text (buffer-substring-no-properties
-                       fold-start
-                       (min (save-excursion
-                              (goto-char fold-start)
-                              (line-end-position))
-                            (+ fold-start
-                               (- (vdiff--min-window-width) 20)))))
+           (first-line-text
+            (buffer-substring-no-properties
+             fold-start (save-excursion
+                          (goto-char fold-start)
+                          (line-end-position))))
            (fold-end
             (vdiff--pos-at-line-beginning end-line))
            (ovr (make-overlay fold-start fold-end))
-           (text (format vdiff-fold-format-string
-                         summ-text
-                         (- end-line beg-line)))
            (text
-            (propertize
-             (concat text
-                     (make-string (- (vdiff--min-window-width)
-                                     (length text) 1) ?-)
-                     "\n")
-             'face 'vdiff-closed-fold-face)))
+            (propertize (funcall vdiff-fold-string-function
+                                 (- end-line beg-line)
+                                 first-line-text
+                                 (vdiff--min-window-width))
+                        'face 'vdiff-closed-fold-face)))
       (overlay-put ovr 'face 'vdiff-open-fold-face)
       (overlay-put ovr 'vdiff-fold-text text)
       (overlay-put ovr 'vdiff-type 'fold)
