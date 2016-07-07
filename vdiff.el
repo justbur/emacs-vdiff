@@ -161,7 +161,7 @@ lines hidden."
   :group 'vdiff)
 
 (defface vdiff-open-fold-face
-  '((t :inherit default))
+  '((t))
   "Face for open folds"
   :group 'vdiff)
 
@@ -173,6 +173,7 @@ lines hidden."
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
 (defvar vdiff--process-buffer " *vdiff*")
+
 (defvar vdiff--diff-data nil)
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
@@ -707,6 +708,8 @@ buffer and center both buffers at this line."
       (vdiff--move-to-line line)
       (line-beginning-position))))
 
+(defvar vdiff--inhibit-sync-scroll nil)
+
 (defun vdiff-sync-scroll (window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((buf-a (car vdiff--buffers))
@@ -716,28 +719,33 @@ buffer and center both buffers at this line."
     (when (and (eq window (selected-window))
                (window-live-p win-a)
                (window-live-p win-b)
-               (memq window (list win-a win-b)))
+               (memq window (list win-a win-b))
+               (not vdiff--inhibit-sync-scroll))
       (let* ((in-b (eq window win-b))
              (other-window (if in-b win-a win-b))
              (other-buffer (if in-b buf-a buf-b))
              (this-line (line-number-at-pos (point)))
              (other-line (vdiff--translate-line
                           this-line in-b))
+             (other-line-pos (vdiff--pos-at-line-beginning
+                              other-line other-buffer))
              (this-start  (line-number-at-pos window-start))
              (other-start (vdiff--translate-line
                            this-start in-b))
              (other-start-pos (vdiff--pos-at-line-beginning
-                               other-start other-buffer)))
+                               other-start other-buffer))
+             (vdiff--inhibit-sync-scroll t))
+        (set-window-buffer other-window other-buffer)
         (set-window-start other-window other-start-pos)
-        (vdiff--with-other-window
-         (goto-char (vdiff--pos-at-line-beginning other-line)))))))
+        (set-window-point other-window other-line-pos)))))
 
 (defun vdiff-mirror-commands ()
   "Execute `vdiff-mirrored-commands' in all buffers."
   ;; Use real-this-command because evil-next-line and evil-previous-line pretend
   ;; they are next-line and previous-line
   (when (and (memq real-this-command vdiff-mirrored-commands)
-             (not vdiff--inhibit-sync))
+             (not vdiff--inhibit-sync)
+             (vdiff--buffer-p))
     (let* ((this-line (line-number-at-pos))
            (other-line (vdiff--translate-line
                         this-line (vdiff--buffer-b-p)))
