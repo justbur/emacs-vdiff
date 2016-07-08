@@ -364,20 +364,20 @@ text on the first line, and the width of the buffer."
                        (vdiff--make-subtraction-string n-subtraction-lines)))
         ovr))))
 
-(defun vdiff-fold-string-default (n-lines first-line width)
+(defun vdiff-fold-string-default (n-lines first-line-text width)
   "Produces default format line for closed folds. See
 `vdiff-fold-string-function'."
-  (let ((first-line (string-trim-left first-line))
+  (let ((first-line-text (string-trim-left first-line-text))
         (start (format "+--%d lines: " n-lines))
         (width (1- width)))
-    (if (> (+ 1 (length first-line) (length start)) width)
+    (if (> (+ 1 (length first-line-text) (length start)) width)
         (concat start
                 (substring-no-properties
-                 first-line 0 (- width (length start)))
+                 first-line-text 0 (- width (length start)))
                 "\n")
         (concat start
-                first-line
-                (make-string (- width (length start) (length first-line)) ?-)
+                first-line-text
+                (make-string (- width (length start) (length first-line-text)) ?-)
                 "\n"))))
 
 (defun vdiff--make-fold (buffer range)
