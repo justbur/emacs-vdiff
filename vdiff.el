@@ -644,6 +644,7 @@ changes under point or on the immediately preceding line."
                         (car b-lines)))
              (b-len (1+ (- b-end b-beg))))
         (cond ((string= code "d")
+               ;; (list line-a line-b a-starts-sub b-starts-sub full-entry)
                (push (list (1- a-beg) b-beg nil t entry) new-map)
                (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
               ((string= code "a")
@@ -657,7 +658,6 @@ changes under point or on the immediately preceding line."
                (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
                (push (list a-end (+ b-beg a-len) t nil entry) new-map)
                (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
-
               (t
                (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
                (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map)))))
