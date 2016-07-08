@@ -336,36 +336,33 @@ text on the first line, and the width of the buffer."
      (concat (mapconcat #'identity string "\n") "\n")
      'face 'vdiff-subtraction-face)))
 
-(defun vdiff--add-subtraction-overlays (buffer start-line target-range amount)
+(defun vdiff--add-subtraction-overlay (buffer start-line amount)
   (with-current-buffer buffer
     (vdiff--move-to-line start-line)
     (let* ((ovr (make-overlay (point) (point))))
       (overlay-put ovr 'before-string 
                    (vdiff--make-subtraction-string amount))
-      (overlay-put ovr 'vdiff-target-range target-range)
       (overlay-put ovr 'vdiff-type 'subtraction)
-      (overlay-put ovr 'vdiff t))))
+      (overlay-put ovr 'vdiff t)
+      ovr)))
 
-(defun vdiff--add-change-overlays
-    (buffer start-line lines target-range
-            &optional addition subtraction-padding)
+(defun vdiff--add-change-overlay
+    (buffer start-line lines &optional addition subtraction-padding)
   (with-current-buffer buffer
     (vdiff--move-to-line start-line)
     (let ((beg (point))
           (end (progn (forward-line lines)
                       (point))))
-      (let ((ovr (make-overlay beg end)))
-        (overlay-put ovr 'face (if addition
-                                   'vdiff-addition-face
-                                 'vdiff-change-face))
-        (overlay-put ovr 'vdiff-type (if addition
-                                         'addition
-                                       'change))
+      (let ((ovr (make-overlay beg end))
+            (type (if addition 'addition 'change))
+            (face (if addition 'vdiff-addition-face 'vdiff-change-face)))
+        (overlay-put ovr 'vdiff-type type)
+        (overlay-put ovr 'face face)
         (overlay-put ovr 'vdiff t)
-        (overlay-put ovr 'vdiff-target-range target-range)
         (when subtraction-padding
           (overlay-put ovr 'after-string
-                       (vdiff--make-subtraction-string subtraction-padding)))))))
+                       (vdiff--make-subtraction-string subtraction-padding)))
+        ovr))))
 
 (defun vdiff-fold-string-default (lines first-line width)
   "Produces default format line for closed folds. See
@@ -490,37 +487,38 @@ text on the first line, and the width of the buffer."
           (setq a-last-post-end (1+ a-end))
           (setq b-last-post-end (1+ b-end))
 
-          (cond ((string= code "d")
-                 (vdiff--add-subtraction-overlays
-                  b-buffer b-beg a-norm-range a-length)
-                 (vdiff--add-change-overlays
-                  a-buffer a-beg a-length b-norm-range t))
-
-                ((string= code "a")
-                 (vdiff--add-subtraction-overlays
-                  a-buffer a-beg b-norm-range b-length)
-                 (vdiff--add-change-overlays
-                  b-buffer b-beg b-length a-norm-range t))
-
-                ((and (string= code "c") (> a-length b-length))
-                 (vdiff--add-change-overlays
-                  a-buffer a-beg a-length b-norm-range)
-                 (vdiff--add-change-overlays
-                  b-buffer b-beg b-length a-norm-range
-                  nil (- a-length b-length)))
-
-                ((and (string= code "c") (< a-length b-length))
-                 (vdiff--add-change-overlays
-                  a-buffer a-beg a-length b-norm-range
-                  nil (- b-length a-length))
-                 (vdiff--add-change-overlays
-                  b-buffer b-beg b-length a-norm-range))
-
-                ((string= code "c")
-                 (vdiff--add-change-overlays
-                  a-buffer a-beg a-length b-norm-range)
-                 (vdiff--add-change-overlays
-                  b-buffer b-beg b-length a-norm-range)))))
+          (let (ovr-a ovr-b)
+            (cond ((not (member code (list "a" "d" "c")))
+                   (user-error "vdiff: Problem with diff output parsing"))
+                  ((string= code "d")
+                   (setq ovr-a
+                         (vdiff--add-change-overlay a-buffer a-beg a-length t))
+                   (setq ovr-b
+                         (vdiff--add-subtraction-overlay b-buffer b-beg a-length)))
+                  ((string= code "a")
+                   (setq ovr-a
+                         (vdiff--add-subtraction-overlay a-buffer a-beg b-length))
+                   (setq ovr-b
+                         (vdiff--add-change-overlay b-buffer b-beg b-length t)))
+                  ((> a-length b-length)
+                   (setq ovr-a
+                         (vdiff--add-change-overlay a-buffer a-beg a-length))
+                   (setq ovr-b
+                         (vdiff--add-change-overlay
+                          b-buffer b-beg b-length nil (- a-length b-length))))
+                  ((< a-length b-length)
+                   (setq ovr-a
+                         (vdiff--add-change-overlay
+                          a-buffer a-beg a-length nil (- b-length a-length)))
+                   (setq ovr-b
+                         (vdiff--add-change-overlay b-buffer b-beg b-length)))
+                  (t
+                   (setq ovr-a
+                         (vdiff--add-change-overlay a-buffer a-beg a-length))
+                   (setq ovr-b
+                         (vdiff--add-change-overlay b-buffer b-beg b-length))))
+            (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
+            (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
       (push (cons (cons a-last-post-end
                         (with-current-buffer a-buffer
                           (line-number-at-pos (point-max))))
@@ -556,11 +554,17 @@ changes under point or on the immediately preceding line."
    (vdiff--region-or-close-overlay))
   (let* ((ovrs (overlays-in beg end)))
     (dolist (ovr ovrs)
-      (cond ((memq (overlay-get ovr 'vdiff-type)
+      (cond ((and (overlay-get ovr 'vdiff-other-overlay)
+                  receive)
+             (let* ((other-ovr (overlay-get ovr 'vdiff-other-overlay))
+                    (pos (overlay-start other-ovr)))
+               (vdiff--with-other-window
+                (vdiff-send-changes pos (1+ pos)))))
+            ((memq (overlay-get ovr 'vdiff-type)
                    '(change addition))
-             (vdiff--transmit-change-overlay ovr receive))
+             (vdiff--transmit-change-overlay ovr))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
-             (vdiff--transmit-subtraction-overlay ovr receive))))
+             (vdiff--transmit-subtraction-overlay ovr))))
     (vdiff-refresh)))
 
 (defun vdiff-receive-changes (beg end)
@@ -571,53 +575,29 @@ changes under point or on the immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
   (vdiff-send-changes beg end t))
 
-(defun vdiff--transmit-change-overlay (chg-ovr &optional receive)
-  (cond ((not (overlayp chg-ovr))
-         (message "No change found"))
-        (receive
-         (let* ((target-rng (overlay-get chg-ovr 'vdiff-target-range))
-                (pos (vdiff--pos-at-line-beginning
-                      (car target-rng) (vdiff--other-buffer))))
-           (vdiff--with-other-window
-            (vdiff-send-changes pos (1+ pos)))))
-        (t
-         (let* ((addition (eq 'addition (overlay-get chg-ovr 'vdiff-type)))
-                (target-rng (overlay-get chg-ovr 'vdiff-target-range))
-                (text (buffer-substring-no-properties
-                       (overlay-start chg-ovr)
-                       (overlay-end chg-ovr))))
-           (with-current-buffer (vdiff--other-buffer)
-             (if addition
-                 (vdiff--move-to-line (1+ (car target-rng)))
-               (vdiff--move-to-line (car target-rng))
-               (delete-region (point)
-                              (save-excursion
-                                (forward-line
-                                 (1+ (- (cdr target-rng)
-                                        (car target-rng))))
-                                (point))))
-             (insert text))))))
+(defun vdiff--transmit-change-overlay (ovr)
+  (if (not (overlayp ovr))
+         (message "No change found")
+    (let* ((addition (eq 'addition (overlay-get ovr 'vdiff-type)))
+           (other-ovr (overlay-get ovr 'vdiff-other-overlay))
+           (text (buffer-substring-no-properties
+                  (overlay-start ovr)
+                  (overlay-end ovr))))
+      (with-current-buffer (vdiff--other-buffer)
+        (goto-char (overlay-start other-ovr))
+        (unless addition
+          (delete-region (overlay-start other-ovr)
+                         (overlay-end other-ovr)))
+        (insert text)))))
 
-(defun vdiff--transmit-subtraction-overlay (sub-ovr &optional receive)
-  (cond ((not (overlayp sub-ovr))
-         (message "No change found"))
-        (receive
-         (let* ((target-rng (overlay-get sub-ovr 'vdiff-target-range))
-                (pos (vdiff--pos-at-line-beginning
-                      (car target-rng) (vdiff--other-buffer))))
-           (vdiff--with-other-window
-            (vdiff-send-changes pos (1+ pos)))))
-        (t
-         (let* ((target-rng
-                 (overlay-get sub-ovr 'vdiff-target-range)))
-           (when target-rng
-             (with-current-buffer (vdiff--other-buffer)
-               (vdiff--move-to-line (car target-rng))
-               (delete-region (point)
-                              (save-excursion
-                                (vdiff--move-to-line
-                                 (1+ (cdr target-rng)))
-                                (point)))))))))
+(defun vdiff--transmit-subtraction-overlay (ovr)
+  (if (not (overlayp ovr))
+         (message "No change found")
+    (let* ((other-ovr (overlay-get ovr 'vdiff-other-overlay)))
+      (when other-ovr
+        (with-current-buffer (vdiff--other-buffer)
+          (delete-region (overlay-start other-ovr)
+                         (overlay-end other-ovr)))))))
 
 ;; * Scrolling and line syncing
 
