@@ -328,30 +328,30 @@ text on the first line, and the width of the buffer."
 
 ;; * Add overlays
 
-(defun vdiff--make-subtraction-string (length)
+(defun vdiff--make-subtraction-string (n-lines)
   (let (string)
-    (dotimes (_ length)
+    (dotimes (_ n-lines)
       (push (make-string (1- (vdiff--min-window-width)) ?-) string))
     (propertize
      (concat (mapconcat #'identity string "\n") "\n")
      'face 'vdiff-subtraction-face)))
 
-(defun vdiff--add-subtraction-overlay (buffer start-line amount)
+(defun vdiff--add-subtraction-overlay (buffer start-line n-lines)
   (with-current-buffer buffer
     (vdiff--move-to-line start-line)
     (let* ((ovr (make-overlay (point) (point))))
       (overlay-put ovr 'before-string 
-                   (vdiff--make-subtraction-string amount))
+                   (vdiff--make-subtraction-string n-lines))
       (overlay-put ovr 'vdiff-type 'subtraction)
       (overlay-put ovr 'vdiff t)
       ovr)))
 
 (defun vdiff--add-change-overlay
-    (buffer start-line lines &optional addition subtraction-padding)
+    (buffer start-line n-lines &optional addition n-subtraction-lines)
   (with-current-buffer buffer
     (vdiff--move-to-line start-line)
     (let ((beg (point))
-          (end (progn (forward-line lines)
+          (end (progn (forward-line n-lines)
                       (point))))
       (let ((ovr (make-overlay beg end))
             (type (if addition 'addition 'change))
@@ -359,16 +359,16 @@ text on the first line, and the width of the buffer."
         (overlay-put ovr 'vdiff-type type)
         (overlay-put ovr 'face face)
         (overlay-put ovr 'vdiff t)
-        (when subtraction-padding
+        (when n-subtraction-lines
           (overlay-put ovr 'after-string
-                       (vdiff--make-subtraction-string subtraction-padding)))
+                       (vdiff--make-subtraction-string n-subtraction-lines)))
         ovr))))
 
-(defun vdiff-fold-string-default (lines first-line width)
+(defun vdiff-fold-string-default (n-lines first-line width)
   "Produces default format line for closed folds. See
 `vdiff-fold-string-function'."
   (let ((first-line (string-trim-left first-line))
-        (start (format "+--%d lines: " lines))
+        (start (format "+--%d lines: " n-lines))
         (width (1- width)))
     (if (> (+ 1 (length first-line) (length start)) width)
         (concat start
