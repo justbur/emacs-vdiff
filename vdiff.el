@@ -466,13 +466,11 @@ text on the first line, and the width of the buffer."
                (a-end (if (cdr-safe a-range)
                           (cdr a-range)
                         (car a-range)))
-               (a-norm-range (cons a-beg a-end))
                (a-length (1+ (- a-end a-beg)))
                (b-beg (car b-range))
                (b-end (if (cdr-safe b-range)
                           (cdr b-range)
                         (car b-range)))
-               (b-norm-range (cons b-beg b-end))
                (b-length (1+ (- b-end b-beg))))
 
           ;; Adjust line number for subtractions
@@ -642,10 +640,7 @@ changes under point or on the immediately preceding line."
             (let (prev-entry)
               (dolist (entry vdiff--line-map)
                 (let ((map-line
-                       (if B-to-A (cadr entry) (car entry)))
-                      (prev-map-line
-                       (when prev-entry
-                         (if B-to-A (cadr prev-entry) (car prev-entry)))))
+                       (if B-to-A (cadr entry) (car entry))))
                   (cond ((< map-line line)
                          (setq prev-entry entry))
                         ((= map-line line)
@@ -671,7 +666,7 @@ changes under point or on the immediately preceding line."
                        (1- other-map-line))
                       (t
                        (+ (- line this-map-line) other-map-line)))))
-      (when (called-interactively-p)
+      (when (called-interactively-p 'interactive)
         (message "This line: %s; Other line %s; In sub %s; entry %s"
                  line res (nth (if B-to-A 2 3) last-entry) last-entry)))))
 
@@ -937,7 +932,8 @@ asked to select two buffers."
 (defun vdiff-exit ()
   (interactive)
   (dolist (buf vdiff--buffers)
-    (vdiff-mode -1)))
+    (with-current-buffer buf
+      (vdiff-mode -1))))
 (defalias 'vdiff-quit 'vdiff-exit)
 
 (defvar vdiff-mode-map
