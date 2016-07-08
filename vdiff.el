@@ -438,17 +438,9 @@ text on the first line, and the width of the buffer."
                (let ((a-fold (vdiff--make-fold a-buffer a-range))
                      (b-fold (vdiff--make-fold b-buffer b-range)))
                  (dolist (fold (list a-fold b-fold))
-                   (cond (vdiff--all-folds-open
-                          (overlay-put fold 'line-prefix
-                                       (propertize
-                                        " " 'display '(left-fringe vertical-bar)))
-                          (overlay-put fold 'display nil)
-                          (overlay-put fold 'vdiff-fold-open t))
-                         (t
-                          (overlay-put fold 'line-prefix nil)
-                          (overlay-put fold 'display 
-                                       (overlay-get fold 'vdiff-fold-text))
-                          (overlay-put fold 'vdiff-fold-open nil))))
+                   (if vdiff--all-folds-open
+                          (vdiff--set-open-fold-props fold)
+                     (vdiff--set-closed-fold-props fold)))
                  (overlay-put a-fold 'vdiff-other-fold b-fold)
                  (overlay-put b-fold 'vdiff-other-fold a-fold)
                  (when (or (vdiff--point-in-fold-p a-buffer a-fold)
@@ -700,8 +692,8 @@ changes under point or on the immediately preceding line."
                       (t
                        (+ (- line this-map-line) other-map-line)))))
       (when (called-interactively-p)
-        (message "This line: %s; Other line %s; In sub %s; entry %s" line res (nth (if B-to-A 2 3) last-entry) last-entry))
-      )))
+        (message "This line: %s; Other line %s; In sub %s; entry %s"
+                 line res (nth (if B-to-A 2 3) last-entry) last-entry)))))
 
 (defun vdiff-goto-corresponding-line (line in-b)
   "Jump to the line in the other vdiff buffer that corresponds to
@@ -797,6 +789,42 @@ buffer and center both buffers at this line."
                        (> (line-number-at-pos) other-line)))
              (call-interactively real-this-command))))))))
 
+(defvar vdiff--bottom-left-angle-bits
+  (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
+    (aset vec 11 (1- (expt 2 8)))
+    (aset vec 12 (1- (expt 2 8)))
+    vec))
+
+(define-fringe-bitmap 'vdiff--bottom-left-angle vdiff--bottom-left-angle-bits)
+
+(defvar vdiff--top-left-angle-bits
+  (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
+    (aset vec 0 (1- (expt 2 8)))
+    (aset vec 1 (1- (expt 2 8)))
+    vec))
+
+(define-fringe-bitmap 'vdiff--top-left-angle vdiff--top-left-angle-bits)
+
+(defun vdiff--set-open-fold-props (ovr)
+  (overlay-put ovr 'vdiff-fold-open t)
+  (overlay-put ovr 'display nil)
+  (overlay-put ovr 'before-string
+               (propertize
+                " " 'display '(left-fringe vdiff--top-left-angle)))
+  (overlay-put ovr 'line-prefix
+               (propertize " "
+                           'display '(left-fringe vertical-bar)))
+  (overlay-put ovr 'after-string
+               (propertize
+                " " 'display '(left-fringe vdiff--bottom-left-angle))))
+
+(defun vdiff--set-closed-fold-props (ovr)
+  (overlay-put ovr 'vdiff-fold-open nil)
+  (overlay-put ovr 'before-string nil)
+  (overlay-put ovr 'line-prefix nil)
+  (overlay-put ovr 'after-string nil)
+  (overlay-put ovr 'display (overlay-get ovr 'vdiff-fold-text)))
+
 (defun vdiff-open-fold (beg end)
   "Open folds between BEG and END, as well as corresponding ones
 in other vdiff buffer. If called interactively, either open fold
@@ -806,12 +834,8 @@ in the region."
   (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
-        (dolist (ovr1 (list ovr other-fold))
-          (overlay-put ovr1 'vdiff-fold-open t)
-          (overlay-put ovr1 'display nil)
-          (overlay-put ovr1 'line-prefix
-                       (propertize " "
-                        'display '(left-fringe vertical-bar))))))))
+        (vdiff--set-open-fold-props ovr)
+        (vdiff--set-open-fold-props other-fold)))))
 
 (defun vdiff-close-fold (beg end)
   "Close folds between BEG and END, as well as corresponding ones
@@ -822,12 +846,9 @@ folds in the region."
   (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
-        (dolist (ovr1 (list ovr other-fold))
-          (setq vdiff--all-folds-open nil)
-          (overlay-put ovr1 'vdiff-fold-open nil)
-          (overlay-put ovr1 'line-prefix nil)
-          (overlay-put ovr1 'display
-                       (overlay-get ovr1 'vdiff-fold-text)))))))
+        (setq vdiff--all-folds-open nil)
+        (vdiff--set-closed-fold-props ovr)
+        (vdiff--set-closed-fold-props other-fold)))))
 
 (defun vdiff-open-all-folds ()
   "Open all folds in both buffers"
