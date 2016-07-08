@@ -637,47 +637,71 @@ changes under point or on the immediately preceding line."
              (a-beg (car a-lines))
              (a-end (or (cdr-safe a-lines)
                         (car a-lines)))
+             (a-len (1+ (- a-end a-beg)))
              (b-lines (nth 2 entry))
              (b-beg (car b-lines))
              (b-end (or (cdr-safe b-lines)
-                        (car b-lines))))
+                        (car b-lines)))
+             (b-len (1+ (- b-end b-beg))))
         (cond ((string= code "d")
-               (push (cons (1- a-beg) b-beg) new-map)
-               (push (cons (1+ a-end) (1+ b-end)) new-map))
+               (push (list (1- a-beg) b-beg nil t entry) new-map)
+               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
               ((string= code "a")
-               (push (cons a-beg (1- b-beg)) new-map)
-               (push (cons (1+ a-end) (1+ b-end)) new-map))
-              ((and (string= code "c"))
-               (push (cons (1- a-beg) (1- b-beg)) new-map)
-               (push (cons (1+ a-end) (1+ b-end)) new-map)))))
-    (setq vdiff--line-map (nreverse new-map))))
+               (push (list a-beg (1- b-beg) t nil entry) new-map)
+               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
+              ((> a-len b-len)
+               (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
+               (push (list (+ a-beg b-len) b-end nil t entry) new-map)
+               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
+              ((< a-len b-len)
+               (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
+               (push (list a-end (+ b-beg a-len) t nil entry) new-map)
+               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
+
+              (t
+               (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
+               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map)))))
+    (setq vdiff--line-map (cons (list 0 0) (nreverse new-map)))))
 
 (defun vdiff--translate-line (line &optional B-to-A)
-  (let ((nearest-line
-         (catch 'closest
-           (let (prev-entry)
-             (dolist (entry vdiff--line-map)
-               (let ((map-line
-                      (if B-to-A (cdr entry) (car entry)))
-                     (prev-map-line
-                      (when prev-entry
-                        (if B-to-A (cdr prev-entry) (car prev-entry)))))
-                 (cond ((< map-line line)
-                        (setq prev-entry entry))
-                       ((= map-line line)
-                        (throw 'closest entry))
-                       ((and prev-map-line
-                             (< (- line prev-map-line)
-                                (- map-line line)))
-                        (throw 'closest prev-entry))
-                       (t
-                        (throw 'closest entry)))))
-             (throw 'closest prev-entry)))))
-    (cond ((and nearest-line B-to-A)
-           (+ (- line (cdr nearest-line)) (car nearest-line)))
-          (nearest-line
-           (+ (- line (car nearest-line)) (cdr nearest-line)))
-          (t line))))
+  (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
+  (let* ((last-entry
+          (catch 'closest
+            (let (prev-entry)
+              (dolist (entry vdiff--line-map)
+                (let ((map-line
+                       (if B-to-A (cadr entry) (car entry)))
+                      (prev-map-line
+                       (when prev-entry
+                         (if B-to-A (cadr prev-entry) (car prev-entry)))))
+                  (cond ((< map-line line)
+                         (setq prev-entry entry))
+                        ((= map-line line)
+                         (throw 'closest entry))
+                        (t
+                         (throw 'closest prev-entry)))))
+              (throw 'closest prev-entry))))
+         res)
+    (unless last-entry
+      (setq last-entry (list line line))
+      (message "Error in line translation"))
+    (prog1
+        (setq res
+              (let ((this-map-line
+                     (if B-to-A (cadr last-entry) (car last-entry)))
+                    (this-in-subtraction (nth (if B-to-A 3 2) last-entry))
+                    (other-map-line
+                     (if B-to-A (car last-entry) (cadr last-entry)))
+                    (other-in-subtraction (nth (if B-to-A 2 3) last-entry)))
+                (cond (other-in-subtraction
+                       (1+ other-map-line))
+                      (this-in-subtraction
+                       (1- other-map-line))
+                      (t
+                       (+ (- line this-map-line) other-map-line)))))
+      (when (called-interactively-p)
+        (message "This line: %s; Other line %s; In sub %s; entry %s" line res (nth (if B-to-A 2 3) last-entry) last-entry))
+      )))
 
 (defun vdiff-goto-corresponding-line (line in-b)
   "Jump to the line in the other vdiff buffer that corresponds to
