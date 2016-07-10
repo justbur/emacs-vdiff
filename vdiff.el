@@ -586,7 +586,9 @@ changes under point or on the immediately preceding line."
         (unless addition
           (delete-region (overlay-start other-ovr)
                          (overlay-end other-ovr)))
-        (insert text)))))
+        (insert text)
+        (delete-overlay other-ovr))
+      (delete-overlay ovr))))
 
 (defun vdiff--transmit-subtraction-overlay (ovr)
   (if (not (overlayp ovr))
