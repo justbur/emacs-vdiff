@@ -350,7 +350,7 @@ text on the first line, and the width of the buffer."
 
 (defun vdiff--add-subtraction-overlay (n-lines)
   (let* ((ovr (make-overlay (point) (point))))
-    (overlay-put ovr 'before-string 
+    (overlay-put ovr 'before-string
                  (vdiff--make-subtraction-string n-lines))
     (overlay-put ovr 'vdiff-type 'subtraction)
     (overlay-put ovr 'vdiff t)
@@ -505,7 +505,7 @@ text on the first line, and the width of the buffer."
 
             (unless (member code (list "a" "d" "c"))
               (user-error "vdiff: Unexpected code in diff output"))
-          
+
             (push (cons (cons a-last-post (1- a-beg))
                         (cons b-last-post (1- b-beg)))
                   folds)
@@ -521,7 +521,7 @@ text on the first line, and the width of the buffer."
                 (forward-line (- b-beg b-line))
                 (setq b-line b-beg)
                 (setq ovr-b
-                      (vdiff--add-diff-overlay nil code b-len a-len))) 
+                      (vdiff--add-diff-overlay nil code b-len a-len)))
               (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
               (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
         (push (cons (cons a-last-post
@@ -786,8 +786,8 @@ buffer and center both buffers at this line."
                (propertize
                 " " 'display '(left-fringe vdiff--top-left-angle)))
   (overlay-put ovr 'line-prefix
-               (propertize " "
-                           'display '(left-fringe vertical-bar)))
+               (propertize
+                " " 'display '(left-fringe vertical-bar)))
   (overlay-put ovr 'after-string
                (propertize
                 " " 'display '(left-fringe vdiff--bottom-left-angle))))
