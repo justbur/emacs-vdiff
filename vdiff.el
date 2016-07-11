@@ -733,16 +733,19 @@ buffer and center both buffers at this line."
       (let* ((in-b (eq window win-b))
              (other-window (if in-b win-a win-b))
              (other-buffer (if in-b buf-a buf-b))
-             (this-line (line-number-at-pos (point)))
-             (other-line (vdiff--translate-line
-                          this-line in-b))
-             (other-line-pos (vdiff--pos-at-line-beginning
-                              other-line other-buffer))
              (this-start  (line-number-at-pos window-start))
-             (other-start (vdiff--translate-line
-                           this-start in-b))
-             (other-start-pos (vdiff--pos-at-line-beginning
-                               other-start other-buffer))
+             (other-start (vdiff--translate-line this-start in-b))
+             (other-start-pos
+              (with-current-buffer other-buffer
+                (vdiff--move-to-line other-start)
+                (line-beginning-position)))
+             (this-line (+ (count-lines window-start (point))
+                           this-start))
+             (other-line (vdiff--translate-line this-line in-b))
+             (other-line-pos
+              (with-current-buffer other-buffer
+                (forward-line (- other-line other-start))
+                (line-beginning-position)))
              (vdiff--in-scroll-hook t))
         (set-window-start other-window other-start-pos)
         (set-window-point other-window other-line-pos)))))
