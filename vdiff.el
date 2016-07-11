@@ -1010,22 +1010,23 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
   (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
     "
  Navigation^^             Transmit^^        Folds^^^^                Other^^
- -^^-------------------  --^^------------  -^^^^------------------  --^-^---------------
- [_n_] next change        [_s_] send        [_o_/_O_] open (all)     [_w_] save buffers
- [_p_] previous change    [_r_] receive     [_c_/_C_] close (all)    [_q_] quit hydra
- [_g_] goto corr. line     ^ ^               ^ ^ ^ ^                 [_Q_] quit vdiff "
-    ("g" vdiff-goto-corresponding-line)
+ -^^-------------------  --^^------------  -^^^^------------------  --^-^-^-^-------------------
+ [_n_] next change        [_s_] send        [_o_/_O_] open (all)     [_u_]^ ^  update diff
+ [_p_] previous change    [_r_] receive     [_c_/_C_] close (all)    [_w_]^ ^  save buffers
+ [_g_] goto corr. line     ^ ^               ^ ^ ^ ^                 [_q_/_Q_] quit hydra/vdiff"
     ("n" vdiff-next-change)
     ("p" vdiff-previous-change)
+    ("g" vdiff-goto-corresponding-line)
     ("s" vdiff-send-changes)
     ("r" vdiff-receive-changes)
-    ("Q" vdiff-quit)
-    ("w" vdiff-save-buffers)
     ("o" vdiff-open-fold)
     ("O" vdiff-open-all-folds)
     ("c" vdiff-close-fold)
     ("C" vdiff-close-all-folds)
-    ("q" nil :exit t)))
+    ("u" vdiff-refresh)
+    ("w" vdiff-save-buffers)
+    ("q" nil :exit t)
+    ("Q" vdiff-quit)))
 
 (provide 'vdiff)
 ;;; vdiff.el ends here
