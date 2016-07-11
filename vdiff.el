@@ -1005,5 +1005,26 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
           (remove-hook 'post-command-hook #'vdiff-mirror-commands t))
          (message "Scrolling unlocked"))))
 
+(when (fboundp 'defhydra)
+  (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
+    "
+ Navigation^^             Transmit^^        Folds^^^^                Other^^
+ -^^-------------------  --^^------------  -^^^^------------------  --^-^---------------
+ [_n_] next change        [_s_] send        [_o_/_O_] open (all)     [_w_] save buffers
+ [_p_] previous change    [_r_] receive     [_c_/_C_] close (all)    [_q_] quit hydra
+ [_g_] goto corr. line     ^ ^               ^ ^ ^ ^                 [_Q_] quit vdiff "
+    ("g" vdiff-goto-corresponding-line)
+    ("n" vdiff-next-change)
+    ("p" vdiff-previous-change)
+    ("s" vdiff-send-changes)
+    ("r" vdiff-receive-changes)
+    ("Q" vdiff-quit)
+    ("w" vdiff-save-buffers)
+    ("o" vdiff-open-fold)
+    ("O" vdiff-open-all-folds)
+    ("c" vdiff-close-fold)
+    ("C" vdiff-close-all-folds)
+    ("q" nil :exit t)))
+
 (provide 'vdiff)
 ;;; vdiff.el ends here
