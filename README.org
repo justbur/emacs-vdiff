@@ -7,22 +7,17 @@ A tool like vimdiff for Emacs
 vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning diff
 information is displayed in buffers as you edit them. There are commands for
 cycling through the changes detected by =diff= and applying changes from one
-buffer to the other. 
+buffer to the other. The main features are
 
-ediff is a powerful diff tool built into Emacs, but it works differently. In
-ediff you control the diffed buffers through a third control buffer, which works
-great until you want to edit the buffers directly. I prefer the way vimdiff
-works, but I am also not necessarily interested in perfectly emulating
-vimdiff. vdiff does not assume you use evil-mode, but is compatible with it.
+  1. Synchronized scrolling of the buffers with lines matching between the two
+  2. Commands to transmit (send/receive) changes between buffers
+  3. Automatic folding of lines that are unchanged in both buffers
+  4. Commands to jump easily between changes
+  5. Everything done through overlays, meaning vdiff doesn't alter the actual
+     text in the buffer (unless you are transmit changes of course)
 
-vdiff is a work in progress, so use it at your own risk. Contributions and
-suggestions are very welcome. A rough TODO list is
-
-1. Improve scrolling/syncing position between buffers
-2. Three way diffs
-3. Other missing features from vimdiff
-4. Add tests
-5. Improve faces
+vdiff is still a work in progress, so use it at your own risk. Contributions and
+suggestions are very welcome.
    
 ** Screenshot
 
@@ -89,6 +84,9 @@ The current customization options and there defaults are
 
   ;; Unchanged lines to leave unfolded around a fold
   (setq vdiff-fold-padding 2)
+
+  ;; Minimum number of lines to fold
+  (setq vdiff-min-fold-size 4)
 
   ;; Function that returns the string printed for a closed fold. The arguments
   ;; passed are the number of lines folded, the text on the first line, and the
