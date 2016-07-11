@@ -293,6 +293,17 @@ text on the first line, and the width of the buffer."
                 cmd))
     (set-process-sentinel proc #'vdiff--diff-refresh-1)))
 
+(defun vdiff--normalize-range (code buf-a beg end)
+  (let* ((beg (vdiff--maybe-int beg))
+         (end (vdiff--maybe-int end)))
+    (cond ((or (and (string= code "a") buf-a)
+               (and (string= code "d") (null buf-a)))
+           (if end
+               (error "vdiff: multi-line range for a or d code")
+             (cons (1+ beg) (1+ beg))))
+          (t
+           (cons beg (or end beg))))))
+
 (defun vdiff--diff-refresh-1 (_proc event)
   (cond ((string= "finished\n" event)
          ;; means no difference between files
@@ -304,11 +315,11 @@ text on the first line, and the width of the buffer."
            (with-current-buffer vdiff--process-buffer
              (goto-char (point-min))
              (while (re-search-forward vdiff--diff-code-regexp nil t)
-               (let ((code (match-string 3))
-                     (a-range (cons (vdiff--maybe-int (match-string 1))
-                                    (vdiff--maybe-int (match-string 2))))
-                     (b-range (cons (vdiff--maybe-int (match-string 4))
-                                    (vdiff--maybe-int (match-string 5)))))
+               (let* ((code (match-string 3))
+                      (a-range (vdiff--normalize-range
+                                code t (match-string 1) (match-string 2)))
+                      (b-range (vdiff--normalize-range
+                                code nil (match-string 4) (match-string 5))))
                  (push (list code a-range b-range) res))))
            (setq vdiff--diff-data (nreverse res)))
          (vdiff--refresh-overlays))
@@ -336,33 +347,30 @@ text on the first line, and the width of the buffer."
      (concat (mapconcat #'identity string "\n") "\n")
      'face 'vdiff-subtraction-face)))
 
-(defun vdiff--add-subtraction-overlay (buffer start-line n-lines)
-  (with-current-buffer buffer
-    (vdiff--move-to-line start-line)
-    (let* ((ovr (make-overlay (point) (point))))
-      (overlay-put ovr 'before-string 
-                   (vdiff--make-subtraction-string n-lines))
-      (overlay-put ovr 'vdiff-type 'subtraction)
-      (overlay-put ovr 'vdiff t)
-      ovr)))
+(defun vdiff--add-subtraction-overlay (n-lines)
+  (let* ((ovr (make-overlay (point) (point))))
+    (overlay-put ovr 'before-string 
+                 (vdiff--make-subtraction-string n-lines))
+    (overlay-put ovr 'vdiff-type 'subtraction)
+    (overlay-put ovr 'vdiff t)
+    ovr))
 
 (defun vdiff--add-change-overlay
-    (buffer start-line n-lines &optional addition n-subtraction-lines)
-  (with-current-buffer buffer
-    (vdiff--move-to-line start-line)
-    (let ((beg (point))
-          (end (progn (forward-line n-lines)
-                      (point))))
-      (let ((ovr (make-overlay beg end))
-            (type (if addition 'addition 'change))
-            (face (if addition 'vdiff-addition-face 'vdiff-change-face)))
-        (overlay-put ovr 'vdiff-type type)
-        (overlay-put ovr 'face face)
-        (overlay-put ovr 'vdiff t)
-        (when n-subtraction-lines
-          (overlay-put ovr 'after-string
-                       (vdiff--make-subtraction-string n-subtraction-lines)))
-        ovr))))
+    (n-lines &optional addition n-subtraction-lines)
+  (let ((beg (point))
+        (end (save-excursion
+               (forward-line n-lines)
+               (point))))
+    (let ((ovr (make-overlay beg end))
+          (type (if addition 'addition 'change))
+          (face (if addition 'vdiff-addition-face 'vdiff-change-face)))
+      (overlay-put ovr 'vdiff-type type)
+      (overlay-put ovr 'face face)
+      (overlay-put ovr 'vdiff t)
+      (when n-subtraction-lines
+        (overlay-put ovr 'after-string
+                     (vdiff--make-subtraction-string n-subtraction-lines)))
+      ovr)))
 
 (defun vdiff-fold-string-default (n-lines first-line-text width)
   "Produces default format line for closed folds. See
@@ -449,82 +457,81 @@ text on the first line, and the width of the buffer."
 (defun vdiff--remove-fold-overlays (_)
   (setq vdiff--folds nil))
 
+(defun vdiff--add-diff-overlay (in-a code this-beg this-len other-beg other-len)
+  (cond ((or (and in-a (string= code "d"))
+             (and (not in-a) (string= code "a")))
+         (vdiff--add-change-overlay this-len t))
+        ((or (and in-a (string= code "a"))
+             (and (not in-a) (string= code "d")))
+         (vdiff--add-subtraction-overlay other-len))
+        ((> this-len other-len)
+         (vdiff--add-change-overlay this-len))
+        ((< this-len other-len)
+         (vdiff--add-change-overlay this-len nil (- other-len this-len)))
+        (t
+         (vdiff--add-change-overlay this-len))))
+
 (defun vdiff--refresh-overlays ()
   (vdiff--remove-all-overlays)
   (vdiff--refresh-line-maps)
   (save-excursion
     (let ((a-buffer (car vdiff--buffers))
           (b-buffer (cadr vdiff--buffers))
+          (a-line 1)
+          (b-line 1)
           (a-last-post-end 1)
           (b-last-post-end 1)
           folds)
-      (dolist (header vdiff--diff-data)
-        (let* ((code (nth 0 header))
-               (a-range (nth 1 header))
-               (b-range (nth 2 header))
-               (a-beg (car a-range))
-               (a-end (if (cdr-safe a-range)
-                          (cdr a-range)
-                        (car a-range)))
-               (a-length (1+ (- a-end a-beg)))
-               (b-beg (car b-range))
-               (b-end (if (cdr-safe b-range)
-                          (cdr b-range)
-                        (car b-range)))
-               (b-length (1+ (- b-end b-beg))))
+      (save-excursion
+        (with-current-buffer a-buffer
+          (widen)
+          (goto-char (point-min)))
+        (with-current-buffer b-buffer
+          (widen)
+          (goto-char (point-min)))
+        (dolist (header vdiff--diff-data)
+          (let* ((code (nth 0 header))
+                 (a-range (nth 1 header))
+                 (b-range (nth 2 header))
+                 (a-beg (car a-range))
+                 (a-end (cdr a-range))
+                 (a-len (1+ (- a-end a-beg)))
+                 (b-beg (car b-range))
+                 (b-end (cdr b-range))
+                 (b-len (1+ (- b-end b-beg))))
 
-          ;; Adjust line number for subtractions
-          (when (string= code "a")
-            (cl-incf a-beg))
-          (when (string= code "d")
-            (cl-incf b-beg))
+            (unless (member code (list "a" "d" "c"))
+              (user-error "vdiff: Unexpected code in diff output"))
           
-          (push (cons (cons a-last-post-end (1- a-beg))
-                      (cons b-last-post-end (1- b-beg)))
-                folds)
-          (setq a-last-post-end (1+ a-end))
-          (setq b-last-post-end (1+ b-end))
+            (push (cons (cons a-last-post-end (1- a-beg))
+                        (cons b-last-post-end (1- b-beg)))
+                  folds)
+            (setq a-last-post-end (1+ a-end))
+            (setq b-last-post-end (1+ b-end))
 
-          (let (ovr-a ovr-b)
-            (cond ((not (member code (list "a" "d" "c")))
-                   (user-error "vdiff: Problem with diff output parsing"))
-                  ((string= code "d")
-                   (setq ovr-a
-                         (vdiff--add-change-overlay a-buffer a-beg a-length t))
-                   (setq ovr-b
-                         (vdiff--add-subtraction-overlay b-buffer b-beg a-length)))
-                  ((string= code "a")
-                   (setq ovr-a
-                         (vdiff--add-subtraction-overlay a-buffer a-beg b-length))
-                   (setq ovr-b
-                         (vdiff--add-change-overlay b-buffer b-beg b-length t)))
-                  ((> a-length b-length)
-                   (setq ovr-a
-                         (vdiff--add-change-overlay a-buffer a-beg a-length))
-                   (setq ovr-b
-                         (vdiff--add-change-overlay
-                          b-buffer b-beg b-length nil (- a-length b-length))))
-                  ((< a-length b-length)
-                   (setq ovr-a
-                         (vdiff--add-change-overlay
-                          a-buffer a-beg a-length nil (- b-length a-length)))
-                   (setq ovr-b
-                         (vdiff--add-change-overlay b-buffer b-beg b-length)))
-                  (t
-                   (setq ovr-a
-                         (vdiff--add-change-overlay a-buffer a-beg a-length))
-                   (setq ovr-b
-                         (vdiff--add-change-overlay b-buffer b-beg b-length))))
-            (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
-            (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
-      (push (cons (cons a-last-post-end
-                        (with-current-buffer a-buffer
-                          (line-number-at-pos (point-max))))
-                  (cons b-last-post-end
-                        (with-current-buffer b-buffer
-                          (line-number-at-pos (point-max)))))
-            folds)
-      (vdiff--add-folds a-buffer b-buffer folds))))
+            (let (ovr-a ovr-b)
+              (with-current-buffer a-buffer
+                (forward-line (- a-beg a-line))
+                (setq a-line a-beg)
+                (setq ovr-a
+                      (vdiff--add-diff-overlay t code a-beg a-len b-beg b-len)))
+              
+              (with-current-buffer b-buffer
+                (forward-line (- b-beg b-line))
+                (setq b-line b-beg)
+                (setq ovr-b
+                      (vdiff--add-diff-overlay nil code b-beg b-len a-beg a-len)))
+              
+              (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
+              (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
+        (push (cons (cons a-last-post-end
+                          (with-current-buffer a-buffer
+                            (line-number-at-pos (point-max))))
+                    (cons b-last-post-end
+                          (with-current-buffer b-buffer
+                            (line-number-at-pos (point-max)))))
+              folds)
+        (vdiff--add-folds a-buffer b-buffer folds)))))
 
 ;; * Moving changes
 
@@ -607,32 +614,30 @@ changes under point or on the immediately preceding line."
       (let* ((code (car entry))
              (a-lines (nth 1 entry))
              (a-beg (car a-lines))
-             (a-end (or (cdr-safe a-lines)
-                        (car a-lines)))
+             (a-prior (1- a-beg))
+             (a-end (cdr a-lines))
+             (a-post (1+ a-end))
              (a-len (1+ (- a-end a-beg)))
              (b-lines (nth 2 entry))
              (b-beg (car b-lines))
-             (b-end (or (cdr-safe b-lines)
-                        (car b-lines)))
+             (b-prior (1- b-beg))
+             (b-end (cdr b-lines))
+             (b-post (1+ b-end))
              (b-len (1+ (- b-end b-beg))))
+        ;; Format is (list line-a line-b a-ends-sub b-ends-sub full-entry)
+        (push (list a-prior b-prior nil nil entry) new-map)
         (cond ((string= code "d")
-               ;; (list line-a line-b a-starts-sub b-starts-sub full-entry)
-               (push (list (1- a-beg) b-beg nil t entry) new-map)
-               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
+               (push (list a-beg b-beg nil t entry) new-map)
+               (push (list a-post b-end nil nil entry) new-map))
               ((string= code "a")
-               (push (list a-beg (1- b-beg) t nil entry) new-map)
-               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
+               (push (list a-beg b-beg t nil entry) new-map)
+               (push (list a-end b-post nil nil entry) new-map))
               ((> a-len b-len)
-               (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
-               (push (list (+ a-beg b-len) b-end nil t entry) new-map)
-               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
+               (push (list (+ a-beg b-len) b-post nil t entry) new-map)
+               (push (list a-post b-post nil nil entry) new-map))
               ((< a-len b-len)
-               (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
-               (push (list a-end (+ b-beg a-len) t nil entry) new-map)
-               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map))
-              (t
-               (push (list (1- a-beg) (1- b-beg) nil nil entry) new-map)
-               (push (list (1+ a-end) (1+ b-end) nil nil entry) new-map)))))
+               (push (list a-post (+ b-beg a-len) t nil entry) new-map)
+               (push (list a-post b-post nil nil entry) new-map)))))
     (setq vdiff--line-map (cons (list 0 0) (nreverse new-map)))))
 
 (defun vdiff--translate-line (line &optional B-to-A)
@@ -658,16 +663,13 @@ changes under point or on the immediately preceding line."
         (setq res
               (let ((this-map-line
                      (if B-to-A (cadr last-entry) (car last-entry)))
-                    (this-in-subtraction (nth (if B-to-A 3 2) last-entry))
+                    (this-subtraction (nth (if B-to-A 3 2) last-entry))
                     (other-map-line
                      (if B-to-A (car last-entry) (cadr last-entry)))
-                    (other-in-subtraction (nth (if B-to-A 2 3) last-entry)))
-                (cond (other-in-subtraction
-                       (1+ other-map-line))
-                      (this-in-subtraction
-                       (1- other-map-line))
-                      (t
-                       (+ (- line this-map-line) other-map-line)))))
+                    (other-subtraction (nth (if B-to-A 2 3) last-entry)))
+                (if (or this-subtraction other-subtraction)
+                    other-map-line
+                  (+ (- line this-map-line) other-map-line))))
       (when (called-interactively-p 'interactive)
         (message "This line: %s; Other line %s; In sub %s; entry %s"
                  line res (nth (if B-to-A 2 3) last-entry) last-entry)))))
