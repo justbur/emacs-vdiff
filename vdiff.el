@@ -675,13 +675,10 @@ changes under point or on the immediately preceding line."
 (defun vdiff-goto-corresponding-line (line in-b)
   "Jump to the line in the other vdiff buffer that corresponds to
 the current one."
-  (interactive (list (line-number-at-pos)
-                     (not (vdiff--buffer-a-p))))
+  (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
   (vdiff-refresh)
-  (let* ((new-line (vdiff--translate-line line in-b))
-         (new-pos (vdiff--pos-at-line-beginning new-line)))
-    (select-window (vdiff--other-window))
-    (goto-char new-pos)))
+  (select-window (vdiff--other-window))
+  (vdiff--move-to-line (vdiff--translate-line line in-b)))
 
 (defun vdiff--sync-line (line in-a)
   "Sync point in the other vdiff buffer to the line in this
