@@ -848,8 +848,9 @@ folds in the region."
         (vdiff--maybe-exit-overlay reverse)
         (setq pnt (point))
         ;; Find next overlay
-        (while (and (not (or (eobp) (bobp)))
-                    (not (vdiff--change-at-point-p)))
+        (while (not (or (and reverse (bobp))
+                        (and (not reverse) (eobp))
+                        (vdiff--change-at-point-p)))
           (setq pnt
                 (goto-char (if reverse
                                (previous-overlay-change pnt)
