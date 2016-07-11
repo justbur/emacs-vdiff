@@ -233,6 +233,12 @@ text on the first line, and the width of the buffer."
          (overlay-get ovr 'vdiff-type)
          (not (eq (overlay-get ovr 'vdiff-type) 'fold)))))
 
+(defun vdiff--fold-at-point-p ()
+  (let ((ovr (vdiff--overlay-at-pos)))
+    (and (overlayp ovr)
+         (overlay-get ovr 'vdiff-type)
+         (eq (overlay-get ovr 'vdiff-type) 'fold))))
+
 (defun vdiff--overlays-in-region (beg end)
   (let (ovrs)
     (dolist (ovr (overlays-in beg end))
@@ -850,7 +856,7 @@ folds in the region."
 
 ;; * Movement
 
-(defun vdiff--nth-change (&optional n)
+(defun vdiff--nth-change (&optional n find-folds)
   (let* ((n (or n 1))
          (reverse (< n 0))
          pnt)
@@ -862,7 +868,10 @@ folds in the region."
         ;; Find next overlay
         (while (not (or (and reverse (bobp))
                         (and (not reverse) (eobp))
-                        (vdiff--change-at-point-p)))
+                        (and find-folds
+                             (vdiff--fold-at-point-p))
+                        (and (not find-folds)
+                             (vdiff--change-at-point-p))))
           (setq pnt
                 (goto-char (if reverse
                                (previous-overlay-change pnt)
@@ -880,6 +889,18 @@ folds in the region."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-change count))))
+
+(defun vdiff-next-fold (arg)
+  "Jump to next fold in this buffer."
+  (interactive "p")
+  (let ((count (or arg 1)))
+    (goto-char (vdiff--nth-change count t))))
+
+(defun vdiff-previous-fold (arg)
+  "Jump to previous fold in this buffer."
+  (interactive "p")
+  (let ((count (or (- arg) -1)))
+    (goto-char (vdiff--nth-change count t))))
 
 ;; * Entry points
 
@@ -959,6 +980,8 @@ asked to select two buffers."
     (define-key map "g" 'vdiff-goto-corresponding-line)
     (define-key map "n" 'vdiff-next-change)
     (define-key map "p" 'vdiff-previous-change)
+    (define-key map "N" 'vdiff-next-fold)
+    (define-key map "P" 'vdiff-previous-fold)
     (define-key map "s" 'vdiff-send-changes)
     (define-key map "r" 'vdiff-receive-changes)
     (define-key map "q" 'vdiff-quit)
@@ -967,6 +990,7 @@ asked to select two buffers."
     (define-key map "O" 'vdiff-open-all-folds)
     (define-key map "c" 'vdiff-close-fold)
     (define-key map "C" 'vdiff-close-all-folds)
+    (define-key map "h" 'vdiff-maybe-hydra)
     map))
 
 (defvar vdiff-scroll-lock-mode)
@@ -1021,16 +1045,21 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
           (remove-hook 'post-command-hook #'vdiff--post-command-hook t))
          (message "Scrolling unlocked"))))
 
-(when (fboundp 'defhydra)
+(defun vdiff--define-hydra ()
+  "Define `vdiff-hydra'"
   (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
-    "
- Navigation^^             Transmit^^        Folds^^^^                Other^^
- -^^-------------------  --^^------------  -^^^^------------------  --^-^-^-^-------------------
- [_n_] next change        [_s_] send        [_o_/_O_] open (all)     [_u_]^ ^  update diff
- [_p_] previous change    [_r_] receive     [_c_/_C_] close (all)    [_w_]^ ^  save buffers
- [_g_] goto corr. line     ^ ^               ^ ^ ^ ^                 [_q_/_Q_] quit hydra/vdiff"
+    (concat (propertize
+             "\
+ Navigation^^^^                Transmit^^        Folds^^^^                Other^^^^                 "
+             'face 'header-line)
+            "
+ [_n_/_N_] next change/fold    [_s_] send        [_o_/_O_] open (all)     [_u_]^ ^  update diff
+ [_p_/_P_] prev change/fold    [_r_] receive     [_c_/_C_] close (all)    [_w_]^ ^  save buffers
+ [_g_]^ ^  goto corr. line     ^ ^               ^ ^ ^ ^                  [_q_/_Q_] quit hydra/vdiff")
     ("n" vdiff-next-change)
     ("p" vdiff-previous-change)
+    ("N" vdiff-next-fold)
+    ("P" vdiff-previous-fold)
     ("g" vdiff-goto-corresponding-line)
     ("s" vdiff-send-changes)
     ("r" vdiff-receive-changes)
@@ -1042,6 +1071,17 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("w" vdiff-save-buffers)
     ("q" nil :exit t)
     ("Q" vdiff-quit)))
+
+(defun vdiff-maybe-hydra ()
+  "Call `vdiff-hydra/body' if defined."
+  (interactive)
+  (cond ((fboundp 'vdiff-hydra/body)
+         (call-interactively 'vdiff-hydra/body))
+        ((require 'hydra nil t)
+         (vdiff--define-hydra)
+         (call-interactively 'vdiff-hydra/body))
+        (t
+         (message "hydra package not found."))))
 
 (provide 'vdiff)
 ;;; vdiff.el ends here

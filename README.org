@@ -45,6 +45,8 @@ the commands would be
 | =C-c g= | =vdiff-goto-corresponding-line= | Jump to the corresponding line in the other buffer |
 | =C-c n= | =vdiff-next-change=             | Move to next change in buffer                      |
 | =C-c p= | =vdiff-previous-change=         | Move to previous change in buffer                  |
+| =C-c N= | =vdiff-next-fold=               | Move to next fold in buffer                        |
+| =C-c P= | =vdiff-previous-fold=           | Move to previous fold in buffer                    |
 | =C-c r= | =vdiff-receive-changes=         | Receive the corresponding hunk from other buffer   |
 | =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
 | =C-c c= | =vdiff-close-fold=              | Close fold at point or in region                   |
@@ -54,6 +56,7 @@ the commands would be
 | =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |
 | =C-c q= | =vdiff-quit=                    | Quit vdiff                                         |
 | =C-l=   | =vdiff-sync-and-center=         | Recenter both buffers at current line              |
+| =C-c h= | =vdiff-maybe-hydra=             | Enter vdiff-hydra if defined (see below)           |
 
 Evil-mode users might prefer something like the following to use =,= as a prefix
 in normal state.
@@ -66,6 +69,12 @@ in normal state.
 
 To start vdiff, use either =vdiff-files= to select two files or =vdiff-buffers=
 to select two open buffers.
+
+** Hydra (optional)
+
+If the [[https://github.com/abo-abo/hydra][hydra package]] is loaded, =vdiff-hydra= is defined to allow quick movement
+and changes to be made in the buffer. By default it lives on the =h= command in
+the prefix map. Bind =vdiff-maybe-hydra= directly to customize this.
 
 ** Further customization
    
