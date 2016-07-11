@@ -174,12 +174,12 @@ text on the first line, and the width of the buffer."
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
 (defvar vdiff--process-buffer " *vdiff*")
-
 (defvar vdiff--diff-data nil)
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
 (defvar vdiff--inhibit-window-switch nil)
-(defvar vdiff--inhibit-sync nil)
+(defvar vdiff--in-scroll-hook nil)
+(defvar vdiff--in-post-command-hook nil)
 (defvar vdiff--line-map nil)
 (defvar vdiff--folds nil)
 (defvar vdiff--all-folds-open nil)
@@ -520,8 +520,7 @@ text on the first line, and the width of the buffer."
               (with-current-buffer b-buffer
                 (forward-line (- b-beg b-line))
                 (setq b-line b-beg)
-                (setq ovr-b
-                      (vdiff--add-diff-overlay nil code b-len a-len)))
+                (setq ovr-b (vdiff--add-diff-overlay nil code b-len a-len)))
               (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
               (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
         (push (cons (cons a-last-post
@@ -708,9 +707,7 @@ buffer and center both buffers at this line."
       (vdiff--move-to-line line)
       (line-beginning-position))))
 
-(defvar vdiff--inhibit-sync-scroll nil)
-
-(defun vdiff-sync-scroll (window window-start)
+(defun vdiff--scroll-function (window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((buf-a (car vdiff--buffers))
          (buf-b (cadr vdiff--buffers))
@@ -720,7 +717,7 @@ buffer and center both buffers at this line."
                (window-live-p win-a)
                (window-live-p win-b)
                (memq window (list win-a win-b))
-               (not vdiff--inhibit-sync-scroll))
+               (not vdiff--in-scroll-hook))
       (let* ((in-b (eq window win-b))
              (other-window (if in-b win-a win-b))
              (other-buffer (if in-b buf-a buf-b))
@@ -734,34 +731,42 @@ buffer and center both buffers at this line."
                            this-start in-b))
              (other-start-pos (vdiff--pos-at-line-beginning
                                other-start other-buffer))
-             (vdiff--inhibit-sync-scroll t))
-        (set-window-buffer other-window other-buffer)
+             (vdiff--in-scroll-hook t))
         (set-window-start other-window other-start-pos)
         (set-window-point other-window other-line-pos)))))
 
-(defun vdiff-mirror-commands ()
-  "Execute `vdiff-mirrored-commands' in all buffers."
+(defun vdiff--post-command-hook ()
+  "Sync scroll for `vdiff-mirrored-commands'."
   ;; Use real-this-command because evil-next-line and evil-previous-line pretend
   ;; they are next-line and previous-line
   (when (and (memq real-this-command vdiff-mirrored-commands)
-             (not vdiff--inhibit-sync)
+             (not vdiff--in-post-command-hook)
              (vdiff--buffer-p))
-    (let* ((this-line (line-number-at-pos))
-           (other-line (vdiff--translate-line
-                        this-line (vdiff--buffer-b-p)))
-          ;; This is necessary to not screw up the cursor column after calling
-          ;; next-line or previous-line again from the other buffer
-          temporary-goal-column)
-      (vdiff--with-other-window
-       (ignore-errors
-         (let ((vdiff--inhibit-sync t))
-           (when (or
-                  (not (memq this-command '(next-line previous-line)))
-                  (and (eq this-command 'next-line)
-                       (< (line-number-at-pos) other-line))
-                  (and (eq this-command 'previous-line)
-                       (> (line-number-at-pos) other-line)))
-             (call-interactively real-this-command))))))))
+    ;; New Strategy: Use (message nil) to just force a redisplay in other
+    ;; window. This is the only way I've figured out how to reliably do this so
+    ;; far. I don't know why (redisplay t) and similar calls don't work here.
+    (let ((vdiff--in-post-command-hook t))
+      (vdiff--with-other-window (message nil)))
+
+    ;; Old strategy: Execute command in other buffer, which worked but it wasn't
+    ;; easy to keep the cursors aligned.
+    ;; (let* ((this-line (line-number-at-pos))
+    ;;        (other-line (vdiff--translate-line
+    ;;                     this-line (vdiff--buffer-b-p)))
+    ;;        ;; This is necessary to not screw up the cursor column after calling
+    ;;        ;; next-line or previous-line again from the other buffer
+    ;;        temporary-goal-column)
+    ;;   (vdiff--with-other-window
+    ;;    (ignore-errors
+    ;;      (let ((vdiff--in-post-command-hook t))
+    ;;        (when (or
+    ;;               (not (memq this-command '(next-line previous-line)))
+    ;;               (and (eq this-command 'next-line)
+    ;;                    (< (line-number-at-pos) other-line))
+    ;;               (and (eq this-command 'previous-line)
+    ;;                    (> (line-number-at-pos) other-line)))
+    ;;          (call-interactively real-this-command))))))
+    ))
 
 (defvar vdiff--bottom-left-angle-bits
   (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
@@ -997,13 +1002,13 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
          (unless vdiff-mode
            (vdiff-mode 1))
          (vdiff--with-both-buffers
-          (add-hook 'window-scroll-functions #'vdiff-sync-scroll nil t)
-          (add-hook 'post-command-hook #'vdiff-mirror-commands nil t))
+          (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)
+          (add-hook 'post-command-hook #'vdiff--post-command-hook nil t))
          (message "Scrolling locked"))
         (t
          (vdiff--with-both-buffers
-          (remove-hook 'window-scroll-functions #'vdiff-sync-scroll t)
-          (remove-hook 'post-command-hook #'vdiff-mirror-commands t))
+          (remove-hook 'window-scroll-functions #'vdiff--scroll-function t)
+          (remove-hook 'post-command-hook #'vdiff--post-command-hook t))
          (message "Scrolling unlocked"))))
 
 (when (fboundp 'defhydra)
