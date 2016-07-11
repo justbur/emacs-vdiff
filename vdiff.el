@@ -1,4 +1,4 @@
-;;; vdiff.el --- Like vimdif for Emacs -*- lexical-binding: t; -*-
+;;; vdiff.el --- A diff tool similar to  vimdiff -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2016 Justin Burkett
 
