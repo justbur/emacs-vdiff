@@ -479,8 +479,8 @@ text on the first line, and the width of the buffer."
           (b-buffer (cadr vdiff--buffers))
           (a-line 1)
           (b-line 1)
-          (a-last-post-end 1)
-          (b-last-post-end 1)
+          (a-last-post 1)
+          (b-last-post 1)
           folds)
       (save-excursion
         (with-current-buffer a-buffer
@@ -495,19 +495,21 @@ text on the first line, and the width of the buffer."
                  (b-range (nth 2 header))
                  (a-beg (car a-range))
                  (a-end (cdr a-range))
+                 (a-post (if (string= code "a") a-end (1+ a-end)))
                  (a-len (1+ (- a-end a-beg)))
                  (b-beg (car b-range))
                  (b-end (cdr b-range))
+                 (b-post (if (string= code "d") b-end (1+ b-end)))
                  (b-len (1+ (- b-end b-beg))))
 
             (unless (member code (list "a" "d" "c"))
               (user-error "vdiff: Unexpected code in diff output"))
           
-            (push (cons (cons a-last-post-end (1- a-beg))
-                        (cons b-last-post-end (1- b-beg)))
+            (push (cons (cons a-last-post (1- a-beg))
+                        (cons b-last-post (1- b-beg)))
                   folds)
-            (setq a-last-post-end (1+ a-end))
-            (setq b-last-post-end (1+ b-end))
+            (setq a-last-post a-post)
+            (setq b-last-post b-post)
 
             (let (ovr-a ovr-b)
               (with-current-buffer a-buffer
@@ -524,10 +526,10 @@ text on the first line, and the width of the buffer."
               
               (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
               (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
-        (push (cons (cons a-last-post-end
+        (push (cons (cons a-last-post
                           (with-current-buffer a-buffer
                             (line-number-at-pos (point-max))))
-                    (cons b-last-post-end
+                    (cons b-last-post
                           (with-current-buffer b-buffer
                             (line-number-at-pos (point-max)))))
               folds)
