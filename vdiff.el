@@ -1070,7 +1070,7 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("u" vdiff-refresh)
     ("w" vdiff-save-buffers)
     ("q" nil :exit t)
-    ("Q" vdiff-quit)))
+    ("Q" vdiff-quit :exit t)))
 
 (defun vdiff-maybe-hydra ()
   "Call `vdiff-hydra/body' if defined."
