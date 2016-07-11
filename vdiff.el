@@ -754,11 +754,10 @@ buffer and center both buffers at this line."
   (when (and (memq real-this-command vdiff-mirrored-commands)
              (not vdiff--in-post-command-hook)
              (vdiff--buffer-p))
-    ;; New Strategy: Use (message nil) to just force a redisplay in other
-    ;; window. This is the only way I've figured out how to reliably do this so
-    ;; far. I don't know why (redisplay t) and similar calls don't work here.
+    ;; New Strategy: Just force a redisplay in other window and let
+    ;; `vdiff--scroll-function' do the work.
     (let ((vdiff--in-post-command-hook t))
-      (vdiff--with-other-window (message nil)))
+      (force-window-update (vdiff--other-window)))
 
     ;; Old strategy: Execute command in other buffer, which worked but it wasn't
     ;; easy to keep the cursors aligned.
