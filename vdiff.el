@@ -93,6 +93,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'subr-x)
 
 (defgroup vdiff nil
   "Diff tool that is like vimdiff"
@@ -457,7 +458,7 @@ text on the first line, and the width of the buffer."
 (defun vdiff--remove-fold-overlays (_)
   (setq vdiff--folds nil))
 
-(defun vdiff--add-diff-overlay (in-a code this-beg this-len other-beg other-len)
+(defun vdiff--add-diff-overlay (in-a code this-len other-len)
   (cond ((or (and in-a (string= code "d"))
              (and (not in-a) (string= code "a")))
          (vdiff--add-change-overlay this-len t))
@@ -515,15 +516,12 @@ text on the first line, and the width of the buffer."
               (with-current-buffer a-buffer
                 (forward-line (- a-beg a-line))
                 (setq a-line a-beg)
-                (setq ovr-a
-                      (vdiff--add-diff-overlay t code a-beg a-len b-beg b-len)))
-              
+                (setq ovr-a (vdiff--add-diff-overlay t code a-len b-len)))
               (with-current-buffer b-buffer
                 (forward-line (- b-beg b-line))
                 (setq b-line b-beg)
                 (setq ovr-b
-                      (vdiff--add-diff-overlay nil code b-beg b-len a-beg a-len)))
-              
+                      (vdiff--add-diff-overlay nil code b-len a-len))) 
               (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
               (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
         (push (cons (cons a-last-post
