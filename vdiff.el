@@ -945,7 +945,8 @@ asked to select two buffers."
   (interactive)
   (dolist (buf vdiff--buffers)
     (with-current-buffer buf
-      (vdiff-mode -1))))
+      (vdiff-mode -1)))
+  (message "vdiff exited"))
 (defalias 'vdiff-quit 'vdiff-exit)
 
 (defvar vdiff-mode-map
