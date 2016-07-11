@@ -356,7 +356,7 @@ text on the first line, and the width of the buffer."
      'face 'vdiff-subtraction-face)))
 
 (defun vdiff--add-subtraction-overlay (n-lines)
-  (let* ((ovr (make-overlay (point) (point))))
+  (let* ((ovr (make-overlay (point) (1+ (point)))))
     (overlay-put ovr 'before-string (vdiff--make-subtraction-string n-lines))
     (overlay-put ovr 'vdiff-type 'subtraction)
     (overlay-put ovr 'vdiff t)
