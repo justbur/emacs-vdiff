@@ -23,28 +23,29 @@
 
 ;;; Commentary:
 
-;; A tool like vimdiff for Emacs 
+;; A tool like vimdiff for Emacs
 
 ;; ** Introduction
 
-;; vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning diff
-;; information is displayed in buffers as you edit them. There are commands for
-;; cycling through the changes detected by =diff= and applying changes from one
-;; buffer to the other. 
+;; vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning
+;; diff information is displayed in buffers as you edit them. There are commands
+;; for cycling through the changes detected by =diff= and applying changes from
+;; one buffer to the other.
 
 ;; ediff is a powerful diff tool built into Emacs, but it works differently. In
-;; ediff you control the diffed buffers through a third control buffer, which works
-;; great until you want to edit the buffers directly. I prefer the way vimdiff
-;; works, but I am also not necessarily interested in perfectly emulating
-;; vimdiff. vdiff does not assume you use evil-mode, but is compatible with it.
+;; ediff you control the diffed buffers through a third control buffer, which
+;; works great until you want to edit the buffers directly. I prefer the way
+;; vimdiff works, but I am also not necessarily interested in perfectly
+;; emulating vimdiff. vdiff does not assume you use evil-mode, but is compatible
+;; with it.
 
-;; vdiff is a work in progress, so use it at your own risk. Contributions are very
-;; welcome.
+;; vdiff is a work in progress, so use it at your own risk. Contributions are
+;; very welcome.
 
 ;; ** Installation and Usage
 
-;; It will be on MELPA eventually. For now, you have to clone this repository and
-;; modify =load-path=. Here's an example =use-package= declaration.
+;; It will be on MELPA eventually. For now, you have to clone this repository
+;; and modify =load-path=. Here's an example =use-package= declaration.
 
 ;; (use-package vdiff
 ;;   :load-path "path/to/vdiff"
@@ -66,9 +67,9 @@
 ;; | =C-l=   | =vdiff-sync-and-center=         | Recenter both buffers at current line              |
 
 ;; ** Further customization
-   
+
 ;; The current customization options and there defaults are
-   
+
 ;;   ;; Whether to lock scrolling by default when starting vdiff
 ;;   (setq vdiff-lock-scrolling t)
 
@@ -88,7 +89,7 @@
 ;;                                   evil-previous-line
 ;;                                   beginning-of-buffer
 ;;                                   end-of-buffer))
-;; 
+;;
 
 ;;; Code:
 
@@ -350,8 +351,7 @@ text on the first line, and the width of the buffer."
 
 (defun vdiff--add-subtraction-overlay (n-lines)
   (let* ((ovr (make-overlay (point) (point))))
-    (overlay-put ovr 'before-string
-                 (vdiff--make-subtraction-string n-lines))
+    (overlay-put ovr 'before-string (vdiff--make-subtraction-string n-lines))
     (overlay-put ovr 'vdiff-type 'subtraction)
     (overlay-put ovr 'vdiff t)
     ovr))
@@ -386,7 +386,9 @@ text on the first line, and the width of the buffer."
                 "\n")
         (concat start
                 first-line-text
-                (make-string (- width (length start) (length first-line-text)) ?-)
+                (make-string
+                 (- width (length start) (length first-line-text))
+                 ?-)
                 "\n"))))
 
 (defun vdiff--make-fold (buffer range)
@@ -432,10 +434,14 @@ text on the first line, and the width of the buffer."
                ;; Restore any overlays on same range
                (let* ((a-fold (cadr (assoc a-range vdiff--folds)))
                       (b-fold (caddr (assoc a-range vdiff--folds)))
-                      (a-beg (vdiff--pos-at-line-beginning (car a-range) a-buffer))
-                      (a-end (vdiff--pos-at-line-beginning (cdr a-range) a-buffer))
-                      (b-beg (vdiff--pos-at-line-beginning (car b-range) b-buffer))
-                      (b-end (vdiff--pos-at-line-beginning (cdr b-range) b-buffer)))
+                      (a-beg (vdiff--pos-at-line-beginning
+                              (car a-range) a-buffer))
+                      (a-end (vdiff--pos-at-line-beginning
+                              (cdr a-range) a-buffer))
+                      (b-beg (vdiff--pos-at-line-beginning
+                              (car b-range) b-buffer))
+                      (b-end (vdiff--pos-at-line-beginning
+                              (cdr b-range) b-buffer)))
                  (move-overlay a-fold a-beg a-end a-buffer)
                  (move-overlay b-fold b-beg b-end b-buffer)
                  (push (list a-range a-fold b-fold) new-folds)))
@@ -753,8 +759,9 @@ buffer and center both buffers at this line."
     ;; (let* ((this-line (line-number-at-pos))
     ;;        (other-line (vdiff--translate-line
     ;;                     this-line (vdiff--buffer-b-p)))
-    ;;        ;; This is necessary to not screw up the cursor column after calling
-    ;;        ;; next-line or previous-line again from the other buffer
+    ;;        ;; This is necessary to not screw up the cursor column after
+    ;;        ;; calling next-line or previous-line again from the other
+    ;;        ;; buffer
     ;;        temporary-goal-column)
     ;;   (vdiff--with-other-window
     ;;    (ignore-errors
@@ -975,14 +982,16 @@ commands like `vdiff-files' or `vdiff-buffers'."
                      (make-temp-file "vdiff--temp-b-")))
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
-         (add-hook 'window-size-change-functions 'vdiff--remove-fold-overlays)
+         (add-hook 'window-size-change-functions
+                   'vdiff--remove-fold-overlays)
          (when vdiff-lock-scrolling
            (vdiff-scroll-lock-mode 1)))
         (t
          (vdiff--remove-all-overlays)
          (setq cursor-in-non-selected-windows t)
          (remove-hook 'after-save-hook #'vdiff-refresh t)
-         (remove-hook 'window-size-change-functions 'vdiff--remove-fold-overlays)
+         (remove-hook 'window-size-change-functions
+                      'vdiff--remove-fold-overlays)
          (when vdiff-scroll-lock-mode
            (vdiff-scroll-lock-mode -1))
          (setq vdiff--diff-data nil)
