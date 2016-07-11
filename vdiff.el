@@ -648,10 +648,8 @@ changes under point or on the immediately preceding line."
               (dolist (entry vdiff--line-map)
                 (let ((map-line
                        (if B-to-A (cadr entry) (car entry))))
-                  (cond ((< map-line line)
+                  (cond ((<= map-line line)
                          (setq prev-entry entry))
-                        ((= map-line line)
-                         (throw 'closest entry))
                         (t
                          (throw 'closest prev-entry)))))
               (throw 'closest prev-entry))))
