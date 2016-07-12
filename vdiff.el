@@ -817,6 +817,7 @@ folds in the region."
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (let ((other-fold (overlay-get ovr 'vdiff-other-fold)))
         (setq vdiff--all-folds-open nil)
+        (goto-char (overlay-start ovr))
         (vdiff--set-closed-fold-props ovr)
         (vdiff--set-closed-fold-props other-fold)))))
 
