@@ -417,14 +417,13 @@ parsing the diff output and triggering the overlay updates."
                (let ((a-fold (vdiff--make-fold a-buffer a-range))
                      (b-fold (vdiff--make-fold b-buffer b-range)))
                  (dolist (fold (list a-fold b-fold))
-                   (if vdiff--all-folds-open
-                          (vdiff--set-open-fold-props fold)
-                     (vdiff--set-closed-fold-props fold)))
+                   (cond ((or (vdiff--point-in-fold-p fold)
+                              vdiff--all-folds-open)
+                          (vdiff--set-open-fold-props fold))
+                         (t
+                          (vdiff--set-closed-fold-props fold))))
                  (overlay-put a-fold 'vdiff-other-fold b-fold)
                  (overlay-put b-fold 'vdiff-other-fold a-fold)
-                 (when (or (vdiff--point-in-fold-p a-buffer a-fold)
-                           (vdiff--point-in-fold-p b-buffer b-fold))
-                   (vdiff-open-fold (point) (1+ (point))))
                  (push (list a-range a-fold b-fold) new-folds))))))
     (setq vdiff--folds new-folds)))
 
