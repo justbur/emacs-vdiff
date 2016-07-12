@@ -51,6 +51,7 @@ the commands would be
 | =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
 | =C-c c= | =vdiff-close-fold=              | Close fold at point or in region                   |
 | =C-c C= | =vdiff-close-all-folds=         | Close all folds in buffer                          |
+| =C-c t= | =vdiff-close-other-folds=       | Close all other folds in buffer                    |
 | =C-c o= | =vdiff-open-fold=               | Open fold at point or in region                    |
 | =C-c O= | =vdiff-open-all-folds=          | Open all folds in buffer                           |
 | =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |

@@ -387,8 +387,8 @@ parsing the diff output and triggering the overlay updates."
   (cons (+ vdiff-fold-padding (car range))
         (1+ (- (cdr range) vdiff-fold-padding))))
 
-(defun vdiff--point-in-fold-p (buf fold)
-  (and (eq (current-buffer) buf)
+(defun vdiff--point-in-fold-p (fold)
+  (and (eq (current-buffer) (overlay-buffer fold))
        (>= (point) (overlay-start fold))
        (<= (point) (overlay-end fold))))
 
@@ -833,6 +833,17 @@ folds in the region."
   (setq vdiff--all-folds-open nil)
   (vdiff-close-fold (point-min) (point-max)))
 
+(defun vdiff-close-other-folds ()
+  "Close all other folds in both buffers"
+  (interactive)
+  (dolist (ovr (overlays-in (point-min) (point-max)))
+    (when (and (eq (overlay-get ovr 'vdiff-type) 'fold)
+               (not (vdiff--point-in-fold-p ovr)))
+      (setq vdiff--all-folds-open nil)
+      (vdiff--set-closed-fold-props ovr)
+      (vdiff--set-closed-fold-props
+       (overlay-get ovr 'vdiff-other-fold)))))
+
 ;; * Movement
 
 (defun vdiff--nth-change (&optional n find-folds)
@@ -972,6 +983,7 @@ asked to select two buffers."
     (define-key map "O" 'vdiff-open-all-folds)
     (define-key map "c" 'vdiff-close-fold)
     (define-key map "C" 'vdiff-close-all-folds)
+    (define-key map "t" 'vdiff-close-other-folds)
     (define-key map "h" 'vdiff-maybe-hydra)
     map))
 
@@ -1032,12 +1044,12 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
   (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
     (concat (propertize
              "\
- Navigation^^^^                Transmit^^        Folds^^^^                Other^^^^                 "
+ Navigation^^^^              Transmit^^      Folds^^^^              Other^^^^                 "
              'face 'header-line)
             "
- [_n_/_N_] next change/fold    [_s_] send        [_o_/_O_] open (all)     [_u_]^ ^  update diff
- [_p_/_P_] prev change/fold    [_r_] receive     [_c_/_C_] close (all)    [_w_]^ ^  save buffers
- [_g_]^ ^  goto corr. line     ^ ^               ^ ^ ^ ^                  [_q_/_Q_] quit hydra/vdiff")
+ _n_/_N_ next change/fold    _s_ send        _o_/_O_ open (all)     _u_^ ^  update diff
+ _p_/_P_ prev change/fold    _r_ receive     _c_/_C_ close (all)    _w_^ ^  save buffers
+ _g_^ ^  goto corresp. line   ^ ^            _t_^ ^  close other    _q_/_Q_ quit hydra/vdiff")
     ("n" vdiff-next-change)
     ("p" vdiff-previous-change)
     ("N" vdiff-next-fold)
@@ -1049,6 +1061,7 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("O" vdiff-open-all-folds)
     ("c" vdiff-close-fold)
     ("C" vdiff-close-all-folds)
+    ("t" vdiff-close-other-folds)
     ("u" vdiff-refresh)
     ("w" vdiff-save-buffers)
     ("q" nil :exit t)
