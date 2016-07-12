@@ -25,71 +25,24 @@
 
 ;; A tool like vimdiff for Emacs
 
-;; ** Introduction
+;; * Introduction
 
 ;; vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning
 ;; diff information is displayed in buffers as you edit them. There are commands
 ;; for cycling through the changes detected by =diff= and applying changes from
-;; one buffer to the other.
+;; one buffer to the other. The main features are
 
-;; ediff is a powerful diff tool built into Emacs, but it works differently. In
-;; ediff you control the diffed buffers through a third control buffer, which
-;; works great until you want to edit the buffers directly. I prefer the way
-;; vimdiff works, but I am also not necessarily interested in perfectly
-;; emulating vimdiff. vdiff does not assume you use evil-mode, but is compatible
-;; with it.
+;;   1. Synchronized scrolling of the buffers with lines matching between the
+;;      two
+;;   2. Commands to transmit (send/receive) changes between buffers
+;;   3. Automatic folding of lines that are unchanged in both buffers
+;;   4. Commands to jump easily between changes
+;;   5. Everything done through overlays, meaning vdiff doesn't alter the actual
+;;      text in the buffer (unless you are transmit changes of course)
 
-;; vdiff is a work in progress, so use it at your own risk. Contributions are
-;; very welcome.
+;; Contributions and suggestions are very welcome.
 
-;; ** Installation and Usage
-
-;; It will be on MELPA eventually. For now, you have to clone this repository
-;; and modify =load-path=. Here's an example =use-package= declaration.
-
-;; (use-package vdiff
-;;   :load-path "path/to/vdiff"
-;;   :commands (vdiff-buffers vdiff-files)
-;;   :config
-;;   (define-key vdiff-mode-map (kbd "C-c") vdiff-mode-prefix-map))
-
-;; The last line puts the main vdiff commands under the =C-c= prefix. With this
-;; declaration the key bindings in vdiff buffers are
-
-;; | Key     | Command                         | Description                                        |
-;; |---------+---------------------------------+----------------------------------------------------|
-;; | =C-c n= | =vdiff-next-change=             | Move to next change in buffer                      |
-;; | =C-c p= | =vdiff-previous-change=         | Move to previous change in buffer                  |
-;; | =C-c g= | =vdiff-goto-corresponding-line= | Jump to the corresponding line in the other buffer |
-;; | =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
-;; | =C-c r= | =vdiff-receive-changes=         | Receive the corresponding hunk from other buffer   |
-;; | =C-c w= | =vdiff-save-buffers=            | Save both buffers                                  |
-;; | =C-l=   | =vdiff-sync-and-center=         | Recenter both buffers at current line              |
-
-;; ** Further customization
-
-;; The current customization options and there defaults are
-
-;;   ;; Whether to lock scrolling by default when starting vdiff
-;;   (setq vdiff-lock-scrolling t)
-
-;;   ;; external diff program/command to use
-;;   (setq vdiff-diff-program "diff")
-
-;;   ;; Extra arguments to pass to diff. If this is set wrong, you may
-;;   ;; break vdiff.
-;;   (setq vdiff-diff-program-args "")
-
-;;   ;; Commands that should be executed in other vdiff buffer to keep lines in
-;;   ;; sync. There is no need to include commands that scroll the buffer here,
-;;   ;; because those are handled differently.
-;;   (setq vdiff-mirrored-commands '(next-line
-;;                                   previous-line
-;;                                   evil-next-line
-;;                                   evil-previous-line
-;;                                   beginning-of-buffer
-;;                                   end-of-buffer))
-;;
+;; See https://github.com/justbur/emacs-vdiff for more information
 
 ;;; Code:
 
