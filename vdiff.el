@@ -258,6 +258,7 @@ text on the first line, and the width of the buffer."
          (1+ (overlay-end ovr)))))))
 
 (defmacro vdiff--with-other-window (&rest body)
+  "Execute BODY in other vdiff window."
   `(when (and (vdiff--buffer-p)
               (not vdiff--inhibit-window-switch)
               (vdiff--other-window))
@@ -269,7 +270,8 @@ text on the first line, and the width of the buffer."
              ,@body)
          (setq vdiff--inhibit-window-switch nil)))))
 
-(defmacro vdiff--with-both-buffers (&rest body)
+(defmacro vdiff--with-all-buffers (&rest body)
+  "Execute BODY in all vdiff buffers."
   `(dolist (buf vdiff--buffers)
      (when (buffer-live-p buf)
        (with-current-buffer buf
@@ -313,10 +315,13 @@ text on the first line, and the width of the buffer."
            (cons beg (or end beg))))))
 
 (defun vdiff--diff-refresh-1 (_proc event)
+  "This is the sentinel for `vdiff-refresh'. It does the job of
+parsing the diff output and triggering the overlay updates."
   (cond ((string= "finished\n" event)
          ;; means no difference between files
          (setq vdiff--diff-data nil)
-         (vdiff--refresh-overlays))
+         (vdiff--refresh-overlays)
+         (vdiff--refresh-line-maps))
         ((string= "exited abnormally with code 1\n" event)
          (setq vdiff--diff-data nil)
          (let (res)
@@ -330,20 +335,23 @@ text on the first line, and the width of the buffer."
                                 code nil (match-string 4) (match-string 5))))
                  (push (list code a-range b-range) res))))
            (setq vdiff--diff-data (nreverse res)))
-         (vdiff--refresh-overlays))
+         (vdiff--refresh-overlays)
+         (vdiff--refresh-line-maps))
         ((string-match-p "exited abnormally with code" event)
          (setq vdiff--diff-data nil)
          (vdiff--refresh-overlays)
+         (vdiff--refresh-line-maps)
          (message "vdiff process error: %s" event))))
 
 (defun vdiff--remove-all-overlays ()
-  (vdiff--with-both-buffers
+  "Remove all vdiff overlays in both vdiff buffers."
+  (vdiff--with-all-buffers
    (remove-overlays (point-min) (point-max) 'vdiff t)))
 
 (defun vdiff-save-buffers ()
   "Save all vdiff buffers."
   (interactive)
-  (vdiff--with-both-buffers (save-buffer)))
+  (vdiff--with-all-buffers (save-buffer)))
 
 ;; * Add overlays
 
@@ -485,8 +493,8 @@ text on the first line, and the width of the buffer."
          (vdiff--add-change-overlay this-len))))
 
 (defun vdiff--refresh-overlays ()
+  "Delete and recreate overlays in both buffers."
   (vdiff--remove-all-overlays)
-  (vdiff--refresh-line-maps)
   (save-excursion
     (let ((a-buffer (car vdiff--buffers))
           (b-buffer (cadr vdiff--buffers))
@@ -547,6 +555,10 @@ text on the first line, and the width of the buffer."
 ;; * Moving changes
 
 (defun vdiff--region-or-close-overlay ()
+  "Return region bounds if active. Otherwise check if there is an
+overlay at point and return it if there is. If this fails check a
+line above. Always search to the end of the current line as
+well. This only returns bounds for `interactive'."
   (if (region-active-p)
       (prog1
         (list (region-beginning) (region-end))
@@ -592,6 +604,7 @@ changes under point or on the immediately preceding line."
   (vdiff-send-changes beg end t))
 
 (defun vdiff--transmit-change-overlay (ovr)
+  "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
          (message "No change found")
     (let* ((addition (eq 'addition (overlay-get ovr 'vdiff-type)))
@@ -609,6 +622,8 @@ changes under point or on the immediately preceding line."
       (delete-overlay ovr))))
 
 (defun vdiff--transmit-subtraction-overlay (ovr)
+  "Same idea as `vdiff--transmit-change-overlay' except we are
+just deleting text in the other buffer."
   (if (not (overlayp ovr))
          (message "No change found")
     (let* ((other-ovr (overlay-get ovr 'vdiff-other-overlay)))
@@ -620,6 +635,8 @@ changes under point or on the immediately preceding line."
 ;; * Scrolling and line syncing
 
 (defun vdiff--refresh-line-maps ()
+  "Sync information in `vdiff--line-map' with
+`vdiff--diff-data'."
   (let (new-map)
     (dolist (entry vdiff--diff-data)
       (let* ((code (car entry))
@@ -652,6 +669,8 @@ changes under point or on the immediately preceding line."
     (setq vdiff--line-map (cons (list 0 0) (nreverse new-map)))))
 
 (defun vdiff--translate-line (line &optional B-to-A)
+  "Translate LINE in buffer A to corresponding line in buffer
+B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
   (let* ((last-entry
           (catch 'closest
@@ -714,6 +733,8 @@ buffer and center both buffers at this line."
    (recenter)))
 
 (defun vdiff--pos-at-line-beginning (line &optional buffer)
+  "Return position at beginning of LINE in BUFFER (or current
+buffer)."
   (with-current-buffer (or buffer (current-buffer))
     (save-excursion
       (vdiff--move-to-line line)
@@ -800,6 +821,7 @@ buffer and center both buffers at this line."
 (define-fringe-bitmap 'vdiff--top-left-angle vdiff--top-left-angle-bits)
 
 (defun vdiff--set-open-fold-props (ovr)
+  "Set overlay properties to open fold OVR."
   (overlay-put ovr 'vdiff-fold-open t)
   (overlay-put ovr 'display nil)
   (overlay-put ovr 'before-string
@@ -813,6 +835,7 @@ buffer and center both buffers at this line."
                 " " 'display '(left-fringe vdiff--bottom-left-angle))))
 
 (defun vdiff--set-closed-fold-props (ovr)
+  "Set overlay properties to close fold OVR."
   (overlay-put ovr 'vdiff-fold-open nil)
   (overlay-put ovr 'before-string nil)
   (overlay-put ovr 'line-prefix nil)
@@ -859,6 +882,8 @@ folds in the region."
 ;; * Movement
 
 (defun vdiff--nth-change (&optional n find-folds)
+  "Return point at Nth change overlay in buffer. Use folds
+instead of changes with non-nil FIND-FOLDS."
   (let* ((n (or n 1))
          (reverse (< n 0))
          pnt)
@@ -960,11 +985,12 @@ asked to select two buffers."
       (split-window-horizontally))
     (switch-to-buffer-other-window buffer-b)
     (setq vdiff--buffers (list buffer-a buffer-b))
-    (vdiff--with-both-buffers
+    (vdiff--with-all-buffers
      (vdiff-mode 1))
     (vdiff-refresh)))
 
 (defun vdiff-exit ()
+  "Exit `vdiff-mode' and clean up."
   (interactive)
   (dolist (buf vdiff--buffers)
     (with-current-buffer buf
@@ -1037,12 +1063,12 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
   (cond (vdiff-scroll-lock-mode
          (unless vdiff-mode
            (vdiff-mode 1))
-         (vdiff--with-both-buffers
+         (vdiff--with-all-buffers
           (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)
           (add-hook 'post-command-hook #'vdiff--post-command-hook nil t))
          (message "Scrolling locked"))
         (t
-         (vdiff--with-both-buffers
+         (vdiff--with-all-buffers
           (remove-hook 'window-scroll-functions #'vdiff--scroll-function t)
           (remove-hook 'post-command-hook #'vdiff--post-command-hook t))
          (message "Scrolling unlocked"))))
