@@ -106,7 +106,6 @@ text on the first line, and the width of the buffer."
 
 \"w\"   (default) words
 \"w_\"  symbols \(really words plus symbol constituents\)
-\"-\"   whitespace
 
 For more information see
 https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html"

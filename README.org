@@ -49,6 +49,8 @@ the commands would be
 | =C-c P= | =vdiff-previous-fold=           | Move to previous fold in buffer                    |
 | =C-c r= | =vdiff-receive-changes=         | Receive the corresponding hunk from other buffer   |
 | =C-c s= | =vdiff-send-changes=            | Send this hunk (or all in region) to other buffer  |
+| =C-c f= | =vdiff-refine-this-change=      | Highlight changed words in change                  |
+| =C-c F= | =vdiff-refine-all-changes=      | Highlight changed words in change                  |
 | =C-c c= | =vdiff-close-fold=              | Close fold at point or in region                   |
 | =C-c C= | =vdiff-close-all-folds=         | Close all folds in buffer                          |
 | =C-c t= | =vdiff-close-other-folds=       | Close all other folds in buffer                    |
@@ -112,5 +114,15 @@ The current customization options and there defaults are
   ;; passed are the number of lines folded, the text on the first line, and the
   ;; width of the buffer.
   (setq vdiff-fold-string-function 'vdiff-fold-string-default)
+
+  ;; Default syntax table class code to use for identifying \"words\" in
+  ;; \`vdiff-refine-this-change'. Some useful options are
+  ;; 
+  ;; \"w\"   (default) words
+  ;; \"w_\"  symbols \(really words plus symbol constituents\)
+  ;; 
+  ;; For more information see
+  ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html
+  (setq vdiff-default-refinement-syntax-code "w")
 #+END_SRC
 
