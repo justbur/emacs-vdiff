@@ -29,14 +29,14 @@
 
 ;; vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning
 ;; diff information is displayed in buffers as you edit them. There are commands
-;; for cycling through the changes detected by =diff= and applying changes from
+;; for cycling through the hunks detected by =diff= and applying changes from
 ;; one buffer to the other. The main features are
 
 ;;   1. Synchronized scrolling of the buffers with lines matching between the
 ;;      two
 ;;   2. Commands to transmit (send/receive) changes between buffers
 ;;   3. Automatic folding of lines that are unchanged in both buffers
-;;   4. Commands to jump easily between changes
+;;   4. Commands to jump easily between hunks
 ;;   5. Everything done through overlays, meaning vdiff doesn't alter the actual
 ;;      text in the buffer (unless you are transmit changes of course)
 
@@ -90,7 +90,7 @@ text on the first line, and the width of the buffer."
 
 (defcustom vdiff-default-refinement-syntax-code "w"
   "Default syntax table class code to use for identifying
-\"words\" in \`vdiff-refine-this-change'. Some useful options are
+\"words\" in \`vdiff-refine-this-hunk'. Some useful options are
 
 \"w\"   (default) words
 \"w_\"  symbols \(really words plus symbol constituents\)
@@ -122,7 +122,7 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
 
 (defface vdiff-subtraction-face
   '((t :inherit diff-removed))
-  "Face for changes"
+  "Face for subtractions"
   :group 'vdiff)
 
 (defface vdiff-word-changed-face
@@ -197,7 +197,7 @@ the buffer here, because those are handled differently.")
         (when (overlay-get ovr 'vdiff-type)
           (throw 'yes ovr))))))
 
-(defun vdiff--change-at-point-p ()
+(defun vdiff--hunk-at-point-p ()
   (let ((ovr (vdiff--overlay-at-pos)))
     (and (overlayp ovr)
          (overlay-get ovr 'vdiff-type)
@@ -373,8 +373,8 @@ parsing the diff output and triggering the overlay updates."
         (with-current-buffer out-buffer
           (goto-char (point-min))
           (while (re-search-forward vdiff--diff-code-regexp nil t)
-            (let ((a-change (list (string-to-int (match-string 1))))
-                  (b-change (list (string-to-int (match-string 4)))))
+            (let ((a-change (list (string-to-number (match-string 1))))
+                  (b-change (list (string-to-number (match-string 4)))))
               (forward-line 1)
               (while (and (not (eobp))
                           (not (looking-at-p vdiff--diff-code-regexp)))
@@ -393,8 +393,8 @@ parsing the diff output and triggering the overlay updates."
                 (push (nreverse b-change) b-result))))
           (cons (nreverse a-result) (nreverse b-result)))))))
 
-(defun vdiff-refine-this-change (&optional syntax-code ovr)
-  "Highlight word differences in current change/hunk.
+(defun vdiff-refine-this-hunk (&optional syntax-code ovr)
+  "Highlight word differences in current hunk.
 
 This uses `vdiff-default-refinement-syntax-code' for the
 definition of a \"word\", unless one is provided using
@@ -442,22 +442,22 @@ SYNTAX-CODE."
                   (skip-syntax-forward not-word-syn))))))))))
 
 ;; Not working yet
-;; (defun vdiff-refine-this-change-whitespace (ovr)
-;;   "Highlight whitespace differences in current change/hunk."
+;; (defun vdiff-refine-this-hunk-whitespace (ovr)
+;;   "Highlight whitespace differences in current hunk."
 ;;   (interactive (list (vdiff--overlay-at-pos)))
-;;   (vdiff-refine-this-change "-" ovr))
+;;   (vdiff-refine-this-hunk "-" ovr))
 
-(defun vdiff-refine-this-change-symbol (ovr)
-  "Highlight symbol differences in current change/hunk."
+(defun vdiff-refine-this-hunk-symbol (ovr)
+  "Highlight symbol differences in current hunk."
   (interactive (list (vdiff--overlay-at-pos)))
-  (vdiff-refine-this-change "w_" ovr))
+  (vdiff-refine-this-hunk "w_" ovr))
 
-(defun vdiff-refine-this-change-word (ovr)
-  "Highlight word differences in current change/hunk."
+(defun vdiff-refine-this-hunk-word (ovr)
+  "Highlight word differences in current hunk."
   (interactive (list (vdiff--overlay-at-pos)))
-  (vdiff-refine-this-change "w" ovr))
+  (vdiff-refine-this-hunk "w" ovr))
 
-(defun vdiff-remove-refinements-in-change (ovr)
+(defun vdiff-remove-refinements-in-hunk (ovr)
   (interactive (list (vdiff--overlay-at-pos)))
   (dolist (chg-ovr (list ovr
                          (overlay-get ovr 'vdiff-other-overlay)))
@@ -467,7 +467,7 @@ SYNTAX-CODE."
       (when (overlay-get sub-ovr 'vdiff-refinement)
         (delete-overlay sub-ovr)))))
 
-(defun vdiff-refine-all-changes (&optional syntax-code)
+(defun vdiff-refine-all-hunks (&optional syntax-code)
   "Highlight word differences in all hunks.
 
 This uses `vdiff-default-refinement-syntax-code' for the
@@ -477,23 +477,23 @@ See `vdiff-default-refinement-syntax-code' to change the definition
 of a \"word\"."
   (interactive)
   (dolist (ovr (overlays-in (point-min) (point-max)))
-    (vdiff-refine-this-change syntax-code ovr)))
+    (vdiff-refine-this-hunk syntax-code ovr)))
 
 ;; Not working yet
-;; (defun vdiff-refine-all-changes-whitespace ()
+;; (defun vdiff-refine-all-hunks-whitespace ()
 ;;   "Highlight whitespace differences in all hunks."
 ;;   (interactive)
-;;   (vdiff-refine-all-changes "-"))
+;;   (vdiff-refine-all-hunks "-"))
 
-(defun vdiff-refine-all-changes-symbol ()
+(defun vdiff-refine-all-hunks-symbol ()
   "Highlight symbol differences in all hunks."
   (interactive)
-  (vdiff-refine-all-changes "w_"))
+  (vdiff-refine-all-hunks "w_"))
 
-(defun vdiff-refine-all-changes-word ()
+(defun vdiff-refine-all-hunks-word ()
   "Highlight word differences in all hunks."
   (interactive)
-  (vdiff-refine-all-changes "w"))
+  (vdiff-refine-all-hunks "w"))
 
 ;; * Add overlays
 
@@ -512,7 +512,7 @@ of a \"word\"."
     (overlay-put ovr 'vdiff t)
     ovr))
 
-(defun vdiff--add-change-overlay
+(defun vdiff--add-hunk-overlay
     (n-lines &optional addition n-subtraction-lines)
   (let ((beg (point))
         (end (save-excursion
@@ -623,16 +623,16 @@ of a \"word\"."
 (defun vdiff--add-diff-overlay (in-a code this-len other-len)
   (cond ((or (and in-a (string= code "d"))
              (and (not in-a) (string= code "a")))
-         (vdiff--add-change-overlay this-len t))
+         (vdiff--add-hunk-overlay this-len t))
         ((or (and in-a (string= code "a"))
              (and (not in-a) (string= code "d")))
          (vdiff--add-subtraction-overlay other-len))
         ((> this-len other-len)
-         (vdiff--add-change-overlay this-len))
+         (vdiff--add-hunk-overlay this-len))
         ((< this-len other-len)
-         (vdiff--add-change-overlay this-len nil (- other-len this-len)))
+         (vdiff--add-hunk-overlay this-len nil (- other-len this-len)))
         (t
-         (vdiff--add-change-overlay this-len))))
+         (vdiff--add-hunk-overlay this-len))))
 
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
@@ -693,7 +693,7 @@ of a \"word\"."
             folds))
     (vdiff--add-folds a-buffer b-buffer folds)))
 
-;; * Moving changes
+;; * Send/Receive changes
 
 (defun vdiff--region-or-close-overlay ()
   "Return region bounds if active. Otherwise check if there is an
@@ -716,9 +716,9 @@ well. This only returns bounds for `interactive'."
             (point)))))
 
 (defun vdiff-send-changes (beg end &optional receive)
-  "Send these changes to other vdiff buffer. If the region is
-active, send all changes found in the region. Otherwise use the
-changes under point or on the immediately preceding line."
+  "Send changes in this hunk to other vdiff buffer. If the region
+is active, send all changes found in the region. Otherwise use
+the hunk under point or on the immediately preceding line."
   (interactive
    (vdiff--region-or-close-overlay))
   (let* ((ovrs (overlays-in beg end)))
@@ -731,9 +731,9 @@ changes under point or on the immediately preceding line."
                 (vdiff-send-changes pos (1+ pos)))))
             ((memq (overlay-get ovr 'vdiff-type)
                    '(change addition))
-             (vdiff--transmit-change-overlay ovr))
+             (vdiff--transmit-change ovr))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
-             (vdiff--transmit-subtraction-overlay ovr))))
+             (vdiff--transmit-subtraction ovr))))
     (vdiff-refresh)))
 
 (defun vdiff-receive-changes (beg end)
@@ -744,7 +744,7 @@ changes under point or on the immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
   (vdiff-send-changes beg end t))
 
-(defun vdiff--transmit-change-overlay (ovr)
+(defun vdiff--transmit-change (ovr)
   "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
          (message "No change found")
@@ -763,8 +763,8 @@ changes under point or on the immediately preceding line."
         (delete-overlay other-ovr))
       (delete-overlay ovr))))
 
-(defun vdiff--transmit-subtraction-overlay (ovr)
-  "Same idea as `vdiff--transmit-change-overlay' except we are
+(defun vdiff--transmit-subtraction (ovr)
+  "Same idea as `vdiff--transmit-change' except we are
 just deleting text in the other buffer."
   (if (not (overlayp ovr))
          (message "No change found")
@@ -844,7 +844,7 @@ B. Go from buffer B to A if B-to-A is non nil."
         (message "This line: %s; Other line %s; In sub %s; entry %s"
                  line res (nth (if B-to-A 2 3) last-entry) last-entry)))))
 
-(defun vdiff-goto-corresponding-line (line in-b)
+(defun vdiff-switch-buffer (line in-b)
   "Jump to the line in the other vdiff buffer that corresponds to
 the current one."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
@@ -1035,9 +1035,9 @@ folds in the region."
 
 ;; * Movement
 
-(defun vdiff--nth-change (&optional n find-folds)
-  "Return point at Nth change overlay in buffer. Use folds
-instead of changes with non-nil FIND-FOLDS."
+(defun vdiff--nth-hunk (&optional n use-folds)
+  "Return point at Nth hunk in buffer. Use folds instead of hunks
+with non-nil USE-FOLDS."
   (let* ((n (or n 1))
          (reverse (< n 0))
          pnt)
@@ -1049,39 +1049,39 @@ instead of changes with non-nil FIND-FOLDS."
         ;; Find next overlay
         (while (not (or (and reverse (bobp))
                         (and (not reverse) (eobp))
-                        (and find-folds
+                        (and use-folds
                              (vdiff--fold-at-point-p))
-                        (and (not find-folds)
-                             (vdiff--change-at-point-p))))
+                        (and (not use-folds)
+                             (vdiff--hunk-at-point-p))))
           (setq pnt
                 (goto-char (if reverse
                                (previous-overlay-change pnt)
                              (next-overlay-change pnt)))))))
     pnt))
 
-(defun vdiff-next-change (arg)
+(defun vdiff-next-hunk (arg)
   "Jump to next change in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
-    (goto-char (vdiff--nth-change count))))
+    (goto-char (vdiff--nth-hunk count))))
 
-(defun vdiff-previous-change (arg)
+(defun vdiff-previous-hunk (arg)
   "Jump to previous change in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
-    (goto-char (vdiff--nth-change count))))
+    (goto-char (vdiff--nth-hunk count))))
 
 (defun vdiff-next-fold (arg)
   "Jump to next fold in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
-    (goto-char (vdiff--nth-change count t))))
+    (goto-char (vdiff--nth-hunk count t))))
 
 (defun vdiff-previous-fold (arg)
   "Jump to previous fold in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
-    (goto-char (vdiff--nth-change count t))))
+    (goto-char (vdiff--nth-hunk count t))))
 
 ;; * Entry points
 
@@ -1159,9 +1159,9 @@ asked to select two buffers."
 
 (defvar vdiff-mode-prefix-map
   (let ((map (make-sparse-keymap)))
-    (define-key map "g" 'vdiff-goto-corresponding-line)
-    (define-key map "n" 'vdiff-next-change)
-    (define-key map "p" 'vdiff-previous-change)
+    (define-key map "g" 'vdiff-switch-buffer)
+    (define-key map "n" 'vdiff-next-hunk)
+    (define-key map "p" 'vdiff-previous-hunk)
     (define-key map "N" 'vdiff-next-fold)
     (define-key map "P" 'vdiff-previous-fold)
     (define-key map "s" 'vdiff-send-changes)
@@ -1174,8 +1174,8 @@ asked to select two buffers."
     (define-key map "C" 'vdiff-close-all-folds)
     (define-key map "t" 'vdiff-close-other-folds)
     (define-key map "h" 'vdiff-maybe-hydra)
-    (define-key map "f" 'vdiff-refine-this-change)
-    (define-key map "F" 'vdiff-refine-all-changes)
+    (define-key map "f" 'vdiff-refine-this-hunk)
+    (define-key map "F" 'vdiff-refine-all-hunks)
     map))
 
 (defvar vdiff-scroll-lock-mode)
@@ -1246,14 +1246,14 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
  Navigation^^^^          Refine^^  Transmit^^   Folds^^^^            Other^^^^                 "
              'face 'header-line)
             "
- _n_/_N_ next chge/fold  _f_ this  _s_ send     _o_/_O_ open (all)   _u_^ ^  update diff
- _p_/_P_ prev chge/fold  _F_ all   _r_ receive  _c_/_C_ close (all)  _w_^ ^  save buffers
+ _n_/_N_ next hunk/fold  _f_ this  _s_ send     _o_/_O_ open (all)   _u_^ ^  update diff
+ _p_/_P_ prev hunk/fold  _F_ all   _r_ receive  _c_/_C_ close (all)  _w_^ ^  save buffers
  _g_^ ^  switch buffers  ^ ^       ^ ^          _t_^ ^  close other  _q_/_Q_ quit hydra/vdiff")
-    ("n" vdiff-next-change)
-    ("p" vdiff-previous-change)
+    ("n" vdiff-next-hunk)
+    ("p" vdiff-previous-hunk)
     ("N" vdiff-next-fold)
     ("P" vdiff-previous-fold)
-    ("g" vdiff-goto-corresponding-line)
+    ("g" vdiff-switch-buffer)
     ("s" vdiff-send-changes)
     ("r" vdiff-receive-changes)
     ("o" vdiff-open-fold)
@@ -1263,8 +1263,8 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("t" vdiff-close-other-folds)
     ("u" vdiff-refresh)
     ("w" vdiff-save-buffers)
-    ("f" vdiff-refine-this-change)
-    ("F" vdiff-refine-all-changes)
+    ("f" vdiff-refine-this-hunk)
+    ("F" vdiff-refine-all-hunks)
     ("q" nil :exit t)
     ("Q" vdiff-quit :exit t)))
 
