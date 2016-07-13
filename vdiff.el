@@ -71,18 +71,6 @@ break vdiff. It is empty by default."
   :group 'vdiff
   :type 'string)
 
-(defcustom vdiff-mirrored-commands '(next-line
-                                     previous-line
-                                     evil-next-line
-                                     evil-previous-line
-                                     beginning-of-buffer
-                                     end-of-buffer)
-  "Commands that should be executed in other vdiff buffer to keep
-lines in sync. There is no need to include commands that scroll
-the buffer here, because those are handled differently."
-  :group 'vdiff
-  :type '(repeat symbol))
-
 (defcustom vdiff-fold-padding 6
   "Unchanged lines to leave unfolded around a fold"
   :group 'vdiff
@@ -141,6 +129,16 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
   '((t :inherit highlight))
   "Face for word changes within a hunk"
   :group 'vdiff)
+
+(defvar vdiff--force-sync-commands '(next-line
+                                     previous-line
+                                     evil-next-line
+                                     evil-previous-line
+                                     beginning-of-buffer
+                                     end-of-buffer)
+  "Commands that should be executed in other vdiff buffer to keep
+lines in sync. There is no need to include commands that scroll
+the buffer here, because those are handled differently.")
 
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
@@ -916,10 +914,10 @@ buffer)."
         (set-window-point other-window other-line-pos)))))
 
 (defun vdiff--post-command-hook ()
-  "Sync scroll for `vdiff-mirrored-commands'."
+  "Sync scroll for `vdiff--force-sync-commands'."
   ;; Use real-this-command because evil-next-line and evil-previous-line pretend
   ;; they are next-line and previous-line
-  (when (and (memq real-this-command vdiff-mirrored-commands)
+  (when (and (memq real-this-command vdiff--force-sync-commands)
              (not vdiff--in-post-command-hook)
              (vdiff--buffer-p))
     ;; New Strategy: Just force a redisplay in other window and let
