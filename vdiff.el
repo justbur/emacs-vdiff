@@ -417,7 +417,8 @@ parsing the diff output and triggering the overlay updates."
                (let ((a-fold (vdiff--make-fold a-buffer a-range))
                      (b-fold (vdiff--make-fold b-buffer b-range)))
                  (dolist (fold (list a-fold b-fold))
-                   (cond ((or (vdiff--point-in-fold-p fold)
+                   (cond ((or (vdiff--point-in-fold-p a-fold)
+                              (vdiff--point-in-fold-p b-fold)
                               vdiff--all-folds-open)
                           (vdiff--set-open-fold-props fold))
                          (t
@@ -447,62 +448,61 @@ parsing the diff output and triggering the overlay updates."
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
   (vdiff--remove-all-overlays)
-  (save-excursion
-    (let ((a-buffer (car vdiff--buffers))
-          (b-buffer (cadr vdiff--buffers))
-          (a-line 1)
-          (b-line 1)
-          (a-last-post 1)
-          (b-last-post 1)
-          folds)
-      (save-excursion
-        (with-current-buffer a-buffer
-          (widen)
-          (goto-char (point-min)))
-        (with-current-buffer b-buffer
-          (widen)
-          (goto-char (point-min)))
-        (dolist (header vdiff--diff-data)
-          (let* ((code (nth 0 header))
-                 (a-range (nth 1 header))
-                 (b-range (nth 2 header))
-                 (a-beg (car a-range))
-                 (a-end (cdr a-range))
-                 (a-post (if (string= code "a") a-end (1+ a-end)))
-                 (a-len (1+ (- a-end a-beg)))
-                 (b-beg (car b-range))
-                 (b-end (cdr b-range))
-                 (b-post (if (string= code "d") b-end (1+ b-end)))
-                 (b-len (1+ (- b-end b-beg))))
+  (let ((a-buffer (car vdiff--buffers))
+        (b-buffer (cadr vdiff--buffers))
+        (a-line 1)
+        (b-line 1)
+        (a-last-post 1)
+        (b-last-post 1)
+        folds)
+    (save-excursion
+      (with-current-buffer a-buffer
+        (widen)
+        (goto-char (point-min)))
+      (with-current-buffer b-buffer
+        (widen)
+        (goto-char (point-min)))
+      (dolist (header vdiff--diff-data)
+        (let* ((code (nth 0 header))
+               (a-range (nth 1 header))
+               (b-range (nth 2 header))
+               (a-beg (car a-range))
+               (a-end (cdr a-range))
+               (a-post (if (string= code "a") a-end (1+ a-end)))
+               (a-len (1+ (- a-end a-beg)))
+               (b-beg (car b-range))
+               (b-end (cdr b-range))
+               (b-post (if (string= code "d") b-end (1+ b-end)))
+               (b-len (1+ (- b-end b-beg))))
 
-            (unless (member code (list "a" "d" "c"))
-              (user-error "vdiff: Unexpected code in diff output"))
+          (unless (member code (list "a" "d" "c"))
+            (user-error "vdiff: Unexpected code in diff output"))
 
-            (push (cons (cons a-last-post (1- a-beg))
-                        (cons b-last-post (1- b-beg)))
-                  folds)
-            (setq a-last-post a-post)
-            (setq b-last-post b-post)
+          (push (cons (cons a-last-post (1- a-beg))
+                      (cons b-last-post (1- b-beg)))
+                folds)
+          (setq a-last-post a-post)
+          (setq b-last-post b-post)
 
-            (let (ovr-a ovr-b)
-              (with-current-buffer a-buffer
-                (forward-line (- a-beg a-line))
-                (setq a-line a-beg)
-                (setq ovr-a (vdiff--add-diff-overlay t code a-len b-len)))
-              (with-current-buffer b-buffer
-                (forward-line (- b-beg b-line))
-                (setq b-line b-beg)
-                (setq ovr-b (vdiff--add-diff-overlay nil code b-len a-len)))
-              (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
-              (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
-        (push (cons (cons a-last-post
-                          (with-current-buffer a-buffer
-                            (line-number-at-pos (point-max))))
-                    (cons b-last-post
-                          (with-current-buffer b-buffer
-                            (line-number-at-pos (point-max)))))
-              folds)
-        (vdiff--add-folds a-buffer b-buffer folds)))))
+          (let (ovr-a ovr-b)
+            (with-current-buffer a-buffer
+              (forward-line (- a-beg a-line))
+              (setq a-line a-beg)
+              (setq ovr-a (vdiff--add-diff-overlay t code a-len b-len)))
+            (with-current-buffer b-buffer
+              (forward-line (- b-beg b-line))
+              (setq b-line b-beg)
+              (setq ovr-b (vdiff--add-diff-overlay nil code b-len a-len)))
+            (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
+            (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
+      (push (cons (cons a-last-post
+                        (with-current-buffer a-buffer
+                          (line-number-at-pos (point-max))))
+                  (cons b-last-post
+                        (with-current-buffer b-buffer
+                          (line-number-at-pos (point-max)))))
+            folds))
+    (vdiff--add-folds a-buffer b-buffer folds)))
 
 ;; * Moving changes
 
@@ -569,7 +569,8 @@ changes under point or on the immediately preceding line."
         (unless addition
           (delete-region (overlay-start other-ovr)
                          (overlay-end other-ovr)))
-        (insert text)
+        (save-excursion
+          (insert text))
         (delete-overlay other-ovr))
       (delete-overlay ovr))))
 
