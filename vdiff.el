@@ -100,6 +100,19 @@ text on the first line, and the width of the buffer."
   :group 'vdiff
   :type 'function)
 
+(defcustom vdiff-default-refinement-syntax-code "w"
+  "Default syntax table class code to use for identifying
+\"words\" in \`vdiff-refine-this-change'. Some useful options are
+
+\"w\"   (default) words
+\"w_\"  symbols \(really words plus symbol constituents\)
+\"-\"   whitespace
+
+For more information see
+https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html"
+  :group 'vdiff
+  :type 'string)
+
 (defface vdiff-addition-face
   '((t :inherit diff-added))
   "Face for additions"
@@ -125,9 +138,16 @@ text on the first line, and the width of the buffer."
   "Face for changes"
   :group 'vdiff)
 
+(defface vdiff-word-changed-face
+  '((t :inherit highlight))
+  "Face for word changes within a hunk"
+  :group 'vdiff)
+
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
-(defvar vdiff--process-buffer " *vdiff*")
+(defvar vdiff--word-diff-temp-files nil)
+(defvar vdiff--process-buffer " *vdiff* ")
+(defvar vdiff--word-diff-output-buffer " *vdiff-word* ")
 (defvar vdiff--diff-data nil)
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
@@ -230,6 +250,8 @@ text on the first line, and the width of the buffer."
        (with-current-buffer buf
          ,@body))))
 
+;; * Main overlay refresh routine
+
 (defun vdiff-refresh ()
   "Asynchronously refresh diff information."
   (interactive)
@@ -243,9 +265,9 @@ text on the first line, and the width of the buffer."
          (proc (get-buffer-process
                 vdiff--process-buffer)))
     (with-current-buffer (car vdiff--buffers)
-      (write-region nil nil (car vdiff--temp-files)))
+      (write-region nil nil (car vdiff--temp-files) nil 'quietly))
     (with-current-buffer (cadr vdiff--buffers)
-      (write-region nil nil (cadr vdiff--temp-files)))
+      (write-region nil nil (cadr vdiff--temp-files) nil 'quietly))
     (when proc
       (kill-process proc))
     (with-current-buffer (get-buffer-create vdiff--process-buffer)
@@ -267,7 +289,7 @@ text on the first line, and the width of the buffer."
           (t
            (cons beg (or end beg))))))
 
-(defun vdiff--diff-refresh-1 (_proc event)
+(defun vdiff--diff-refresh-1 (proc event)
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
   (cond ((string= "finished\n" event)
@@ -278,7 +300,7 @@ parsing the diff output and triggering the overlay updates."
         ((string= "exited abnormally with code 1\n" event)
          (setq vdiff--diff-data nil)
          (let (res)
-           (with-current-buffer vdiff--process-buffer
+           (with-current-buffer (process-buffer proc)
              (goto-char (point-min))
              (while (re-search-forward vdiff--diff-code-regexp nil t)
                (let* ((code (match-string 3))
@@ -305,6 +327,176 @@ parsing the diff output and triggering the overlay updates."
   "Save all vdiff buffers."
   (interactive)
   (vdiff--with-all-buffers (save-buffer)))
+
+;; * Word diffs
+
+(defun vdiff--overlay-to-words (&optional ovr syntax-code)
+  "Convert OVR to string of \"words\", one per line."
+  (let* ((ovr (or ovr (vdiff--overlay-at-pos)))
+         (word-syn (or syntax-code
+                       vdiff-default-refinement-syntax-code))
+         (not-word-syn (concat "^" word-syn))
+         last-word-end buf-syntax ovr-text)
+    (with-current-buffer (overlay-buffer ovr)
+      (setq buf-syntax (syntax-table))
+      (setq ovr-text (buffer-substring-no-properties
+                      (overlay-start ovr)
+                      (overlay-end ovr))))
+    (with-temp-buffer
+      (set-syntax-table buf-syntax)
+      (insert ovr-text)
+      (goto-char (point-min))
+      (skip-syntax-forward not-word-syn)
+      (delete-region (point-min) (point))
+      (while (not (eobp))
+        (skip-syntax-forward word-syn)
+        (insert "\n")
+        (setq last-word-end (point))
+        (skip-syntax-forward not-word-syn)
+        (delete-region last-word-end (point)))
+      (buffer-string))))
+
+(defun vdiff--diff-words (this-ovr other-ovr &optional syntax-code)
+  "Diff \"words\" between THIS-OVR and OTHER-OVR"
+  (when (and (eq (overlay-get this-ovr 'vdiff-type) 'change)
+             (overlayp other-ovr))
+    (let* ((a-words (vdiff--overlay-to-words this-ovr syntax-code))
+           (b-words (vdiff--overlay-to-words other-ovr syntax-code))
+           (tmp-file-a (car vdiff--word-diff-temp-files))
+           (tmp-file-b (cadr vdiff--word-diff-temp-files))
+           (out-buffer (get-buffer-create
+                        vdiff--word-diff-output-buffer))
+           (a-result '())
+           (b-result '()))
+      (write-region a-words nil tmp-file-a nil 'quietly)
+      (write-region b-words nil tmp-file-b nil 'quietly)
+      (with-current-buffer out-buffer (erase-buffer))
+      (when (= 1 (call-process
+                  vdiff-diff-program nil out-buffer nil tmp-file-a tmp-file-b))
+        (with-current-buffer out-buffer
+          (goto-char (point-min))
+          (while (re-search-forward vdiff--diff-code-regexp nil t)
+            (let ((a-change (list (string-to-int (match-string 1))))
+                  (b-change (list (string-to-int (match-string 4)))))
+              (forward-line 1)
+              (while (and (not (eobp))
+                          (not (looking-at-p vdiff--diff-code-regexp)))
+                (cond ((looking-at-p "^<")
+                       (push (buffer-substring-no-properties
+                              (+ 2 (point)) (line-end-position))
+                             a-change))
+                      ((looking-at-p "^>")
+                       (push (buffer-substring-no-properties
+                              (+ 2 (point)) (line-end-position))
+                             b-change)))
+                (forward-line 1))
+              (when (cdr a-change)
+                (push (nreverse a-change) a-result))
+              (when (cdr b-change)
+                (push (nreverse b-change) b-result))))
+          (cons (nreverse a-result) (nreverse b-result)))))))
+
+(defun vdiff-refine-this-change (&optional syntax-code ovr)
+  "Highlight word differences in current change/hunk.
+
+This uses `vdiff-default-refinement-syntax-code' for the
+definition of a \"word\", unless one is provided using
+SYNTAX-CODE."
+  (interactive (list vdiff-default-refinement-syntax-code
+                     (vdiff--overlay-at-pos)))
+  (let* ((ovr (or ovr (vdiff--overlay-at-pos)))
+         (other-ovr (when (overlayp ovr)
+                      (overlay-get ovr 'vdiff-other-overlay)))
+         (word-syn (or syntax-code
+                       vdiff-default-refinement-syntax-code))
+         (not-word-syn (concat "^" word-syn))
+         instructions ovr-ins)
+    (when (and ovr
+               other-ovr
+               (consp (setq instructions
+                            (vdiff--diff-words ovr other-ovr))))
+      (dolist (curr-ovr (list ovr other-ovr))
+        (setq ovr-ins (if (eq curr-ovr ovr)
+                          (car instructions)
+                        (cdr instructions)))
+        (with-current-buffer (overlay-buffer curr-ovr)
+          (save-excursion
+            (let ((current-word-n 1))
+              (goto-char (overlay-start curr-ovr))
+              (skip-syntax-forward not-word-syn)
+              (dolist (ins ovr-ins)
+                (dotimes (_ (- (car ins) current-word-n))
+                  (skip-syntax-forward word-syn)
+                  (skip-syntax-forward not-word-syn))
+                (setq current-word-n (car ins))
+                (let* ((words (cdr ins))
+                       (word-ovr
+                        (make-overlay
+                         (point)
+                         (progn
+                           (dotimes (_ (length words))
+                             (skip-syntax-forward not-word-syn)
+                             (skip-syntax-forward word-syn))
+                           (point)))))
+                  (cl-incf current-word-n (length words))
+                  (overlay-put word-ovr 'vdiff t)
+                  (overlay-put word-ovr 'face 'vdiff-word-changed-face)
+                  (overlay-put word-ovr 'vdiff-refinement t)
+                  (skip-syntax-forward not-word-syn))))))))))
+
+;; Not working yet
+;; (defun vdiff-refine-this-change-whitespace (ovr)
+;;   "Highlight whitespace differences in current change/hunk."
+;;   (interactive (list (vdiff--overlay-at-pos)))
+;;   (vdiff-refine-this-change "-" ovr))
+
+(defun vdiff-refine-this-change-symbol (ovr)
+  "Highlight symbol differences in current change/hunk."
+  (interactive (list (vdiff--overlay-at-pos)))
+  (vdiff-refine-this-change "w_" ovr))
+
+(defun vdiff-refine-this-change-word (ovr)
+  "Highlight word differences in current change/hunk."
+  (interactive (list (vdiff--overlay-at-pos)))
+  (vdiff-refine-this-change "w" ovr))
+
+(defun vdiff-remove-refinements-in-change (ovr)
+  (interactive (list (vdiff--overlay-at-pos)))
+  (dolist (chg-ovr (list ovr
+                         (overlay-get ovr 'vdiff-other-overlay)))
+    (dolist (sub-ovr (overlays-in
+                      (overlay-start chg-ovr)
+                      (overlay-end chg-ovr)))
+      (when (overlay-get sub-ovr 'vdiff-refinement)
+        (delete-overlay sub-ovr)))))
+
+(defun vdiff-refine-all-changes (&optional syntax-code)
+  "Highlight word differences in all hunks.
+
+This uses `vdiff-default-refinement-syntax-code' for the
+definition of a \"word\", unless one is provided using
+SYNTAX-CODE.
+See `vdiff-default-refinement-syntax-code' to change the definition
+of a \"word\"."
+  (interactive)
+  (dolist (ovr (overlays-in (point-min) (point-max)))
+    (vdiff-refine-this-change syntax-code ovr)))
+
+;; Not working yet
+;; (defun vdiff-refine-all-changes-whitespace ()
+;;   "Highlight whitespace differences in all hunks."
+;;   (interactive)
+;;   (vdiff-refine-all-changes "-"))
+
+(defun vdiff-refine-all-changes-symbol ()
+  "Highlight symbol differences in all hunks."
+  (interactive)
+  (vdiff-refine-all-changes "w_"))
+
+(defun vdiff-refine-all-changes-word ()
+  "Highlight word differences in all hunks."
+  (interactive)
+  (vdiff-refine-all-changes "w"))
 
 ;; * Add overlays
 
@@ -985,6 +1177,8 @@ asked to select two buffers."
     (define-key map "C" 'vdiff-close-all-folds)
     (define-key map "t" 'vdiff-close-other-folds)
     (define-key map "h" 'vdiff-maybe-hydra)
+    (define-key map "f" 'vdiff-refine-this-change)
+    (define-key map "F" 'vdiff-refine-all-changes)
     map))
 
 (defvar vdiff-scroll-lock-mode)
@@ -999,6 +1193,9 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (setq vdiff--temp-files
                (list (make-temp-file "vdiff--temp-a-")
                      (make-temp-file "vdiff--temp-b-")))
+         (setq vdiff--word-diff-temp-files
+               (list (make-temp-file "vdiff--overlay-diff-temp-a-")
+                     (make-temp-file "vdiff--overlay-diff-temp-b-")))
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
          (add-hook 'window-size-change-functions
@@ -1017,6 +1214,7 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (setq vdiff--buffers nil)
          (setq vdiff--line-map nil)
          (setq vdiff--temp-files nil)
+         (setq vdiff--word-diff-temp-files nil)
          (when (process-live-p vdiff--process-buffer)
            (kill-process vdiff--process-buffer))
          (when (buffer-live-p vdiff--process-buffer)
@@ -1044,12 +1242,12 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
   (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
     (concat (propertize
              "\
- Navigation^^^^              Transmit^^      Folds^^^^              Other^^^^                 "
+ Navigation^^^^          Refine^^  Transmit^^   Folds^^^^            Other^^^^                 "
              'face 'header-line)
             "
- _n_/_N_ next change/fold    _s_ send        _o_/_O_ open (all)     _u_^ ^  update diff
- _p_/_P_ prev change/fold    _r_ receive     _c_/_C_ close (all)    _w_^ ^  save buffers
- _g_^ ^  goto corresp. line   ^ ^            _t_^ ^  close other    _q_/_Q_ quit hydra/vdiff")
+ _n_/_N_ next chge/fold  _f_ this  _s_ send     _o_/_O_ open (all)   _u_^ ^  update diff
+ _p_/_P_ prev chge/fold  _F_ all   _r_ receive  _c_/_C_ close (all)  _w_^ ^  save buffers
+ _g_^ ^  switch buffers  ^ ^       ^ ^          _t_^ ^  close other  _q_/_Q_ quit hydra/vdiff")
     ("n" vdiff-next-change)
     ("p" vdiff-previous-change)
     ("N" vdiff-next-fold)
@@ -1064,6 +1262,8 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("t" vdiff-close-other-folds)
     ("u" vdiff-refresh)
     ("w" vdiff-save-buffers)
+    ("f" vdiff-refine-this-change)
+    ("F" vdiff-refine-all-changes)
     ("q" nil :exit t)
     ("Q" vdiff-quit :exit t)))
 
