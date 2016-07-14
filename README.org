@@ -15,6 +15,9 @@ buffer to the other. The main features are
   4. Commands to jump easily between hunks
   5. Everything done through overlays, meaning vdiff doesn't alter the actual
      text in the buffer (unless you are transmit changes of course)
+  6. Unlike ediff, remain in buffers instead of having to use a third "control
+     buffer"
+  7. Cool hydra (see below)
 
 vdiff is still a work in progress, so use it at your own risk. Contributions and
 suggestions are very welcome.

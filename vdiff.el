@@ -39,6 +39,9 @@
 ;;   4. Commands to jump easily between hunks
 ;;   5. Everything done through overlays, meaning vdiff doesn't alter the actual
 ;;      text in the buffer (unless you are transmit changes of course)
+;;   6. Unlike ediff, remain in buffers instead of having to use a third "control
+;;      buffer"
+;;   7. Cool hydra (see below)
 
 ;; Contributions and suggestions are very welcome.
 
