@@ -136,9 +136,9 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
                                      evil-previous-line
                                      beginning-of-buffer
                                      end-of-buffer)
-  "Commands that should be executed in other vdiff buffer to keep
-lines in sync. There is no need to include commands that scroll
-the buffer here, because those are handled differently.")
+  "Commands that trigger sync in other buffer. There should not
+be a need to include commands that scroll the buffer here,
+because those are handled differently.")
 
 (defvar vdiff--buffers nil)
 (defvar vdiff--temp-files nil)
