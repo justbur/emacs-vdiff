@@ -82,6 +82,8 @@ If the [[https://github.com/abo-abo/hydra][hydra package]] is loaded, =vdiff-hyd
 and changes to be made in the buffer. By default it lives on the =h= command in
 the prefix map. Bind =vdiff-maybe-hydra= directly to customize this.
 
+[[file:img/hydra.png]]
+
 ** Further customization
    
 The current customization options and there defaults are
