@@ -103,6 +103,23 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
   :group 'vdiff
   :type 'string)
 
+(defcustom vdiff-subtraction-style 'full
+  "How to represent subtractions (i.e., deleted lines). The
+default is full which means add the same number of (fake) lines
+as those that were removed. The choice single means add only one
+fake line. The choice fringe means don't add lines but do
+indicate the subtraction location in the fringe."
+  :group 'vdiff
+  :type '(radio (const :tag "Add same number of fake lines" full)
+                (const :tag "Add single line" single)
+                (const :tag "Add no lines but use fringe" fringe)))
+
+(defcustom vdiff-subtraction-fill-char ?-
+  "Character to use for filling subtraction lines. See also
+`vdiff-subtraction-style'."
+  :group 'vdiff
+  :type 'integer)
+
 (defface vdiff-addition-face
   '((t :inherit diff-added))
   "Face for additions"
@@ -500,13 +517,44 @@ of a \"word\"."
 
 ;; * Add overlays
 
+(defvar vdiff--insertion-arrow-bits
+  (apply
+   #'vector
+   (mapcar
+    (lambda (line)
+      (apply
+       '+
+       (mapcar
+        (lambda (el)
+          (let ((ex (1- (length line))))
+            (* el (expt 2 ex)))) line)))
+    '((0 0 0 1 1 1 1 1)
+      (0 0 0 1 1 1 1 1)
+      (0 1 1 1 1 1 1 1)
+      (1 1 1 1 1 0 0 1)
+      (1 1 1 0 0 0 0 0)
+      (1 1 0 0 0 0 0 0)
+      (1 0 0 0 0 0 0 0)
+      (0 0 0 0 0 0 0 0)))))
+
+(define-fringe-bitmap 'vdiff--insertion-arrow vdiff--insertion-arrow-bits)
+
 (defun vdiff--make-subtraction-string (n-lines)
-  (let (string)
+  (let ((n-lines (if (eq 'single vdiff-subtraction-style)
+                     1
+                   n-lines))
+        string)
     (dotimes (_ n-lines)
-      (push (make-string (1- (vdiff--min-window-width)) ?-) string))
-    (propertize
-     (concat (mapconcat #'identity string "\n") "\n")
-     'face 'vdiff-subtraction-face)))
+      (push (make-string (1- (vdiff--min-window-width))
+                         vdiff-subtraction-fill-char) string))
+    (if (eq vdiff-subtraction-style 'fringe)
+        (propertize
+         " "
+         'face 'vdiff-subtraction-face
+         'display '(left-fringe vdiff--insertion-arrow))
+      (propertize
+       (concat (mapconcat #'identity string "\n") "\n")
+       'face 'vdiff-subtraction-face))))
 
 (defun vdiff--add-subtraction-overlay (n-lines)
   (let* ((ovr (make-overlay (point) (1+ (point)))))
