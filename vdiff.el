@@ -145,6 +145,11 @@ indicate the subtraction location in the fringe."
   "Face for subtractions"
   :group 'vdiff)
 
+(defface vdiff-subtraction-fringe-face
+  '((t :inherit vdiff-subtraction-face))
+  "Face for subtraction fringe indicators"
+  :group 'vdiff)
+
 (defface vdiff-word-changed-face
   '((t :inherit highlight))
   "Face for word changes within a hunk"
@@ -152,8 +157,6 @@ indicate the subtraction location in the fringe."
 
 (defvar vdiff--force-sync-commands '(next-line
                                      previous-line
-                                     evil-next-line
-                                     evil-previous-line
                                      beginning-of-buffer
                                      end-of-buffer)
   "Commands that trigger sync in other buffer. There should not
@@ -171,7 +174,8 @@ because those are handled differently.")
 (defvar vdiff--inhibit-window-switch nil)
 (defvar vdiff--in-scroll-hook nil)
 (defvar vdiff--in-post-command-hook nil)
-(defvar vdiff--line-map nil)
+(defvar vdiff--a-b-line-map nil)
+(defvar vdiff--b-a-line-map nil)
 (defvar vdiff--folds nil)
 (defvar vdiff--all-folds-open nil)
 
@@ -522,22 +526,25 @@ of a \"word\"."
    #'vector
    (mapcar
     (lambda (line)
-      (apply
-       '+
-       (mapcar
-        (lambda (el)
-          (let ((ex (1- (length line))))
-            (* el (expt 2 ex)))) line)))
-    '((0 0 0 1 1 1 1 1)
+      (let* ((ex (1- (length line))))
+        (apply '+
+               (mapcar
+                (lambda (el)
+                  (prog1
+                      (* el (expt 2 ex))
+                    (cl-decf ex))) line))))
+    '((0 0 1 1 1 1 1 1)
       (0 0 0 1 1 1 1 1)
-      (0 1 1 1 1 1 1 1)
-      (1 1 1 1 1 0 0 1)
+      (0 0 0 0 1 1 1 1)
+      (0 0 0 1 1 1 1 1)
+      (0 0 1 1 1 0 1 1)
+      (0 1 1 1 0 0 0 1)
       (1 1 1 0 0 0 0 0)
       (1 1 0 0 0 0 0 0)
-      (1 0 0 0 0 0 0 0)
-      (0 0 0 0 0 0 0 0)))))
+      (1 0 0 0 1 1 1 1)))))
 
-(define-fringe-bitmap 'vdiff--insertion-arrow vdiff--insertion-arrow-bits)
+(define-fringe-bitmap
+  'vdiff--insertion-arrow vdiff--insertion-arrow-bits nil 8 'top)
 
 (defun vdiff--make-subtraction-string (n-lines)
   (let ((n-lines (if (eq 'single vdiff-subtraction-style)
@@ -550,8 +557,8 @@ of a \"word\"."
     (if (eq vdiff-subtraction-style 'fringe)
         (propertize
          " "
-         'face 'vdiff-subtraction-face
-         'display '(left-fringe vdiff--insertion-arrow))
+         'display '(left-fringe vdiff--insertion-arrow
+                                vdiff-subtraction-fringe-face))
       (propertize
        (concat (mapconcat #'identity string "\n") "\n")
        'face 'vdiff-subtraction-face))))
@@ -575,7 +582,8 @@ of a \"word\"."
       (overlay-put ovr 'vdiff-type type)
       (overlay-put ovr 'face face)
       (overlay-put ovr 'vdiff t)
-      (when n-subtraction-lines
+      (when (and n-subtraction-lines
+                 (> n-subtraction-lines 0))
         (overlay-put ovr 'after-string
                      (vdiff--make-subtraction-string n-subtraction-lines)))
       ovr)))
@@ -678,12 +686,8 @@ of a \"word\"."
         ((or (and in-a (string= code "a"))
              (and (not in-a) (string= code "d")))
          (vdiff--add-subtraction-overlay other-len))
-        ((> this-len other-len)
-         (vdiff--add-hunk-overlay this-len))
-        ((< this-len other-len)
-         (vdiff--add-hunk-overlay this-len nil (- other-len this-len)))
         (t
-         (vdiff--add-hunk-overlay this-len))))
+         (vdiff--add-hunk-overlay this-len nil (- this-len other-len)))))
 
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
@@ -830,49 +834,72 @@ just deleting text in the other buffer."
 (defun vdiff--refresh-line-maps ()
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
-  (let (new-map)
+  (let (new-a-b-map new-b-a-map)
     (dolist (entry vdiff--diff-data)
       (let* ((code (car entry))
              (a-lines (nth 1 entry))
              (a-beg (car a-lines))
              (a-prior (1- a-beg))
              (a-end (cdr a-lines))
-             (a-post (1+ a-end))
+             (a-post (if (string= code "a") a-end (1+ a-end)))
              (a-len (1+ (- a-end a-beg)))
              (b-lines (nth 2 entry))
              (b-beg (car b-lines))
              (b-prior (1- b-beg))
              (b-end (cdr b-lines))
-             (b-post (1+ b-end))
+             (b-post (if (string= code "d") b-end (1+ b-end)))
              (b-len (1+ (- b-end b-beg))))
-        ;; Format is (list line-a line-b a-ends-sub b-ends-sub full-entry)
-        (push (list a-prior b-prior nil nil entry) new-map)
+        ;; Format is (line-key line-a-to-align line-b-to-align entry-info)
+        (push (list a-prior a-prior b-prior entry) new-a-b-map)
+        (push (list b-prior b-prior a-prior 0 entry) new-b-a-map)
         (cond ((string= code "d")
-               (push (list a-beg b-beg nil t entry) new-map)
-               (push (list a-post b-end nil nil entry) new-map))
+               ;; a-prior 0     0 b-prior
+               ;; a-beg   1 +   -
+               ;; a-end   2 +   -
+               ;; a-post  3     1 b-beg=b-end=b-post
+               (dotimes (offset a-len)
+                 (push (list (+ 1 offset a-prior) a-prior b-prior entry) new-a-b-map)))
               ((string= code "a")
-               (push (list a-beg b-beg t nil entry) new-map)
-               (push (list a-end b-post nil nil entry) new-map))
+               ;; 0     0
+               ;; -     1 +
+               ;; -     2 +
+               ;; 1     3
+               (dotimes (offset b-len)
+                 (push (list (+ 1 offset b-prior) b-prior a-prior entry) new-b-a-map)))
               ((> a-len b-len)
-               (push (list (+ a-beg b-len) b-post nil t entry) new-map)
-               (push (list a-post b-post nil nil entry) new-map))
+               ;; 0     0
+               ;; 1 ~   1 ~
+               ;; 2 ~   2 ~
+               ;; 3 ~   -
+               ;; 4 ~   -
+               ;; 5     3
+               (dotimes (offset (- a-len b-len))
+                 (push (list (+ 1 offset a-prior b-len) (+ a-prior b-len) b-end entry) new-a-b-map)))
               ((< a-len b-len)
-               (push (list a-post (+ b-beg a-len) t nil entry) new-map)
-               (push (list a-post b-post nil nil entry) new-map)))))
-    (setq vdiff--line-map (cons (list 0 0) (nreverse new-map)))))
+               (dotimes (offset (- b-len a-len))
+                 (push (list (+ 1 offset b-prior a-len) (+ b-prior a-len) a-end entry) new-a-b-map))))
+        (push (list a-post a-post b-post 0 entry) new-a-b-map)
+        (push (list b-post a-post 0 entry) new-b-a-map)))
+    (setq vdiff--a-b-line-map (cons (list 0 0 0) (nreverse new-a-b-map)))
+    (setq vdiff--b-a-line-map (cons (list 0 0 0) (nreverse new-b-a-map)))))
 
 (defun vdiff--translate-line (line &optional B-to-A)
   "Translate LINE in buffer A to corresponding line in buffer
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
-  (let* ((last-entry
+  (let* ((map (if B-to-A vdiff--b-a-line-map vdiff--a-b-line-map))
+         (other-win (if B-to-A
+                        (get-buffer-window (car vdiff--buffers))
+                      (get-buffer-window (cadr vdiff--buffers))))
+         (last-entry
           (catch 'closest
             (let (prev-entry)
-              (dolist (entry vdiff--line-map)
-                (let ((map-line
-                       (if B-to-A (cadr entry) (car entry))))
-                  (cond ((<= map-line line)
+              (dolist (entry map)
+                (let ((map-line (car entry)))
+                  (cond ((< map-line line)
                          (setq prev-entry entry))
+                        ((= map-line line)
+                         (throw 'closest entry))
                         (t
                          (throw 'closest prev-entry)))))
               (throw 'closest prev-entry))))
@@ -881,19 +908,11 @@ B. Go from buffer B to A if B-to-A is non nil."
       (setq last-entry (list line line))
       (message "Error in line translation"))
     (prog1
-        (setq res
-              (let ((this-map-line
-                     (if B-to-A (cadr last-entry) (car last-entry)))
-                    (this-subtraction (nth (if B-to-A 3 2) last-entry))
-                    (other-map-line
-                     (if B-to-A (car last-entry) (cadr last-entry)))
-                    (other-subtraction (nth (if B-to-A 2 3) last-entry)))
-                (if (or this-subtraction other-subtraction)
-                    other-map-line
-                  (+ (- line this-map-line) other-map-line))))
+        (setq res (cons (+ (- line (car last-entry)) (cadr last-entry))
+                        (nth 2 last-entry)))
       (when (called-interactively-p 'interactive)
-        (message "This line: %s; Other line %s; In sub %s; entry %s"
-                 line res (nth (if B-to-A 2 3) last-entry) last-entry)))))
+        (message "This line: %s; Other line %s; vscroll %s; entry %s"
+                 line res (cdr res) last-entry)))))
 
 (defun vdiff-switch-buffer (line in-b)
   "Jump to the line in the other vdiff buffer that corresponds to
@@ -901,29 +920,30 @@ the current one."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
   (vdiff-refresh)
   (select-window (vdiff--other-window))
-  (vdiff--move-to-line (vdiff--translate-line line in-b)))
+  (vdiff--move-to-line (car (vdiff--translate-line line in-b))))
+
+(defun vdiff--recenter-both ()
+  (recenter)
+  (vdiff--with-other-window (recenter)))
 
 (defun vdiff--sync-line (line in-a)
   "Sync point in the other vdiff buffer to the line in this
 buffer. This is usually not necessary."
   (interactive (list (line-number-at-pos)
                      (not (vdiff--buffer-a-p))))
-  (let ((new-line (vdiff--translate-line
-                   line (not in-a)))
+  (let ((new-line (car (vdiff--translate-line
+                        line (not in-a))))
         (other-buffer (vdiff--other-buffer))
         (other-window (vdiff--other-window)))
-    (set-window-point
-     other-window
-     (vdiff--pos-at-line-beginning new-line other-buffer))))
+    (vdiff--with-other-window
+     (goto-char (vdiff--pos-at-line-beginning new-line)))))
 
 (defun vdiff-sync-and-center ()
   "Sync point in the other vdiff buffer to the line in this
 buffer and center both buffers at this line."
   (interactive)
   (vdiff--sync-line (line-number-at-pos) (vdiff--buffer-a-p))
-  (recenter)
-  (vdiff--with-other-window
-   (recenter)))
+  (vdiff--recenter-both))
 
 (defun vdiff--pos-at-line-beginning (line &optional buffer)
   "Return position at beginning of LINE in BUFFER (or current
@@ -933,9 +953,11 @@ buffer)."
       (vdiff--move-to-line line)
       (line-beginning-position))))
 
-(defun vdiff--scroll-function (window window-start)
+(defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
-  (let* ((buf-a (car vdiff--buffers))
+  (let* ((window (or window (selected-window)))
+         (window-start (or window-start (window-start)))
+         (buf-a (car vdiff--buffers))
          (buf-b (cadr vdiff--buffers))
          (win-a (get-buffer-window buf-a))
          (win-b (get-buffer-window buf-b)))
@@ -947,55 +969,36 @@ buffer)."
       (let* ((in-b (eq window win-b))
              (other-window (if in-b win-a win-b))
              (other-buffer (if in-b buf-a buf-b))
-             (this-start  (line-number-at-pos window-start))
-             (other-start (vdiff--translate-line this-start in-b))
-             (other-start-pos
-              (with-current-buffer other-buffer
-                (vdiff--move-to-line other-start)
-                (line-beginning-position)))
-             (this-line (+ (count-lines window-start (point))
-                           this-start))
-             (other-line (vdiff--translate-line this-line in-b))
-             (other-line-pos
-              (with-current-buffer other-buffer
-                (forward-line (- other-line other-start))
-                (line-beginning-position)))
-             (vdiff--in-scroll-hook t))
-        (set-window-start other-window other-start-pos)
-        (set-window-point other-window other-line-pos)))))
+             ;; (this-start-line (line-number-at-pos window-start))
+             (this-line (line-number-at-pos))
+             (translation (vdiff--translate-line
+                           this-line in-b))
+             (this-abs-line (car translation))
+             (this-rel-line (cdr (posn-actual-col-row
+                                  (posn-at-point
+                                   (vdiff--pos-at-line-beginning
+                                    this-abs-line)))))
+             (other-abs-line (cdr translation))
+             (other-abs-pos (vdiff--pos-at-line-beginning
+                             other-abs-line other-buffer))
+             (vdiff--in-scroll-hook t)
+             other-rel-line)
+        (vdiff--with-other-window
+         (set-window-point nil other-abs-pos)
+         ;; (recenter this-rel-line)
+
+         )))))
 
 (defun vdiff--post-command-hook ()
   "Sync scroll for `vdiff--force-sync-commands'."
   ;; Use real-this-command because evil-next-line and evil-previous-line pretend
   ;; they are next-line and previous-line
-  (when (and (memq real-this-command vdiff--force-sync-commands)
+  (when (and (memq this-command vdiff--force-sync-commands)
              (not vdiff--in-post-command-hook)
              (vdiff--buffer-p))
-    ;; New Strategy: Just force a redisplay in other window and let
-    ;; `vdiff--scroll-function' do the work.
     (let ((vdiff--in-post-command-hook t))
-      (force-window-update (vdiff--other-window)))
-
-    ;; Old strategy: Execute command in other buffer, which worked but it wasn't
-    ;; easy to keep the cursors aligned.
-    ;; (let* ((this-line (line-number-at-pos))
-    ;;        (other-line (vdiff--translate-line
-    ;;                     this-line (vdiff--buffer-b-p)))
-    ;;        ;; This is necessary to not screw up the cursor column after
-    ;;        ;; calling next-line or previous-line again from the other
-    ;;        ;; buffer
-    ;;        temporary-goal-column)
-    ;;   (vdiff--with-other-window
-    ;;    (ignore-errors
-    ;;      (let ((vdiff--in-post-command-hook t))
-    ;;        (when (or
-    ;;               (not (memq this-command '(next-line previous-line)))
-    ;;               (and (eq this-command 'next-line)
-    ;;                    (< (line-number-at-pos) other-line))
-    ;;               (and (eq this-command 'previous-line)
-    ;;                    (> (line-number-at-pos) other-line)))
-    ;;          (call-interactively real-this-command))))))
-    ))
+      (when (sit-for 0.05)
+        (vdiff--scroll-function)))))
 
 (defvar vdiff--bottom-left-angle-bits
   (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
@@ -1114,25 +1117,29 @@ with non-nil USE-FOLDS."
   "Jump to next change in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
-    (goto-char (vdiff--nth-hunk count))))
+    (goto-char (vdiff--nth-hunk count))
+    (vdiff--recenter-both)))
 
 (defun vdiff-previous-hunk (arg)
   "Jump to previous change in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
-    (goto-char (vdiff--nth-hunk count))))
+    (goto-char (vdiff--nth-hunk count))
+    (vdiff--recenter-both)))
 
 (defun vdiff-next-fold (arg)
   "Jump to next fold in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
-    (goto-char (vdiff--nth-hunk count t))))
+    (goto-char (vdiff--nth-hunk count t))
+    (vdiff--recenter-both)))
 
 (defun vdiff-previous-fold (arg)
   "Jump to previous fold in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
-    (goto-char (vdiff--nth-hunk count t))))
+    (goto-char (vdiff--nth-hunk count t))
+    (vdiff--recenter-both)))
 
 ;; * Entry points
 
@@ -1261,7 +1268,8 @@ commands like `vdiff-files' or `vdiff-buffers'."
            (vdiff-scroll-lock-mode -1))
          (setq vdiff--diff-data nil)
          (setq vdiff--buffers nil)
-         (setq vdiff--line-map nil)
+         (setq vdiff--a-b-line-map nil)
+         (setq vdiff--b-a-line-map nil)
          (dolist (file vdiff--temp-files)
            (delete-file file))
          (setq vdiff--temp-files nil)
