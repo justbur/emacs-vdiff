@@ -178,7 +178,7 @@ because those are handled differently.")
 (defvar vdiff--b-a-line-map nil)
 (defvar vdiff--folds nil)
 (defvar vdiff--all-folds-open nil)
-(defvar vdiff--vscroll-state nil)
+(defvar vdiff--setting-vscroll nil)
 
 ;; * Utilities
 
@@ -974,6 +974,15 @@ buffer)."
       (vdiff--move-to-line line)
       (line-beginning-position))))
 
+(defun vdiff--set-vscroll (window vscroll)
+  (run-at-time
+   0.02 nil
+   (lambda ()
+     (unless vdiff--setting-vscroll
+       (let ((vdiff--setting-vscroll t))
+         (set-window-vscroll window vscroll)
+         (force-window-update window))))))
+
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((window (or window (selected-window)))
@@ -1006,11 +1015,7 @@ buffer)."
              other-rel-line)
         (unless (= other-curr-start other-start-pos)
           (set-window-start other-window other-start-pos))
-        (setq vdiff--vscroll-state nil)
-        (when scroll-amt
-          (set-window-vscroll other-window scroll-amt)
-          (setq vdiff--vscroll-state scroll-amt)
-          (force-window-update other-window))))))
+        (vdiff--set-vscroll (vdiff--other-window) scroll-amt)))))
 
 (defun vdiff--post-command-hook ()
   "Sync scroll for `vdiff--force-sync-commands'."
@@ -1020,14 +1025,9 @@ buffer)."
              (not vdiff--in-post-command-hook)
              (vdiff--buffer-p))
     (let ((vdiff--in-post-command-hook t))
-      (when (sit-for 0.05)
-        (when vdiff--vscroll-state
-          (run-at-time
-           0.02 nil (lambda ()
-                     (unless vdiff--in-post-command-hook
-                       (set-window-vscroll
-                        (vdiff--other-window) vdiff--vscroll-state)
-                       (force-window-update (vdiff--other-window))))))))))
+      (when (and (sit-for 0.05)
+                 (eq vdiff-subtraction-style 'full))
+        (vdiff--scroll-function)))))
 
 (defvar vdiff--bottom-left-angle-bits
   (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
