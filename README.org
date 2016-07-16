@@ -119,5 +119,16 @@ The current customization options and there defaults are
   ;; For more information see
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html
   (setq vdiff-default-refinement-syntax-code "w")
+
+  ;; How to represent subtractions (i.e., deleted lines). The
+  ;; default is full which means add the same number of (fake) lines
+  ;; as those that were removed. The choice single means add only one
+  ;; fake line. The choice fringe means don't add lines but do
+  ;; indicate the subtraction location in the fringe.
+  (setq vdiff-subtraction-style 'full)
+
+  ;; Character to use for filling subtraction lines. See also
+  ;; `vdiff-subtraction-style'.
+  (setq vdiff-subtraction-fill-char ?-)
 #+END_SRC
 
