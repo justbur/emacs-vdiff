@@ -1119,28 +1119,28 @@ with non-nil USE-FOLDS."
   (interactive "p")
   (let ((count (or arg 1)))
     (goto-char (vdiff--nth-hunk count))
-    (vdiff--recenter-both)))
+    (vdiff-sync-and-center)))
 
 (defun vdiff-previous-hunk (arg)
   "Jump to previous change in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-hunk count))
-    (vdiff--recenter-both)))
+    (vdiff-sync-and-center)))
 
 (defun vdiff-next-fold (arg)
   "Jump to next fold in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
     (goto-char (vdiff--nth-hunk count t))
-    (vdiff--recenter-both)))
+    (vdiff-sync-and-center)))
 
 (defun vdiff-previous-fold (arg)
   "Jump to previous fold in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-hunk count t))
-    (vdiff--recenter-both)))
+    (vdiff-sync-and-center)))
 
 ;; * Entry points
 
