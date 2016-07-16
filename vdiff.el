@@ -687,7 +687,7 @@ of a \"word\"."
              (and (not in-a) (string= code "d")))
          (vdiff--add-subtraction-overlay other-len))
         (t
-         (vdiff--add-hunk-overlay this-len nil (- this-len other-len)))))
+         (vdiff--add-hunk-overlay this-len nil (- other-len this-len)))))
 
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
