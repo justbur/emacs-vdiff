@@ -789,7 +789,8 @@ the hunk under point or on the immediately preceding line."
              (vdiff--transmit-change ovr))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
              (vdiff--transmit-subtraction ovr))))
-    (vdiff-refresh)))
+    (vdiff-refresh)
+    (vdiff--scroll-function)))
 
 (defun vdiff-receive-changes (beg end)
   "Receive the changes corresponding to this position from the
