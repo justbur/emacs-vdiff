@@ -1021,6 +1021,7 @@ buffer)."
   "Set overlay properties to open fold OVR."
   (overlay-put ovr 'vdiff-fold-open t)
   (overlay-put ovr 'display nil)
+  (overlay-put ovr 'intangible nil)
   (overlay-put ovr 'before-string
                (propertize
                 " " 'display '(left-fringe vdiff--top-left-angle)))
@@ -1037,6 +1038,7 @@ buffer)."
   (overlay-put ovr 'before-string nil)
   (overlay-put ovr 'line-prefix nil)
   (overlay-put ovr 'after-string nil)
+  (overlay-put ovr 'intangible t)
   (overlay-put ovr 'display (overlay-get ovr 'vdiff-fold-text)))
 
 (defun vdiff-open-fold (beg end)
