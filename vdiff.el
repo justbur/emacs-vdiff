@@ -173,7 +173,7 @@ because those are handled differently.")
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
 (defvar vdiff--inhibit-window-switch nil)
 (defvar vdiff--in-scroll-hook nil)
-(defvar vdiff--in-post-command-hook nil)
+;; (defvar vdiff--in-post-command-hook nil)
 (defvar vdiff--a-b-line-map nil)
 (defvar vdiff--b-a-line-map nil)
 (defvar vdiff--folds nil)
@@ -1018,19 +1018,21 @@ buffer)."
              other-rel-line)
         (unless (= other-curr-start other-start-pos)
           (set-window-start other-window other-start-pos))
-        (vdiff--set-vscroll (vdiff--other-window) scroll-amt)))))
+        (when (eq vdiff-subtraction-style 'full)
+          (vdiff--set-vscroll (vdiff--other-window) scroll-amt))))))
 
-(defun vdiff--post-command-hook ()
-  "Sync scroll for `vdiff--force-sync-commands'."
-  ;; Use real-this-command because evil-next-line and evil-previous-line pretend
-  ;; they are next-line and previous-line
-  (when (and (memq this-command vdiff--force-sync-commands)
-             (not vdiff--in-post-command-hook)
-             (vdiff--buffer-p))
-    (let ((vdiff--in-post-command-hook t))
-      (when (and (sit-for 0.05)
-                 (eq vdiff-subtraction-style 'full))
-        (vdiff--scroll-function)))))
+;; (defun vdiff--post-command-hook ()
+;;   "Sync scroll for `vdiff--force-sync-commands'."
+;;   ;; Use real-this-command because evil-next-line and evil-previous-line pretend
+;;   ;; they are next-line and previous-line
+;;   (when (and (memq this-command vdiff--force-sync-commands)
+;;              (not vdiff--in-post-command-hook)
+;;              (vdiff--buffer-p))
+;;     (let ((vdiff--in-post-command-hook t))
+;;       (when (and (sit-for 0.05)
+;;                  (eq vdiff-subtraction-style 'full))
+;;         (vdiff--scroll-function)))))
+
 (defun vdiff--after-change-function (beg _end _len)
   (unless vdiff--diff-stale
     (setq vdiff--diff-stale t)
@@ -1332,13 +1334,11 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
          (unless vdiff-mode
            (vdiff-mode 1))
          (vdiff--with-all-buffers
-          (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)
-          (add-hook 'post-command-hook #'vdiff--post-command-hook nil t))
+          (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t))
          (message "Scrolling locked"))
         (t
          (vdiff--with-all-buffers
-          (remove-hook 'window-scroll-functions #'vdiff--scroll-function t)
-          (remove-hook 'post-command-hook #'vdiff--post-command-hook t))
+          (remove-hook 'window-scroll-functions #'vdiff--scroll-function t))
          (message "Scrolling unlocked"))))
 
 (defun vdiff--define-hydra ()
