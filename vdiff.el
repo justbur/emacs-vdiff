@@ -815,11 +815,11 @@ changes under point or on the immediately preceding line."
                   (overlay-start ovr)
                   (overlay-end ovr))))
       (with-current-buffer (vdiff--other-buffer)
-        (goto-char (overlay-start other-ovr))
-        (unless addition
-          (delete-region (overlay-start other-ovr)
-                         (overlay-end other-ovr)))
         (save-excursion
+          (goto-char (overlay-start other-ovr))
+          (unless addition
+            (delete-region (overlay-start other-ovr)
+                           (overlay-end other-ovr)))
           (insert text))
         (delete-overlay other-ovr))
       (delete-overlay ovr))))
@@ -833,7 +833,8 @@ just deleting text in the other buffer."
       (when other-ovr
         (with-current-buffer (vdiff--other-buffer)
           (delete-region (overlay-start other-ovr)
-                         (overlay-end other-ovr)))))))
+                         (overlay-end other-ovr))
+          (delete-overlay other-ovr))))))
 
 ;; * Scrolling and line syncing
 
