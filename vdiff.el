@@ -974,13 +974,14 @@ buffer)."
       (vdiff--move-to-line line)
       (line-beginning-position))))
 
-(defun vdiff--set-vscroll (window vscroll)
+(defun vdiff--set-vscroll-and-force-update (window &optional vscroll)
   (run-at-time
    nil nil
    (lambda ()
      (unless vdiff--setting-vscroll
        (let ((vdiff--setting-vscroll t))
-         (set-window-vscroll window vscroll)
+         (when vscroll
+           (set-window-vscroll window vscroll))
          (force-window-update window))))))
 
 (defun vdiff--scroll-function (&optional window window-start)
@@ -1016,8 +1017,10 @@ buffer)."
         (set-window-point other-window other-pos)
         (unless (= other-curr-start other-start-pos)
           (set-window-start other-window other-start-pos))
-        (when (eq vdiff-subtraction-style 'full)
-          (vdiff--set-vscroll (vdiff--other-window) scroll-amt))))))
+        (vdiff--set-vscroll-and-force-update
+         other-window
+         (when (eq vdiff-subtraction-style 'full)
+           scroll-amt))))))
 
 ;; (defun vdiff--post-command-hook ()
 ;;   "Sync scroll for `vdiff--force-sync-commands'."
