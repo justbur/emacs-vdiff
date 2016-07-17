@@ -181,6 +181,7 @@ because those are handled differently.")
 (defvar vdiff--setting-vscroll nil)
 (defvar vdiff--diff-stale nil)
 (defvar vdiff--after-change-timer nil)
+(defvar vdiff--after-change-refresh-delay 1)
 
 ;; * Utilities
 
@@ -1034,11 +1035,15 @@ buffer)."
 ;;                  (eq vdiff-subtraction-style 'full))
 ;;         (vdiff--scroll-function)))))
 
-(defun vdiff--after-change-function (beg _end _len)
+(defun vdiff--after-change-function (&rest _)
   (unless vdiff--diff-stale
     (setq vdiff--diff-stale t)
+    (when (timerp vdiff--after-change-timer)
+      (cancel-timer vdiff--after-change-timer))
     (setq vdiff--after-change-timer
-          (run-with-idle-timer 2 nil (lambda () (vdiff-refresh))))))
+          (run-with-idle-timer
+           vdiff--after-change-refresh-delay
+           nil #'vdiff-refresh))))
 
 (defvar vdiff--bottom-left-angle-bits
   (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
