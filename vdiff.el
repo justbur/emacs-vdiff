@@ -913,9 +913,6 @@ just deleting text in the other buffer."
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
   (let* ((map (if B-to-A vdiff--b-a-line-map vdiff--a-b-line-map))
-         (other-win (if B-to-A
-                        (get-buffer-window (car vdiff--buffers))
-                      (get-buffer-window (cadr vdiff--buffers))))
          (last-entry
           (catch 'closest
             (let (prev-entry)
@@ -957,9 +954,7 @@ buffer. This is usually not necessary."
   (interactive (list (line-number-at-pos)
                      (not (vdiff--buffer-a-p))))
   (let ((new-line (car (vdiff--translate-line
-                        line (not in-a))))
-        (other-buffer (vdiff--other-buffer))
-        (other-window (vdiff--other-window)))
+                        line (not in-a)))))
     (vdiff--with-other-window
      (goto-char (vdiff--pos-at-line-beginning new-line)))))
 
