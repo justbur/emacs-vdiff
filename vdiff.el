@@ -179,6 +179,8 @@ because those are handled differently.")
 (defvar vdiff--folds nil)
 (defvar vdiff--all-folds-open nil)
 (defvar vdiff--setting-vscroll nil)
+(defvar vdiff--diff-stale nil)
+(defvar vdiff--after-change-timer nil)
 
 ;; * Utilities
 
@@ -338,7 +340,8 @@ parsing the diff output and triggering the overlay updates."
          (setq vdiff--diff-data nil)
          (vdiff--refresh-overlays)
          (vdiff--refresh-line-maps)
-         (message "vdiff process error: %s" event))))
+         (message "vdiff process error: %s" event)))
+  (setq vdiff--diff-stale nil))
 
 (defun vdiff--remove-all-overlays ()
   "Remove all vdiff overlays in both vdiff buffers."
@@ -1028,6 +1031,11 @@ buffer)."
       (when (and (sit-for 0.05)
                  (eq vdiff-subtraction-style 'full))
         (vdiff--scroll-function)))))
+(defun vdiff--after-change-function (beg _end _len)
+  (unless vdiff--diff-stale
+    (setq vdiff--diff-stale t)
+    (setq vdiff--after-change-timer
+          (run-with-idle-timer 2 nil (lambda () (vdiff-refresh))))))
 
 (defvar vdiff--bottom-left-angle-bits
   (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
@@ -1287,6 +1295,8 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
          (add-hook 'window-size-change-functions
                    'vdiff--remove-fold-overlays)
+         (add-hook 'after-change-functions
+                   'vdiff--after-change-function nil t)
          (when vdiff-lock-scrolling
            (vdiff-scroll-lock-mode 1)))
         (t
@@ -1295,6 +1305,8 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (remove-hook 'after-save-hook #'vdiff-refresh t)
          (remove-hook 'window-size-change-functions
                       'vdiff--remove-fold-overlays)
+         (remove-hook 'after-change-functions
+                      'vdiff--after-change-function t)
          (when vdiff-scroll-lock-mode
            (vdiff-scroll-lock-mode -1))
          (setq vdiff--diff-data nil)
