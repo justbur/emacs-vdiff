@@ -979,7 +979,7 @@ buffer)."
 
 (defun vdiff--set-vscroll (window vscroll)
   (run-at-time
-   0.02 nil
+   nil nil
    (lambda ()
      (unless vdiff--setting-vscroll
        (let ((vdiff--setting-vscroll t))
