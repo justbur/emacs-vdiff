@@ -172,6 +172,7 @@ because those are handled differently.")
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
 (defvar vdiff--inhibit-window-switch nil)
+(defvar vdiff--inhibit-diff-data-update nil)
 (defvar vdiff--in-scroll-hook nil)
 ;; (defvar vdiff--in-post-command-hook nil)
 (defvar vdiff--a-b-line-map nil)
@@ -318,32 +319,31 @@ because those are handled differently.")
 (defun vdiff--diff-refresh-1 (proc event)
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
-  (cond ((string= "finished\n" event)
-         ;; means no difference between files
-         (setq vdiff--diff-data nil)
-         (vdiff--refresh-overlays)
-         (vdiff--refresh-line-maps))
-        ((string= "exited abnormally with code 1\n" event)
-         (setq vdiff--diff-data nil)
-         (let (res)
-           (with-current-buffer (process-buffer proc)
-             (goto-char (point-min))
-             (while (re-search-forward vdiff--diff-code-regexp nil t)
-               (let* ((code (match-string 3))
-                      (a-range (vdiff--normalize-range
-                                code t (match-string 1) (match-string 2)))
-                      (b-range (vdiff--normalize-range
-                                code nil (match-string 4) (match-string 5))))
-                 (push (list code a-range b-range) res))))
-           (setq vdiff--diff-data (nreverse res)))
-         (vdiff--refresh-overlays)
-         (vdiff--refresh-line-maps))
-        ((string-match-p "exited abnormally with code" event)
-         (setq vdiff--diff-data nil)
-         (vdiff--refresh-overlays)
-         (vdiff--refresh-line-maps)
-         (message "vdiff process error: %s" event)))
-  (setq vdiff--diff-stale nil))
+  (unless vdiff--inhibit-diff-data-update
+    (setq vdiff--diff-data nil)
+    (cond ((string= "finished\n" event)
+           ;; means no difference between files
+           (vdiff--refresh-overlays)
+           (vdiff--refresh-line-maps))
+          ((string= "exited abnormally with code 1\n" event)
+           (let (res)
+             (with-current-buffer (process-buffer proc)
+               (goto-char (point-min))
+               (while (re-search-forward vdiff--diff-code-regexp nil t)
+                 (let* ((code (match-string 3))
+                        (a-range (vdiff--normalize-range
+                                  code t (match-string 1) (match-string 2)))
+                        (b-range (vdiff--normalize-range
+                                  code nil (match-string 4) (match-string 5))))
+                   (push (list code a-range b-range) res))))
+             (setq vdiff--diff-data (nreverse res)))
+           (vdiff--refresh-overlays)
+           (vdiff--refresh-line-maps))
+          ((string-match-p "exited abnormally with code" event)
+           (vdiff--refresh-overlays)
+           (vdiff--refresh-line-maps)
+           (message "vdiff process error: %s" event)))
+    (setq vdiff--diff-stale nil)))
 
 (defun vdiff--remove-all-overlays ()
   "Remove all vdiff overlays in both vdiff buffers."
@@ -704,6 +704,7 @@ of a \"word\"."
         (b-line 1)
         (a-last-post 1)
         (b-last-post 1)
+        (vdiff--inhibit-diff-data-update t)
         folds)
     (save-excursion
       (with-current-buffer a-buffer
@@ -858,7 +859,8 @@ just deleting text in the other buffer."
 (defun vdiff--refresh-line-maps ()
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
-  (let (a-b-map b-a-map)
+  (let ((vdiff--inhibit-diff-data-update t)
+        a-b-map b-a-map)
     (dolist (entry vdiff--diff-data)
       (let* ((code (car entry))
              (a-lines (nth 1 entry))
