@@ -1299,8 +1299,6 @@ commands like `vdiff-files' or `vdiff-buffers'."
   (cond (vdiff-mode
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
-         (add-hook 'window-size-change-functions
-                   'vdiff--remove-fold-overlays)
          (add-hook 'after-change-functions
                    'vdiff--after-change-function nil t)
          (when vdiff-lock-scrolling
@@ -1311,8 +1309,6 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (vdiff--remove-all-overlays)
          (setq cursor-in-non-selected-windows t)
          (remove-hook 'after-save-hook #'vdiff-refresh t)
-         (remove-hook 'window-size-change-functions
-                      'vdiff--remove-fold-overlays)
          (remove-hook 'after-change-functions
                       'vdiff--after-change-function t)
          (when vdiff-scroll-lock-mode
