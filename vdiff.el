@@ -1220,20 +1220,9 @@ asked to select two files."
        (format "[File 1 %s] File 2: "
                (file-name-nondirectory file-a)))
       current-prefix-arg)))
-  (let (window-b buffer-a)
-    (delete-other-windows)
-    (find-file file-a)
-    (goto-char (point-min))
-    (setq buffer-a (current-buffer))
-    (save-selected-window
-      (setq window-b (if horizontal
-                         (split-window-vertically)
-                       (split-window-horizontally)))
-      (find-file-other-window file-b)
-      (setq vdiff--buffers (list buffer-a (window-buffer window-b)))
-      (vdiff-mode 1))
-    (vdiff-mode 1)
-    (vdiff-refresh)))
+  (vdiff-buffers (find-file-noselect file-a)
+                 (find-file-noselect file-b)
+                 horizontal))
 
 ;;;###autoload
 (defun vdiff-buffers (buffer-a buffer-b &optional horizontal)
@@ -1261,17 +1250,16 @@ asked to select two buffers."
     (switch-to-buffer-other-window buffer-b)
     (setq vdiff--buffers (list buffer-a buffer-b))
     (vdiff--with-all-buffers
-     (vdiff-mode 1))
-    (vdiff-refresh)))
+     (vdiff-mode 1)))
+  (vdiff-refresh))
 
-(defun vdiff-exit ()
-  "Exit `vdiff-mode' and clean up."
+(defun vdiff-quit ()
+  "Quit `vdiff-mode' and clean up."
   (interactive)
   (dolist (buf vdiff--buffers)
     (with-current-buffer buf
       (vdiff-mode -1)))
   (message "vdiff exited"))
-(defalias 'vdiff-quit 'vdiff-exit)
 
 (defvar vdiff-mode-map
   (let ((map (make-sparse-keymap)))
