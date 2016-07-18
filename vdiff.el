@@ -164,8 +164,6 @@ be a need to include commands that scroll the buffer here,
 because those are handled differently.")
 
 (defvar vdiff--buffers nil)
-(defvar vdiff--temp-files nil)
-(defvar vdiff--word-diff-temp-files nil)
 (defvar vdiff--process-buffer " *vdiff* ")
 (defvar vdiff--word-diff-output-buffer " *vdiff-word* ")
 (defvar vdiff--diff-data nil)
@@ -282,19 +280,20 @@ because those are handled differently.")
 (defun vdiff-refresh ()
   "Asynchronously refresh diff information."
   (interactive)
-  (let* ((cmd (mapconcat #'identity
+  (let* ((tmp-a (make-temp-file "vdiff-a-"))
+         (tmp-b (make-temp-file "vdiff-b-"))
+         (cmd (mapconcat #'identity
                          (list
                           vdiff-diff-program
                           vdiff-diff-program-args
-                          (car vdiff--temp-files)
-                          (cadr vdiff--temp-files))
+                          tmp-a tmp-b)
                          " "))
          (proc (get-buffer-process
                 vdiff--process-buffer)))
     (with-current-buffer (car vdiff--buffers)
-      (write-region nil nil (car vdiff--temp-files) nil 'quietly))
+      (write-region nil nil tmp-a nil 'quietly))
     (with-current-buffer (cadr vdiff--buffers)
-      (write-region nil nil (cadr vdiff--temp-files) nil 'quietly))
+      (write-region nil nil tmp-b nil 'quietly))
     (when proc
       (kill-process proc))
     (with-current-buffer (get-buffer-create vdiff--process-buffer)
@@ -303,6 +302,8 @@ because those are handled differently.")
                 vdiff--process-buffer
                 vdiff--process-buffer
                 cmd))
+    (process-put proc 'vdiff-tmp-a tmp-a)
+    (process-put proc 'vdiff-tmp-b tmp-b)
     (set-process-sentinel proc #'vdiff--diff-refresh-1)))
 
 (defun vdiff--normalize-range (code buf-a beg end)
@@ -320,29 +321,34 @@ because those are handled differently.")
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
   (unless vdiff--inhibit-diff-data-update
-    (setq vdiff--diff-data nil)
-    (cond ((string= "finished\n" event)
-           ;; means no difference between files
-           (vdiff--refresh-overlays)
-           (vdiff--refresh-line-maps))
-          ((string= "exited abnormally with code 1\n" event)
-           (let (res)
-             (with-current-buffer (process-buffer proc)
-               (goto-char (point-min))
-               (while (re-search-forward vdiff--diff-code-regexp nil t)
-                 (let* ((code (match-string 3))
-                        (a-range (vdiff--normalize-range
-                                  code t (match-string 1) (match-string 2)))
-                        (b-range (vdiff--normalize-range
-                                  code nil (match-string 4) (match-string 5))))
-                   (push (list code a-range b-range) res))))
-             (setq vdiff--diff-data (nreverse res)))
-           (vdiff--refresh-overlays)
-           (vdiff--refresh-line-maps))
-          ((string-match-p "exited abnormally with code" event)
-           (vdiff--refresh-overlays)
-           (vdiff--refresh-line-maps)
-           (message "vdiff process error: %s" event)))
+    (let (finished)
+      (cond ((string= "finished\n" event)
+             ;; means no difference between files
+             (setq vdiff--diff-data nil)
+             (setq finished t))
+            ((string= "exited abnormally with code 1\n" event)
+             (setq vdiff--diff-data nil)
+             (setq finished t)
+             (let (res)
+               (with-current-buffer (process-buffer proc)
+                 (goto-char (point-min))
+                 (while (re-search-forward vdiff--diff-code-regexp nil t)
+                   (let* ((code (match-string 3))
+                          (a-range (vdiff--normalize-range
+                                    code t (match-string 1) (match-string 2)))
+                          (b-range (vdiff--normalize-range
+                                    code nil (match-string 4) (match-string 5))))
+                     (push (list code a-range b-range) res))))
+               (setq vdiff--diff-data (nreverse res))))
+            ((string-match-p "exited abnormally with code" event)
+             (setq vdiff--diff-data nil)
+             (setq finished t)
+             (message "vdiff process error: %s" event)))
+      (when finished
+        (vdiff--refresh-overlays)
+        (vdiff--refresh-line-maps)
+        (delete-file (process-get proc 'vdiff-tmp-a))
+        (delete-file (process-get proc 'vdiff-tmp-b))))
     (setq vdiff--diff-stale nil)))
 
 (defun vdiff--remove-all-overlays ()
@@ -389,8 +395,8 @@ parsing the diff output and triggering the overlay updates."
              (overlayp other-ovr))
     (let* ((a-words (vdiff--overlay-to-words this-ovr syntax-code))
            (b-words (vdiff--overlay-to-words other-ovr syntax-code))
-           (tmp-file-a (car vdiff--word-diff-temp-files))
-           (tmp-file-b (cadr vdiff--word-diff-temp-files))
+           (tmp-file-a (make-temp-file "vdiff-word-a-"))
+           (tmp-file-b (make-temp-file "vdiff-word-b-"))
            (out-buffer (get-buffer-create
                         vdiff--word-diff-output-buffer))
            (a-result '())
@@ -398,30 +404,33 @@ parsing the diff output and triggering the overlay updates."
       (write-region a-words nil tmp-file-a nil 'quietly)
       (write-region b-words nil tmp-file-b nil 'quietly)
       (with-current-buffer out-buffer (erase-buffer))
-      (when (= 1 (call-process
-                  vdiff-diff-program nil out-buffer nil tmp-file-a tmp-file-b))
-        (with-current-buffer out-buffer
-          (goto-char (point-min))
-          (while (re-search-forward vdiff--diff-code-regexp nil t)
-            (let ((a-change (list (string-to-number (match-string 1))))
-                  (b-change (list (string-to-number (match-string 4)))))
-              (forward-line 1)
-              (while (and (not (eobp))
-                          (not (looking-at-p vdiff--diff-code-regexp)))
-                (cond ((looking-at-p "^<")
-                       (push (buffer-substring-no-properties
-                              (+ 2 (point)) (line-end-position))
-                             a-change))
-                      ((looking-at-p "^>")
-                       (push (buffer-substring-no-properties
-                              (+ 2 (point)) (line-end-position))
-                             b-change)))
-                (forward-line 1))
-              (when (cdr a-change)
-                (push (nreverse a-change) a-result))
-              (when (cdr b-change)
-                (push (nreverse b-change) b-result))))
-          (cons (nreverse a-result) (nreverse b-result)))))))
+      (let ((exit-code (call-process
+                        vdiff-diff-program nil out-buffer nil tmp-file-a tmp-file-b)))
+        (delete-file tmp-file-a)
+        (delete-file tmp-file-b)
+        (when (= exit-code 1)
+          (with-current-buffer out-buffer
+            (goto-char (point-min))
+            (while (re-search-forward vdiff--diff-code-regexp nil t)
+              (let ((a-change (list (string-to-number (match-string 1))))
+                    (b-change (list (string-to-number (match-string 4)))))
+                (forward-line 1)
+                (while (and (not (eobp))
+                            (not (looking-at-p vdiff--diff-code-regexp)))
+                  (cond ((looking-at-p "^<")
+                         (push (buffer-substring-no-properties
+                                (+ 2 (point)) (line-end-position))
+                               a-change))
+                        ((looking-at-p "^>")
+                         (push (buffer-substring-no-properties
+                                (+ 2 (point)) (line-end-position))
+                               b-change)))
+                  (forward-line 1))
+                (when (cdr a-change)
+                  (push (nreverse a-change) a-result))
+                (when (cdr b-change)
+                  (push (nreverse b-change) b-result))))
+            (cons (nreverse a-result) (nreverse b-result))))))))
 
 (defun vdiff-refine-this-hunk (&optional syntax-code ovr)
   "Highlight word differences in current hunk.
@@ -1300,12 +1309,6 @@ changes. This will be enabled automatically after calling
 commands like `vdiff-files' or `vdiff-buffers'."
   nil " vdiff" 'vdiff-mode-map
   (cond (vdiff-mode
-         (setq vdiff--temp-files
-               (list (make-temp-file "vdiff--temp-a-")
-                     (make-temp-file "vdiff--temp-b-")))
-         (setq vdiff--word-diff-temp-files
-               (list (make-temp-file "vdiff--overlay-diff-temp-a-")
-                     (make-temp-file "vdiff--overlay-diff-temp-b-")))
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
          (add-hook 'window-size-change-functions
@@ -1331,12 +1334,6 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (setq vdiff--a-b-line-map nil)
          (setq vdiff--b-a-line-map nil)
          (setq vdiff--window-configuration nil)
-         (dolist (file vdiff--temp-files)
-           (delete-file file))
-         (setq vdiff--temp-files nil)
-         (dolist (file vdiff--word-diff-temp-files)
-           (delete-file file))
-         (setq vdiff--word-diff-temp-files nil)
          (when (process-live-p vdiff--process-buffer)
            (kill-process vdiff--process-buffer))
          (when (buffer-live-p vdiff--process-buffer)
