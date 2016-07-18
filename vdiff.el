@@ -182,6 +182,7 @@ because those are handled differently.")
 (defvar vdiff--diff-stale nil)
 (defvar vdiff--after-change-timer nil)
 (defvar vdiff--after-change-refresh-delay 1)
+(defvar vdiff--window-configuration nil)
 
 ;; * Utilities
 
@@ -966,6 +967,11 @@ buffer and center both buffers at this line."
   (vdiff--sync-line (line-number-at-pos) (vdiff--buffer-a-p))
   (vdiff--recenter-both))
 
+(defun vdiff-restore-windows ()
+  "Restore initial window configuration."
+  (interactive)
+  (set-window-configuration vdiff--window-configuration))
+
 (defun vdiff--pos-at-line-beginning (line &optional buffer)
   "Return position at beginning of LINE in BUFFER (or current
 buffer)."
@@ -1305,7 +1311,9 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (add-hook 'after-change-functions
                    'vdiff--after-change-function nil t)
          (when vdiff-lock-scrolling
-           (vdiff-scroll-lock-mode 1)))
+           (vdiff-scroll-lock-mode 1))
+         (setq vdiff--window-configuration
+               (current-window-configuration)))
         (t
          (vdiff--remove-all-overlays)
          (setq cursor-in-non-selected-windows t)
@@ -1320,6 +1328,7 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (setq vdiff--buffers nil)
          (setq vdiff--a-b-line-map nil)
          (setq vdiff--b-a-line-map nil)
+         (setq vdiff--window-configuration nil)
          (dolist (file vdiff--temp-files)
            (delete-file file))
          (setq vdiff--temp-files nil)
