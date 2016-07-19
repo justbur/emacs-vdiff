@@ -43,26 +43,50 @@ which will bind most of the commands under the =C-c= prefix when vdiff-mode is
 active. Of course you can pick whatever prefix you prefer. With the =C-c= prefix
 the commands would be
 
-| Key     | Command                   | Description                         |
-|---------+---------------------------+-------------------------------------|
-| =C-c g= | =vdiff-switch-buffer=     | Switch buffers at matching line     |
-| =C-c n= | =vdiff-next-hunk=         | Move to next hunk in buffer         |
-| =C-c p= | =vdiff-previous-hunk=     | Move to previous hunk in buffer     |
-| =C-c N= | =vdiff-next-fold=         | Move to next fold in buffer         |
-| =C-c P= | =vdiff-previous-fold=     | Move to previous fold in buffer     |
-| =C-c r= | =vdiff-receive-changes=   | Receive change from other buffer    |
-| =C-c s= | =vdiff-send-changes=      | Send this change(s) to other buffer |
-| =C-c f= | =vdiff-refine-this-hunk=  | Highlight changed words in hunk     |
-| =C-c F= | =vdiff-refine-all-hunks=  | Highlight changed words in hunk     |
-| =C-c c= | =vdiff-close-fold=        | Close fold at point or in region    |
-| =C-c C= | =vdiff-close-all-folds=   | Close all folds in buffer           |
-| =C-c t= | =vdiff-close-other-folds= | Close all other folds in buffer     |
-| =C-c o= | =vdiff-open-fold=         | Open fold at point or in region     |
-| =C-c O= | =vdiff-open-all-folds=    | Open all folds in buffer            |
-| =C-c w= | =vdiff-save-buffers=      | Save both buffers                   |
-| =C-c q= | =vdiff-quit=              | Quit vdiff                          |
-| =C-l=   | =vdiff-sync-and-center=   | Recenter both buffers at this line  |
-| =C-c h= | =vdiff-maybe-hydra=       | Enter vdiff-hydra if defined        |
+*** Basics
+    
+| Key     | Command                            | Description                         |
+|---------+------------------------------------+-------------------------------------|
+| =C-c g= | =vdiff-switch-buffer=              | Switch buffers at matching line     |
+| =C-c n= | =vdiff-next-hunk=                  | Move to next hunk in buffer         |
+| =C-c p= | =vdiff-previous-hunk=              | Move to previous hunk in buffer     |
+| =C-c h= | =vdiff-maybe-hydra=                | Enter vdiff-hydra if defined        |
+| =C-l=   | =vdiff-sync-and-center=            | Recenter both buffers at this line  |
+
+*** Viewing and Transmitting Changes Between Buffers
+
+| Key     | Command                            | Description                         |
+|---------+------------------------------------+-------------------------------------|
+| =C-c r= | =vdiff-receive-changes=            | Receive change from other buffer    |
+| =C-c s= | =vdiff-send-changes=               | Send this change(s) to other buffer |
+| =C-c f= | =vdiff-refine-this-hunk=           | Highlight changed words in hunk     |
+| =C-c x= | =vdiff-remove-refinements-in-hunk= | Remove refinement highlighting      |
+| (none)  | =vdiff-refine-this-hunk-symbol=    | Refine based on symbols             |
+| (none)  | =vdiff-refine-this-hunk-word=      | Refine based on words               |
+| =C-c F= | =vdiff-refine-all-hunks=           | Highlight changed words             |
+| (none)  | =vdiff-refine-all-hunks-symbol=    | Refine all based on symbols         |
+| (none)  | =vdiff-refine-all-hunks-word=      | Refine all based on words           |
+
+*** Folds
+
+| Key     | Command                            | Description                         |
+|---------+------------------------------------+-------------------------------------|
+| =C-c N= | =vdiff-next-fold=                  | Move to next fold in buffer         |
+| =C-c P= | =vdiff-previous-fold=              | Move to previous fold in buffer     |
+| =C-c c= | =vdiff-close-fold=                 | Close fold at point or in region    |
+| =C-c C= | =vdiff-close-all-folds=            | Close all folds in buffer           |
+| =C-c t= | =vdiff-close-other-folds=          | Close all other folds in buffer     |
+| =C-c o= | =vdiff-open-fold=                  | Open fold at point or in region     |
+| =C-c O= | =vdiff-open-all-folds=             | Open all folds in buffer            |
+
+*** Saving, Updating and Exiting
+
+| Key     | Command                 | Description                  |
+|---------+-------------------------+------------------------------|
+| =C-c w= | =vdiff-save-buffers=    | Save both buffers            |
+| =C-c u= | =vdiff-refresh=         | Force diff refresh           |
+| (none)  | =vdiff-restore-windows= | Restore window configuration |
+| =C-c q= | =vdiff-quit=            | Quit vdiff                   |
 
 Evil-mode users might prefer something like the following to use =,= as a prefix
 in normal state.
