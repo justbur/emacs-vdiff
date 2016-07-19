@@ -925,29 +925,30 @@ just deleting text in the other buffer."
   "Translate LINE in buffer A to corresponding line in buffer
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
-  (let* ((map (if B-to-A vdiff--b-a-line-map vdiff--a-b-line-map))
-         (last-entry
-          (catch 'closest
-            (let (prev-entry)
-              (dolist (entry map)
-                (let ((map-line (car entry)))
-                  (cond ((< map-line line)
-                         (setq prev-entry entry))
-                        ((= map-line line)
-                         (throw 'closest entry))
-                        (t
-                         (throw 'closest prev-entry)))))
-              (throw 'closest prev-entry))))
-         res)
-    (unless last-entry
-      (setq last-entry (list line line))
-      (message "Error in line translation"))
-    (prog1
-        (setq res (cons (+ (- line (car last-entry)) (cadr last-entry))
-                        (nth 2 last-entry)))
-      (when (called-interactively-p 'interactive)
-        (message "This line: %s; Other line %s; vscroll-state %s; entry %s"
-                 line res (cdr res) last-entry)))))
+  (let ((map (if B-to-A vdiff--b-a-line-map vdiff--a-b-line-map))
+        last-entry res)
+    (when map
+      (setq last-entry
+            (catch 'closest
+              (let (prev-entry)
+                (dolist (entry map)
+                  (let ((map-line (car entry)))
+                    (cond ((< map-line line)
+                           (setq prev-entry entry))
+                          ((= map-line line)
+                           (throw 'closest entry))
+                          (t
+                           (throw 'closest prev-entry)))))
+                (throw 'closest prev-entry))))
+      (unless last-entry
+        (setq last-entry (list line line))
+        (message "Error in line translation"))
+      (prog1
+          (setq res (cons (+ (- line (car last-entry)) (cadr last-entry))
+                          (nth 2 last-entry)))
+        (when (called-interactively-p 'interactive)
+          (message "This line: %s; Other line %s; vscroll-state %s; entry %s"
+                   line res (cdr res) last-entry))))))
 
 (defun vdiff-switch-buffer (line in-b)
   "Jump to the line in the other vdiff buffer that corresponds to
@@ -955,7 +956,9 @@ the current one."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
   (vdiff-refresh)
   (select-window (vdiff--other-window))
-  (vdiff--move-to-line (car (vdiff--translate-line line in-b))))
+  (let ((line (car-safe (vdiff--translate-line line in-b))))
+    (when line
+      (vdiff--move-to-line line))))
 
 (defun vdiff--recenter-both ()
   (recenter)
@@ -966,10 +969,11 @@ the current one."
 buffer. This is usually not necessary."
   (interactive (list (line-number-at-pos)
                      (not (vdiff--buffer-a-p))))
-  (let ((new-line (car (vdiff--translate-line
+  (let ((new-line (car-safe (vdiff--translate-line
                         line (not in-a)))))
-    (vdiff--with-other-window
-     (goto-char (vdiff--pos-at-line-beginning new-line)))))
+    (when new-line
+      (vdiff--with-other-window
+       (goto-char (vdiff--pos-at-line-beginning new-line))))))
 
 (defun vdiff-sync-and-center ()
   "Sync point in the other vdiff buffer to the line in this
@@ -1021,23 +1025,27 @@ buffer)."
              (start-translation
               (vdiff--translate-line this-start-line in-b))
              (other-curr-start (window-start other-window))
-             (other-start-line (car start-translation))
-             (other-start-pos (vdiff--pos-at-line-beginning
-                               other-start-line other-buffer))
-             (scroll-amt (cdr start-translation))
+             (other-start-line (car-safe start-translation))
+             (other-start-pos (when other-start-line
+                                (vdiff--pos-at-line-beginning
+                                 other-start-line other-buffer)))
+             (scroll-amt (cdr-safe start-translation))
              (this-line (+ (count-lines window-start (point))
                            this-start-line))
              (translation (vdiff--translate-line this-line in-b))
-             (other-pos (vdiff--pos-at-line-beginning
-                         (car translation) other-buffer))
+             (other-pos (when translation
+                          (vdiff--pos-at-line-beginning
+                           (car translation) other-buffer)))
              (vdiff--in-scroll-hook t))
-        (set-window-point other-window other-pos)
-        (unless (= other-curr-start other-start-pos)
-          (set-window-start other-window other-start-pos))
-        (vdiff--set-vscroll-and-force-update
-         other-window
-         (when (eq vdiff-subtraction-style 'full)
-           scroll-amt))))))
+        (when (and other-start-pos
+                   other-pos)
+          (set-window-point other-window other-pos)
+          (unless (= other-curr-start other-start-pos)
+            (set-window-start other-window other-start-pos))
+          (vdiff--set-vscroll-and-force-update
+           other-window
+           (when (eq vdiff-subtraction-style 'full)
+             scroll-amt)))))))
 
 ;; (defun vdiff--post-command-hook ()
 ;;   "Sync scroll for `vdiff--force-sync-commands'."
