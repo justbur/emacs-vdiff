@@ -182,6 +182,7 @@ because those are handled differently.")
 (defvar vdiff--after-change-timer nil)
 (defvar vdiff--after-change-refresh-delay 1)
 (defvar vdiff--window-configuration nil)
+(defvar vdiff--new-command nil)
 
 ;; * Utilities
 
@@ -1004,6 +1005,9 @@ buffer)."
            (set-window-vscroll window vscroll))
          (force-window-update window))))))
 
+(defun vdiff--flag-new-command ()
+  (setq vdiff--new-command t))
+
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((window (or window (selected-window)))
@@ -1016,7 +1020,9 @@ buffer)."
                (window-live-p win-a)
                (window-live-p win-b)
                (memq window (list win-a win-b))
-               (not vdiff--in-scroll-hook))
+               (not vdiff--in-scroll-hook)
+               vdiff--new-command)
+      (setq vdiff--new-command nil)
       (let* ((in-b (eq window win-b))
              (other-window (if in-b win-a win-b))
              (other-buffer (if in-b buf-a buf-b))
@@ -1307,8 +1313,8 @@ commands like `vdiff-files' or `vdiff-buffers'."
   (cond (vdiff-mode
          (setq cursor-in-non-selected-windows nil)
          (add-hook 'after-save-hook #'vdiff-refresh nil t)
-         (add-hook 'after-change-functions
-                   'vdiff--after-change-function nil t)
+         (add-hook 'after-change-functions #'vdiff--after-change-function nil t)
+         (add-hook 'pre-command-hook #'vdiff--flag-new-command nil t)
          (when vdiff-lock-scrolling
            (vdiff-scroll-lock-mode 1))
          (setq vdiff--window-configuration
@@ -1317,8 +1323,8 @@ commands like `vdiff-files' or `vdiff-buffers'."
          (vdiff--remove-all-overlays)
          (setq cursor-in-non-selected-windows t)
          (remove-hook 'after-save-hook #'vdiff-refresh t)
-         (remove-hook 'after-change-functions
-                      'vdiff--after-change-function t)
+         (remove-hook 'after-change-functions #'vdiff--after-change-function t)
+         (remove-hook 'pre-command-hook #'vdiff--flag-new-command t)
          (when vdiff-scroll-lock-mode
            (vdiff-scroll-lock-mode -1))
          (setq vdiff--diff-data nil)
