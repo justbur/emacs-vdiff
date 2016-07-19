@@ -562,13 +562,27 @@ of a \"word\"."
   'vdiff--insertion-arrow vdiff--insertion-arrow-bits nil 8 'top)
 
 (defun vdiff--make-subtraction-string (n-lines)
-  (let ((n-lines (if (eq 'single vdiff-subtraction-style)
-                     1
-                   n-lines))
-        string)
-    (dotimes (_ n-lines)
-      (push (make-string (1- (vdiff--min-window-width))
-                         vdiff-subtraction-fill-char) string))
+  (let* ((width (1- (vdiff--min-window-width)))
+         (win-height (window-height))
+         (max-lines (floor (* 0.7 win-height)))
+         (truncate (> n-lines max-lines))
+         (trunc-n-lines
+          (cond ((eq 'single vdiff-subtraction-style) 1)
+                (truncate max-lines)
+                (t n-lines)))
+         (truncate-prefix-len 2)
+         string truncate-message)
+    (dotimes (_ trunc-n-lines)
+      (push (make-string width vdiff-subtraction-fill-char) string))
+    (when truncate
+      (setq truncate-message (format " +%d lines " (- n-lines trunc-n-lines)))
+      (push (concat (make-string truncate-prefix-len vdiff-subtraction-fill-char)
+                    truncate-message
+                    (make-string (- width truncate-prefix-len
+                                    (length truncate-message))
+                                 vdiff-subtraction-fill-char))
+            string)
+      (setq string (nreverse string)))
     (if (eq vdiff-subtraction-style 'fringe)
         (propertize
          " "
