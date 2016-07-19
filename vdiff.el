@@ -6,7 +6,7 @@
 ;; URL: https://github.com/justbur/emacs-vdiff
 ;; Version: 0
 ;; Keywords:
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "24.4"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -664,7 +664,7 @@ of a \"word\"."
         (cond ((assoc a-range vdiff--folds)
                ;; Restore any overlays on same range
                (let* ((a-fold (cadr (assoc a-range vdiff--folds)))
-                      (b-fold (caddr (assoc a-range vdiff--folds)))
+                      (b-fold (cl-caddr (assoc a-range vdiff--folds)))
                       (a-beg (vdiff--pos-at-line-beginning
                               (car a-range) a-buffer))
                       (a-end (vdiff--pos-at-line-beginning
