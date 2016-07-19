@@ -500,11 +500,12 @@ SYNTAX-CODE."
   (interactive (list (vdiff--overlay-at-pos)))
   (dolist (chg-ovr (list ovr
                          (overlay-get ovr 'vdiff-other-overlay)))
-    (dolist (sub-ovr (overlays-in
-                      (overlay-start chg-ovr)
-                      (overlay-end chg-ovr)))
-      (when (overlay-get sub-ovr 'vdiff-refinement)
-        (delete-overlay sub-ovr)))))
+    (with-current-buffer (overlay-buffer chg-ovr)
+      (dolist (sub-ovr (overlays-in
+                        (overlay-start chg-ovr)
+                        (overlay-end chg-ovr)))
+        (when (overlay-get sub-ovr 'vdiff-refinement)
+          (delete-overlay sub-ovr))))))
 
 (defun vdiff-refine-all-hunks (&optional syntax-code)
   "Highlight word differences in all hunks.
