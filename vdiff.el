@@ -1291,6 +1291,7 @@ asked to select two buffers."
     (define-key map "q" 'vdiff-quit)
     (define-key map "r" 'vdiff-receive-changes)
     (define-key map "s" 'vdiff-send-changes)
+    (define-key map "x" 'vdiff-remove-refinements-in-hunk)
     (define-key map "t" 'vdiff-close-other-folds)
     (define-key map "u" 'vdiff-refresh)
     (define-key map "w" 'vdiff-save-buffers)
@@ -1351,12 +1352,12 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
   (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
     (concat (propertize
              "\
- Navigation^^^^          Refine^^  Transmit^^   Folds^^^^            Other^^^^                 "
+ Navigation^^^^          Refine^^   Transmit^^   Folds^^^^            Other^^^^                 "
              'face 'header-line)
             "
- _n_/_N_ next hunk/fold  _f_ this  _s_ send     _o_/_O_ open (all)   _u_^ ^  update diff
- _p_/_P_ prev hunk/fold  _F_ all   _r_ receive  _c_/_C_ close (all)  _w_^ ^  save buffers
- _g_^ ^  switch buffers  ^ ^       ^ ^          _t_^ ^  close other  _q_/_Q_ quit hydra/vdiff")
+ _n_/_N_ next hunk/fold  _f_ this   _s_ send     _o_/_O_ open (all)   _u_ ^ ^ update diff
+ _p_/_P_ prev hunk/fold  _F_ all    _r_ receive  _c_/_C_ close (all)  _w_ ^ ^ save buffers
+ _g_^ ^  switch buffers  _x_ clear  ^ ^          _t_ ^ ^ close other  _q_/_Q_ quit hydra/vdiff")
     ("n" vdiff-next-hunk)
     ("p" vdiff-previous-hunk)
     ("N" vdiff-next-fold)
@@ -1373,6 +1374,7 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("w" vdiff-save-buffers)
     ("f" vdiff-refine-this-hunk)
     ("F" vdiff-refine-all-hunks)
+    ("x" vdiff-remove-refinements-in-hunk)
     ("q" nil :exit t)
     ("Q" vdiff-quit :exit t)))
 
