@@ -538,26 +538,24 @@ of a \"word\"."
 ;; * Add overlays
 
 (defvar vdiff--insertion-arrow-bits
-  (apply
+  (cl-map
    #'vector
-   (mapcar
-    (lambda (line)
-      (let* ((ex (1- (length line))))
-        (apply '+
-               (mapcar
-                (lambda (el)
-                  (prog1
-                      (* el (expt 2 ex))
-                    (cl-decf ex))) line))))
-    '((0 0 1 1 1 1 1 1)
-      (0 0 0 1 1 1 1 1)
-      (0 0 0 0 1 1 1 1)
-      (0 0 0 1 1 1 1 1)
-      (0 0 1 1 1 0 1 1)
-      (0 1 1 1 0 0 0 1)
-      (1 1 1 0 0 0 0 0)
-      (1 1 0 0 0 0 0 0)
-      (1 0 0 0 1 1 1 1)))))
+   (lambda (line)
+     (let ((ex (length line)))
+       (cl-reduce
+        (lambda (acc el)
+          (+ acc (* el (expt 2 (cl-decf ex)))))
+        line
+        :initial-value 0)))
+   '((0 0 1 1 1 1 1 1)
+     (0 0 0 1 1 1 1 1)
+     (0 0 0 0 1 1 1 1)
+     (0 0 0 1 1 1 1 1)
+     (0 0 1 1 1 0 1 1)
+     (0 1 1 1 0 0 0 1)
+     (1 1 1 0 0 0 0 0)
+     (1 1 0 0 0 0 0 0)
+     (1 0 0 0 1 1 1 1))))
 
 (define-fringe-bitmap
   'vdiff--insertion-arrow vdiff--insertion-arrow-bits nil 8 'top)
