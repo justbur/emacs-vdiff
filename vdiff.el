@@ -170,7 +170,7 @@ because those are handled differently.")
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
 (defvar vdiff--inhibit-window-switch nil)
-(defvar vdiff--inhibit-diff-data-update nil)
+(defvar vdiff--inhibit-diff-update nil)
 (defvar vdiff--in-scroll-hook nil)
 ;; (defvar vdiff--in-post-command-hook nil)
 (defvar vdiff--a-b-line-map nil)
@@ -321,7 +321,7 @@ because those are handled differently.")
 (defun vdiff--diff-refresh-1 (proc event)
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
-  (unless vdiff--inhibit-diff-data-update
+  (unless vdiff--inhibit-diff-update
     (let (finished)
       (cond ((string= "finished\n" event)
              ;; means no difference between files
@@ -727,7 +727,7 @@ of a \"word\"."
         (b-line 1)
         (a-last-post 1)
         (b-last-post 1)
-        (vdiff--inhibit-diff-data-update t)
+        (vdiff--inhibit-diff-update t)
         folds)
     (save-excursion
       (with-current-buffer a-buffer
@@ -806,7 +806,8 @@ is active, send all changes found in the region. Otherwise use
 the hunk under point or on the immediately preceding line."
   (interactive
    (vdiff--region-or-close-overlay))
-  (let* ((ovrs (overlays-in beg end)))
+  (let* ((ovrs (overlays-in beg end))
+         (vdiff--inhibit-diff-update t))
     (dolist (ovr ovrs)
       (cond ((and (overlay-get ovr 'vdiff-other-overlay)
                   receive)
@@ -882,7 +883,7 @@ just deleting text in the other buffer."
 (defun vdiff--refresh-line-maps ()
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
-  (let ((vdiff--inhibit-diff-data-update t)
+  (let ((vdiff--inhibit-diff-update t)
         a-b-map b-a-map)
     (dolist (entry vdiff--diff-data)
       (let* ((code (car entry))
