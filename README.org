@@ -19,8 +19,8 @@ buffer to the other. The main features are
      buffer"
   7. Cool hydra (see below)
 
-vdiff is still a work in progress, so use it at your own risk. Contributions and
-suggestions are very welcome.
+vdiff has not been extensively tested yet, so please report any issues you
+find. Contributions and suggestions are very welcome.
    
 ** Screenshot
 
