@@ -183,6 +183,17 @@ because those are handled differently.")
 (defvar vdiff--after-change-refresh-delay 1)
 (defvar vdiff--window-configuration nil)
 (defvar vdiff--new-command nil)
+(defvar vdiff--last-command nil)
+(defvar vdiff--case-args "")
+(defvar vdiff--case-options
+  '(("Don't ignore case" . "")
+    ("Ignore case (-i)" . "-i")))
+(defvar vdiff--whitespace-args "")
+(defvar vdiff--whitespace-options
+  '(("Don't ignore whitespace" . "")
+    ("Ignore all whitespace (-w)" . "-w")
+    ("Ignore space changes (-b)" . "-b")
+    ("Ignore blank lines (-B)" . "-B")))
 
 ;; * Utilities
 
@@ -276,6 +287,32 @@ because those are handled differently.")
        (with-current-buffer buf
          ,@body))))
 
+;; * Toggles
+
+(defun vdiff-toggle-case (command-line-arg)
+  "Toggle ignoring of case in diff command."
+  (interactive
+   (list (cdr-safe
+          (assoc-string
+           (completing-read "Case options: "
+                            vdiff--case-options)
+           vdiff--case-options))))
+  (setq vdiff--case-args command-line-arg)
+  (when vdiff-mode
+    (vdiff-refresh)))
+
+(defun vdiff-toggle-whitespace (command-line-arg)
+  "Toggle ignoring of whitespace in diff command."
+  (interactive
+   (list (cdr-safe
+          (assoc-string
+           (completing-read "Whitespace options: "
+                            vdiff--whitespace-options)
+           vdiff--whitespace-options))))
+  (setq vdiff--whitespace-args command-line-arg)
+  (when vdiff-mode
+    (vdiff-refresh)))
+
 ;; * Main overlay refresh routine
 
 (defun vdiff-refresh ()
@@ -287,6 +324,8 @@ because those are handled differently.")
                          (list
                           vdiff-diff-program
                           vdiff-diff-program-args
+                          vdiff--whitespace-args
+                          vdiff--case-args
                           tmp-a tmp-b)
                          " "))
          (proc (get-buffer-process
@@ -299,6 +338,7 @@ because those are handled differently.")
       (kill-process proc))
     (with-current-buffer (get-buffer-create vdiff--process-buffer)
       (erase-buffer))
+    (setq vdiff--last-command cmd)
     (setq proc (start-process-shell-command
                 vdiff--process-buffer
                 vdiff--process-buffer
@@ -1302,6 +1342,8 @@ asked to select two buffers."
     (define-key map "F" 'vdiff-refine-all-hunks)
     (define-key map "g" 'vdiff-switch-buffer)
     (define-key map "h" 'vdiff-maybe-hydra)
+    (define-key map "ic" 'vdiff-toggle-case)
+    (define-key map "iw" 'vdiff-toggle-whitespace)
     (define-key map "n" 'vdiff-next-hunk)
     (define-key map "N" 'vdiff-next-fold)
     (define-key map "o" 'vdiff-open-fold)
@@ -1369,15 +1411,41 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
 
 (defun vdiff--define-hydra ()
   "Define `vdiff-hydra'"
+  (defun vdiff--current-case ()
+    (if (string= "" vdiff--case-args) "off" "on (-i)"))
+
+  (defun vdiff--current-whitespace ()
+    (pcase vdiff--whitespace-args
+      ("" "off")
+      ("-w" "all (-w)")
+      ("-b" "space changes (-b)")
+      ("-B" "blank lines (-B)")))
+
+  (defhydra vdiff-toggle-hydra (nil nil :hint nil)
+    (concat (propertize
+             "\
+ Toggles"
+             'face 'header-line)
+            "
+ _c_ ignore case (current: %s(vdiff--current-case))
+ _w_ ignore whitespace (current: %s(vdiff--current-whitespace))
+ _q_ back to main hydra")
+
+    ("c" vdiff-toggle-case)
+    ("w" vdiff-toggle-whitespace)
+    ("q" vdiff-hydra/body :exit t))
+
   (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
     (concat (propertize
              "\
  Navigation^^^^          Refine^^   Transmit^^   Folds^^^^            Other^^^^                 "
              'face 'header-line)
             "
- _n_/_N_ next hunk/fold  _f_ this   _s_ send     _o_/_O_ open (all)   _u_ ^ ^ update diff
- _p_/_P_ prev hunk/fold  _F_ all    _r_ receive  _c_/_C_ close (all)  _w_ ^ ^ save buffers
- _g_^ ^  switch buffers  _x_ clear  ^ ^          _t_ ^ ^ close other  _q_/_Q_ quit hydra/vdiff")
+ _n_/_N_ next hunk/fold  _f_ this   _s_ send     _o_/_O_ open (all)   _i_ ^ ^ toggles
+ _p_/_P_ prev hunk/fold  _F_ all    _r_ receive  _c_/_C_ close (all)  _u_ ^ ^ update diff
+ _g_^ ^  switch buffers  _x_ clear  ^ ^          _t_ ^ ^ close other  _w_ ^ ^ save buffers
+ ^ ^^ ^                  ^ ^        ^ ^          ^ ^ ^ ^              _q_/_Q_ quit hydra/vdiff
+ ignore case: %s(vdiff--current-case) | ignore whitespace: %s(vdiff--current-whitespace)")
     ("n" vdiff-next-hunk)
     ("p" vdiff-previous-hunk)
     ("N" vdiff-next-fold)
@@ -1395,6 +1463,7 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     ("f" vdiff-refine-this-hunk)
     ("F" vdiff-refine-all-hunks)
     ("x" vdiff-remove-refinements-in-hunk)
+    ("i" vdiff-toggle-hydra/body :exit t)
     ("q" nil :exit t)
     ("Q" vdiff-quit :exit t)))
 

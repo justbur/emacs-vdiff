@@ -79,6 +79,13 @@ the commands would be
 | =C-c o= | =vdiff-open-fold=                  | Open fold at point or in region     |
 | =C-c O= | =vdiff-open-all-folds=             | Open all folds in buffer            |
 
+*** Ignoring case and whitespace
+
+| Key       | Command                   | Description             |
+|-----------+---------------------------+-------------------------|
+| =C-c i c= | =vdiff-toggle-case=       | Toggle ignoring of case |
+| =C-c i w= | =vdiff-toggle-whitespace= | Toggle ignoring of case |
+
 *** Saving, Updating and Exiting
 
 | Key     | Command                 | Description                  |
@@ -88,8 +95,8 @@ the commands would be
 | (none)  | =vdiff-restore-windows= | Restore window configuration |
 | =C-c q= | =vdiff-quit=            | Quit vdiff                   |
 
-Evil-mode users might prefer something like the following to use =,= as a prefix
-in normal state.
+Evil-mode users might prefer something like the following to use a comma as a
+prefix in normal state.
 
 #+BEGIN_SRC emacs-lisp
 (require 'vdiff)
