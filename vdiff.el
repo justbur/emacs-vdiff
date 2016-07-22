@@ -51,6 +51,7 @@
 
 (require 'cl-lib)
 (require 'subr-x)
+(require 'diff-mode)
 
 (defgroup vdiff nil
   "Diff tool that is like vimdiff"
