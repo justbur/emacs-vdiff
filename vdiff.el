@@ -6,7 +6,7 @@
 ;; URL: https://github.com/justbur/emacs-vdiff
 ;; Version: 0.1
 ;; Keywords: diff
-;; Package-Requires: ((emacs "24.4"))
+;; Package-Requires: ((emacs "24.4") (hydra "0.13.0"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -52,6 +52,7 @@
 (require 'cl-lib)
 (require 'subr-x)
 (require 'diff-mode)
+(require 'hydra)
 
 (defgroup vdiff nil
   "Diff tool that is like vimdiff"
@@ -1349,7 +1350,7 @@ asked to select two buffers."
     (define-key map "f" 'vdiff-refine-this-hunk)
     (define-key map "F" 'vdiff-refine-all-hunks)
     (define-key map "g" 'vdiff-switch-buffer)
-    (define-key map "h" 'vdiff-maybe-hydra)
+    (define-key map "h" 'vdiff-hydra/body)
     (define-key map "ic" 'vdiff-toggle-case)
     (define-key map "iw" 'vdiff-toggle-whitespace)
     (define-key map "n" 'vdiff-next-hunk)
@@ -1417,74 +1418,61 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
           (remove-hook 'window-scroll-functions #'vdiff--scroll-function t))
          (message "Scrolling unlocked"))))
 
-(defun vdiff--define-hydra ()
-  "Define `vdiff-hydra'"
-  (defun vdiff--current-case ()
-    (if (string= "" vdiff--case-args) "off" "on (-i)"))
+(defun vdiff--current-case ()
+  (if (string= "" vdiff--case-args) "off" "on (-i)"))
 
-  (defun vdiff--current-whitespace ()
-    (pcase vdiff--whitespace-args
-      ("" "off")
-      ("-w" "all (-w)")
-      ("-b" "space changes (-b)")
-      ("-B" "blank lines (-B)")))
+(defun vdiff--current-whitespace ()
+  (pcase vdiff--whitespace-args
+    ("" "off")
+    ("-w" "all (-w)")
+    ("-b" "space changes (-b)")
+    ("-B" "blank lines (-B)")))
 
-  (defhydra vdiff-toggle-hydra (nil nil :hint nil)
-    (concat (propertize
-             "\
+(defhydra vdiff-toggle-hydra (nil nil :hint nil)
+  (concat (propertize
+           "\
  Toggles"
-             'face 'header-line)
-            "
+           'face 'header-line)
+          "
  _c_ ignore case (current: %s(vdiff--current-case))
  _w_ ignore whitespace (current: %s(vdiff--current-whitespace))
  _q_ back to main hydra")
 
-    ("c" vdiff-toggle-case)
-    ("w" vdiff-toggle-whitespace)
-    ("q" vdiff-hydra/body :exit t))
+  ("c" vdiff-toggle-case)
+  ("w" vdiff-toggle-whitespace)
+  ("q" vdiff-hydra/body :exit t))
 
-  (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
-    (concat (propertize
-             "\
+(defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
+  (concat (propertize
+           "\
  Navigation^^^^          Refine^^   Transmit^^   Folds^^^^            Other^^^^                 "
-             'face 'header-line)
-            "
+           'face 'header-line)
+          "
  _n_/_N_ next hunk/fold  _f_ this   _s_ send     _o_/_O_ open (all)   _i_ ^ ^ toggles
  _p_/_P_ prev hunk/fold  _F_ all    _r_ receive  _c_/_C_ close (all)  _u_ ^ ^ update diff
  _g_^ ^  switch buffers  _x_ clear  ^ ^          _t_ ^ ^ close other  _w_ ^ ^ save buffers
  ^ ^^ ^                  ^ ^        ^ ^          ^ ^ ^ ^              _q_/_Q_ quit hydra/vdiff
  ignore case: %s(vdiff--current-case) | ignore whitespace: %s(vdiff--current-whitespace)")
-    ("n" vdiff-next-hunk)
-    ("p" vdiff-previous-hunk)
-    ("N" vdiff-next-fold)
-    ("P" vdiff-previous-fold)
-    ("g" vdiff-switch-buffer)
-    ("s" vdiff-send-changes)
-    ("r" vdiff-receive-changes)
-    ("o" vdiff-open-fold)
-    ("O" vdiff-open-all-folds)
-    ("c" vdiff-close-fold)
-    ("C" vdiff-close-all-folds)
-    ("t" vdiff-close-other-folds)
-    ("u" vdiff-refresh)
-    ("w" vdiff-save-buffers)
-    ("f" vdiff-refine-this-hunk)
-    ("F" vdiff-refine-all-hunks)
-    ("x" vdiff-remove-refinements-in-hunk)
-    ("i" vdiff-toggle-hydra/body :exit t)
-    ("q" nil :exit t)
-    ("Q" vdiff-quit :exit t)))
-
-(defun vdiff-maybe-hydra ()
-  "Call `vdiff-hydra/body' if defined."
-  (interactive)
-  (cond ((fboundp 'vdiff-hydra/body)
-         (call-interactively 'vdiff-hydra/body))
-        ((require 'hydra nil t)
-         (vdiff--define-hydra)
-         (call-interactively 'vdiff-hydra/body))
-        (t
-         (message "hydra package not found."))))
+  ("n" vdiff-next-hunk)
+  ("p" vdiff-previous-hunk)
+  ("N" vdiff-next-fold)
+  ("P" vdiff-previous-fold)
+  ("g" vdiff-switch-buffer)
+  ("s" vdiff-send-changes)
+  ("r" vdiff-receive-changes)
+  ("o" vdiff-open-fold)
+  ("O" vdiff-open-all-folds)
+  ("c" vdiff-close-fold)
+  ("C" vdiff-close-all-folds)
+  ("t" vdiff-close-other-folds)
+  ("u" vdiff-refresh)
+  ("w" vdiff-save-buffers)
+  ("f" vdiff-refine-this-hunk)
+  ("F" vdiff-refine-all-hunks)
+  ("x" vdiff-remove-refinements-in-hunk)
+  ("i" vdiff-toggle-hydra/body :exit t)
+  ("q" nil :exit t)
+  ("Q" vdiff-quit :exit t))
 
 (provide 'vdiff)
 ;;; vdiff.el ends here

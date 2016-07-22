@@ -45,13 +45,13 @@ the commands would be
 
 *** Basics
     
-| Key     | Command                            | Description                         |
-|---------+------------------------------------+-------------------------------------|
-| =C-c g= | =vdiff-switch-buffer=              | Switch buffers at matching line     |
-| =C-c n= | =vdiff-next-hunk=                  | Move to next hunk in buffer         |
-| =C-c p= | =vdiff-previous-hunk=              | Move to previous hunk in buffer     |
-| =C-c h= | =vdiff-maybe-hydra=                | Enter vdiff-hydra if defined        |
-| =C-l=   | =vdiff-sync-and-center=            | Recenter both buffers at this line  |
+| Key     | Command                 | Description                        |
+|---------+-------------------------+------------------------------------|
+| =C-c g= | =vdiff-switch-buffer=   | Switch buffers at matching line    |
+| =C-c n= | =vdiff-next-hunk=       | Move to next hunk in buffer        |
+| =C-c p= | =vdiff-previous-hunk=   | Move to previous hunk in buffer    |
+| =C-c h= | =vdiff-hydra/body=      | Enter vdiff-hydra                  |
+| =C-l=   | =vdiff-sync-and-center= | Recenter both buffers at this line |
 
 *** Viewing and Transmitting Changes Between Buffers
 
@@ -107,11 +107,11 @@ prefix in normal state.
 To start vdiff, use either =vdiff-files= to select two files or =vdiff-buffers=
 to select two open buffers.
 
-** Hydra (optional)
+** Hydra
 
-If the [[https://github.com/abo-abo/hydra][hydra package]] is loaded, =vdiff-hydra= is defined to allow quick movement
-and changes to be made in the buffer. By default it lives on the =h= command in
-the prefix map. Bind =vdiff-maybe-hydra= directly to customize this.
+Using the [[https://github.com/abo-abo/hydra][hydra package]], =vdiff-hydra= allows quick movement and changes to be
+made in the buffer. By default it lives on the =h= command in the prefix
+map. Bind =vdiff-hydra/body= directly to customize this key binding.
 
 [[file:img/hydra.png]]
 
