@@ -104,7 +104,7 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
   :group 'vdiff
   :type 'string)
 
-(defcustom vdiff-auto-refine t
+(defcustom vdiff-auto-refine nil
   "If non-nil, automatically refine all hunks."
   :group 'vdiff
   :type 'bool)
