@@ -104,6 +104,11 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
   :group 'vdiff
   :type 'string)
 
+(defcustom vdiff-auto-refine t
+  "If non-nil, automatically refine all hunks."
+  :group 'vdiff
+  :type 'bool)
+
 (defcustom vdiff-subtraction-style 'full
   "How to represent subtractions (i.e., deleted lines). The
 default is full which means add the same number of (fake) lines
@@ -390,7 +395,9 @@ parsing the diff output and triggering the overlay updates."
         (vdiff--refresh-overlays)
         (vdiff--refresh-line-maps)
         (delete-file (process-get proc 'vdiff-tmp-a))
-        (delete-file (process-get proc 'vdiff-tmp-b))))
+        (delete-file (process-get proc 'vdiff-tmp-b))
+        (when vdiff-auto-refine
+          (vdiff-refine-all-hunks))))
     (setq vdiff--diff-stale nil)))
 
 (defun vdiff--remove-all-overlays ()
