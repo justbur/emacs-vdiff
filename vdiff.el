@@ -70,6 +70,11 @@
   :group 'vdiff
   :type 'string)
 
+(defcustom vdiff-diff3-program "diff3"
+  "diff3 program to use."
+  :group 'vdiff
+  :type 'string)
+
 (defcustom vdiff-diff-program-args ""
   "Extra arguments to pass to diff. If this is set wrong, you may
 break vdiff. It is empty by default."
@@ -176,12 +181,13 @@ because those are handled differently.")
 (defvar vdiff--diff-data nil)
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
+(defvar vdiff--diff3-code-regexp
+  "^\\([1-3]\\):\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)")
 (defvar vdiff--inhibit-window-switch nil)
 (defvar vdiff--inhibit-diff-update nil)
 (defvar vdiff--in-scroll-hook nil)
 ;; (defvar vdiff--in-post-command-hook nil)
-(defvar vdiff--a-b-line-map nil)
-(defvar vdiff--b-a-line-map nil)
+(defvar vdiff--line-maps nil)
 (defvar vdiff--folds nil)
 (defvar vdiff--all-folds-open nil)
 (defvar vdiff--setting-vscroll nil)
@@ -201,13 +207,14 @@ because those are handled differently.")
     ("Ignore all whitespace (-w)" . "-w")
     ("Ignore space changes (-b)" . "-b")
     ("Ignore blank lines (-B)" . "-B")))
+(defvar vdiff--3way nil)
 
 ;; * Utilities
 
 (defun vdiff--maybe-int (str)
   (let ((num (and str (string-to-number str))))
     (when (and (numberp num)
-               (> num 0))
+               (>= num 0))
       num)))
 
 (defun vdiff--buffer-a-p ()
@@ -215,6 +222,9 @@ because those are handled differently.")
 
 (defun vdiff--buffer-b-p ()
   (eq (current-buffer) (cadr vdiff--buffers)))
+
+(defun vdiff--buffer-c-p ()
+  (eq (current-buffer) (nth 2 vdiff--buffers)))
 
 (defun vdiff--buffer-p ()
   (memq (current-buffer) vdiff--buffers))
@@ -226,6 +236,63 @@ because those are handled differently.")
 
 (defun vdiff--other-window ()
   (get-buffer-window (vdiff--other-buffer)))
+
+(defun vdiff--all-overlays (ovr)
+  (append
+   (list (overlay-get ovr 'vdiff-a-overlay)
+         (overlay-get ovr 'vdiff-b-overlay))
+   (when vdiff--3way
+     (overlay-get ovr 'vdiff-c-overlay))))
+
+(defun vdiff--other-overlays (ovr)
+  (delq ovr (vdiff--all-overlays ovr)))
+
+(defun vdiff--read-target (ovr &optional just-one)
+  (when vdiff--3way
+    (let* ((other-ovrs (vdiff--other-overlays ovr))
+           (choices
+            (cond ((overlay-get ovr 'vdiff-a)
+                   (append
+                    (list (cons "B" (list (car other-ovrs)))
+                          (cons "C" (list (cadr other-ovrs))))
+                    (unless just-one
+                      (list (cons "B and C" other-ovrs)))))
+                  ((overlay-get ovr 'vdiff-b)
+                   (append
+                    (list (cons "A" (car other-ovrs))
+                          (cons "C" (cadr other-ovrs)))
+                    (unless just-one
+                      (list (cons "A and C" other-ovrs)))))
+                  ((overlay-get ovr 'vdiff-c)
+                   (append
+                    (list (cons "A" (car other-ovrs))
+                          (cons "B" (cadr other-ovrs)))
+                    (unless just-one
+                      (list (cons "A and B" other-ovrs))))))))
+      (cdr-safe
+       (assoc-string
+        (completing-read "Choose a target buffer(s): "
+                         choices)
+        choices)))))
+
+(defun vdiff--target-overlays (this-ovr &optional just-one)
+  (when (and (overlayp this-ovr)
+             (overlay-get this-ovr 'vdiff))
+    (let ((target (vdiff--read-target this-ovr just-one)))
+      (cond ((and vdiff--3way
+                  target)
+             (mapcar
+              (lambda (tgt)
+                (overlay-get
+                 this-ovr
+                 (intern (format "vdiff-%s-overlay" tgt))))
+              target))
+            (vdiff--3way
+             (user-error "vdiff: No target overlay"))
+            ((overlay-get this-ovr 'vdiff-a)
+             (list (overlay-get this-ovr 'vdiff-b-overlay)))
+            ((overlay-get this-ovr 'vdiff-b)
+             (list (overlay-get this-ovr 'vdiff-a-overlay)))))))
 
 (defun vdiff--min-window-width ()
   (apply #'min
@@ -327,13 +394,20 @@ because those are handled differently.")
   (interactive)
   (let* ((tmp-a (make-temp-file "vdiff-a-"))
          (tmp-b (make-temp-file "vdiff-b-"))
+         (tmp-c (make-temp-file "vdiff-c-"))
+         (prgm (if vdiff--3way
+                   vdiff-diff3-program
+                 vdiff-diff-program))
          (cmd (mapconcat #'identity
-                         (list
-                          vdiff-diff-program
-                          vdiff-diff-program-args
-                          vdiff--whitespace-args
-                          vdiff--case-args
-                          tmp-a tmp-b)
+                         (append
+                          (list
+                           prgm
+                           vdiff-diff-program-args
+                           vdiff--whitespace-args
+                           vdiff--case-args
+                           tmp-a tmp-b)
+                          (when vdiff--3way
+                            (list tmp-c)))
                          " "))
          (proc (get-buffer-process
                 vdiff--process-buffer)))
@@ -341,6 +415,9 @@ because those are handled differently.")
       (write-region nil nil tmp-a nil 'quietly))
     (with-current-buffer (cadr vdiff--buffers)
       (write-region nil nil tmp-b nil 'quietly))
+    (when vdiff--3way
+      (with-current-buffer (caddr vdiff--buffers)
+        (write-region nil nil tmp-c nil 'quietly)))
     (when proc
       (kill-process proc))
     (with-current-buffer (get-buffer-create vdiff--process-buffer)
@@ -352,42 +429,91 @@ because those are handled differently.")
                 cmd))
     (process-put proc 'vdiff-tmp-a tmp-a)
     (process-put proc 'vdiff-tmp-b tmp-b)
+    (process-put proc 'vdiff-tmp-c tmp-c)
     (set-process-sentinel proc #'vdiff--diff-refresh-1)))
 
-(defun vdiff--normalize-range (code buf-a beg end)
+(defun vdiff--encode-range (insert beg &optional end)
   (let* ((beg (vdiff--maybe-int beg))
          (end (vdiff--maybe-int end)))
-    (cond ((or (and (string= code "a") buf-a)
-               (and (string= code "d") (null buf-a)))
-           (if end
-               (error "vdiff: multi-line range for a or d code")
-             (cons (1+ beg) (1+ beg))))
+    (cond ((and end insert)
+           (error "vdiff: multi-line range for a or d code"))
+          (insert
+           (cons (1+ beg) nil))
           (t
            (cons beg (or end beg))))))
+
+(defun vdiff--parse-diff (buf)
+  (let (res)
+    (with-current-buffer buf
+      (goto-char (point-min))
+      (while (re-search-forward vdiff--diff-code-regexp nil t)
+        (let* ((code (match-string 3))
+               a-range
+               b-range)
+          (push
+           (cl-case (string-to-char code)
+             (?a (list (vdiff--encode-range
+                        t (match-string 1))
+                       (vdiff--encode-range
+                        nil (match-string 4) (match-string 5))))
+             (?d (list (vdiff--encode-range
+                        nil (match-string 1) (match-string 2))
+                       (vdiff--encode-range
+                        t (match-string 4))))
+             (?c (list (vdiff--encode-range
+                        nil (match-string 1) (match-string 2))
+                       (vdiff--encode-range
+                        nil (match-string 4) (match-string 5))))
+             (t (error "vdiff: Unexpected code in parse-diff")))
+           res))))
+    (nreverse res)))
+
+(defun vdiff--parse-diff3 (buf)
+  (catch 'final-res
+    (let (res)
+      (with-current-buffer buf
+        (goto-char (point-min))
+        (let (a-el b-el c-el)
+          (while t
+            (cond ((looking-at vdiff--diff3-code-regexp)
+                   (let* ((file (string-to-number
+                                 (match-string-no-properties 1)))
+                          (code (match-string-no-properties 4))
+                          (range (vdiff--encode-range
+                                  (string= code "a")
+                                  (match-string-no-properties 2)
+                                  (match-string-no-properties 3))))
+                     (cl-case file
+                       (1 (setq a-el range))
+                       (2 (setq b-el range))
+                       (3 (setq c-el range)))))
+                  ((and a-el
+                        (looking-at-p "^===="))
+                   (push (list a-el b-el c-el) res)
+                   (setq a-el nil)
+                   (setq b-el nil)
+                   (setq c-el nil))
+                  ((eobp)
+                   (push (list a-el b-el c-el) res)
+                   (throw 'final-res (nreverse res))))
+            (forward-line 1)))))))
 
 (defun vdiff--diff-refresh-1 (proc event)
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
   (unless vdiff--inhibit-diff-update
-    (let (finished)
+    (let ((parse-func (if vdiff--3way
+                          'vdiff--parse-diff3
+                        'vdiff--parse-diff))
+          finished)
       (cond ((string= "finished\n" event)
              ;; means no difference between files
              (setq vdiff--diff-data nil)
              (setq finished t))
             ((string= "exited abnormally with code 1\n" event)
-             (setq vdiff--diff-data nil)
-             (setq finished t)
-             (let (res)
-               (with-current-buffer (process-buffer proc)
-                 (goto-char (point-min))
-                 (while (re-search-forward vdiff--diff-code-regexp nil t)
-                   (let* ((code (match-string 3))
-                          (a-range (vdiff--normalize-range
-                                    code t (match-string 1) (match-string 2)))
-                          (b-range (vdiff--normalize-range
-                                    code nil (match-string 4) (match-string 5))))
-                     (push (list code a-range b-range) res))))
-               (setq vdiff--diff-data (nreverse res))))
+             (setq vdiff--diff-data
+                   (funcall parse-func (process-buffer proc)))
+             (setq finished t))
             ((string-match-p "exited abnormally with code" event)
              (setq vdiff--diff-data nil)
              (setq finished t)
@@ -397,6 +523,7 @@ parsing the diff output and triggering the overlay updates."
         (vdiff--refresh-line-maps)
         (delete-file (process-get proc 'vdiff-tmp-a))
         (delete-file (process-get proc 'vdiff-tmp-b))
+        (delete-file (process-get proc 'vdiff-tmp-c))
         (when vdiff-auto-refine
           (vdiff-refine-all-hunks))))
     (setq vdiff--diff-stale nil)))
@@ -491,17 +618,16 @@ SYNTAX-CODE."
   (interactive (list vdiff-default-refinement-syntax-code
                      (vdiff--overlay-at-pos)))
   (let* ((ovr (or ovr (vdiff--overlay-at-pos)))
-         (other-ovr (when (overlayp ovr)
-                      (overlay-get ovr 'vdiff-other-overlay)))
+         (target-ovrs (vdiff--target-overlays ovr))
          (word-syn (or syntax-code
                        vdiff-default-refinement-syntax-code))
          (not-word-syn (concat "^" word-syn))
          instructions ovr-ins)
     (when (and ovr
-               other-ovr
+               target-ovrs
                (consp (setq instructions
-                            (vdiff--diff-words ovr other-ovr))))
-      (dolist (curr-ovr (list ovr other-ovr))
+                            (vdiff--diff-words ovr target-ovrs))))
+      (dolist (curr-ovr (vdiff--all-overlays))
         (setq ovr-ins (if (eq curr-ovr ovr)
                           (car instructions)
                         (cdr instructions)))
@@ -548,8 +674,7 @@ SYNTAX-CODE."
 
 (defun vdiff-remove-refinements-in-hunk (ovr)
   (interactive (list (vdiff--overlay-at-pos)))
-  (dolist (chg-ovr (list ovr
-                         (overlay-get ovr 'vdiff-other-overlay)))
+  (dolist (chg-ovr (vdiff--all-overlays))
     (with-current-buffer (overlay-buffer chg-ovr)
       (dolist (sub-ovr (overlays-in
                         (overlay-start chg-ovr)
@@ -770,15 +895,13 @@ of a \"word\"."
 (defun vdiff--remove-fold-overlays (_)
   (setq vdiff--folds nil))
 
-(defun vdiff--add-diff-overlay (in-a code this-len other-len)
-  (cond ((or (and in-a (string= code "d"))
-             (and (not in-a) (string= code "a")))
+(defun vdiff--add-diff-overlay (this-len other-len-1 other-len-2)
+  (cond ((null other-len-1)
          (vdiff--add-hunk-overlay this-len t))
-        ((or (and in-a (string= code "a"))
-             (and (not in-a) (string= code "d")))
-         (vdiff--add-subtraction-overlay other-len))
+        ((null this-len)
+         (vdiff--add-subtraction-overlay other-len-1))
         (t
-         (vdiff--add-hunk-overlay this-len nil (- other-len this-len)))))
+         (vdiff--add-hunk-overlay this-len nil (- other-len-1 this-len)))))
 
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
@@ -798,21 +921,20 @@ of a \"word\"."
       (with-current-buffer b-buffer
         (widen)
         (goto-char (point-min)))
-      (dolist (header vdiff--diff-data)
-        (let* ((code (nth 0 header))
-               (a-range (nth 1 header))
-               (b-range (nth 2 header))
+      (dolist (hunk vdiff--diff-data)
+        (let* ((a-range (nth 0 hunk))
+               (b-range (nth 1 hunk))
+               (c-range (nth 2 hunk))
                (a-beg (car a-range))
                (a-end (cdr a-range))
-               (a-post (if (string= code "a") a-end (1+ a-end)))
-               (a-len (1+ (- a-end a-beg)))
+               (a-post (if a-end (1+ a-end) a-beg))
+               (a-len (when a-end (1+ (- a-end a-beg))))
                (b-beg (car b-range))
                (b-end (cdr b-range))
-               (b-post (if (string= code "d") b-end (1+ b-end)))
-               (b-len (1+ (- b-end b-beg))))
-
-          (unless (member code (list "a" "d" "c"))
-            (user-error "vdiff: Unexpected code in diff output"))
+               (b-post (if b-end (1+ b-end) b-beg))
+               (b-insert (null b-end))
+               (b-len (when b-end (1+ (- b-end b-beg))))
+               c-len)
 
           (push (cons (cons a-last-post (1- a-beg))
                       (cons b-last-post (1- b-beg)))
@@ -820,17 +942,32 @@ of a \"word\"."
           (setq a-last-post a-post)
           (setq b-last-post b-post)
 
-          (let (ovr-a ovr-b)
+          (let (ovr-a ovr-b ovr-c)
             (with-current-buffer a-buffer
               (forward-line (- a-beg a-line))
               (setq a-line a-beg)
-              (setq ovr-a (vdiff--add-diff-overlay t code a-len b-len)))
+              (setq ovr-a (vdiff--add-diff-overlay a-len b-len c-len)))
             (with-current-buffer b-buffer
               (forward-line (- b-beg b-line))
               (setq b-line b-beg)
-              (setq ovr-b (vdiff--add-diff-overlay nil code b-len a-len)))
-            (overlay-put ovr-a 'vdiff-other-overlay ovr-b)
-            (overlay-put ovr-b 'vdiff-other-overlay ovr-a))))
+              (setq ovr-b (vdiff--add-diff-overlay b-len a-len c-len)))
+            (when vdiff--3way
+              (with-current-buffer b-buffer
+                (forward-line (- c-beg c-line))
+                (setq c-line c-beg)
+                (setq ovr-c (vdiff--add-diff-overlay c-len a-len b-len))))
+            (overlay-put ovr-a 'vdiff-a t)
+            (overlay-put ovr-a 'vdiff-a-overlay ovr-a)
+            (overlay-put ovr-a 'vdiff-b-overlay ovr-b)
+            (overlay-put ovr-a 'vdiff-c-overlay ovr-c)
+            (overlay-put ovr-b 'vdiff-b t)
+            (overlay-put ovr-b 'vdiff-a-overlay ovr-a)
+            (overlay-put ovr-b 'vdiff-b-overlay ovr-b)
+            (overlay-put ovr-b 'vdiff-c-overlay ovr-c)
+            (when vdiff--3way
+              (overlay-put ovr-c 'vdiff-c t)
+              (overlay-put ovr-c 'vdiff-a-overlay ovr-a)
+              (overlay-put ovr-c 'vdiff-b-overlay ovr-b)))))
       (push (cons (cons a-last-post
                         (with-current-buffer a-buffer
                           (line-number-at-pos (point-max))))
@@ -849,7 +986,7 @@ line above. Always search to the end of the current line as
 well. This only returns bounds for `interactive'."
   (if (region-active-p)
       (prog1
-        (list (region-beginning) (region-end))
+          (list (region-beginning) (region-end))
         (deactivate-mark))
     (list (if (or (= (line-number-at-pos) 1)
                   (vdiff--overlay-at-pos
@@ -862,26 +999,26 @@ well. This only returns bounds for `interactive'."
             (forward-line 1)
             (point)))))
 
-(defun vdiff-send-changes (beg end &optional receive)
+(defun vdiff-send-changes (beg end &optional receive targets)
   "Send changes in this hunk to other vdiff buffer. If the region
 is active, send all changes found in the region. Otherwise use
 the hunk under point or on the immediately preceding line."
-  (interactive
-   (vdiff--region-or-close-overlay))
-  (let* ((ovrs (overlays-in beg end))
-         (vdiff--inhibit-diff-update t))
-    (dolist (ovr ovrs)
-      (cond ((and (overlay-get ovr 'vdiff-other-overlay)
+  (interactive (vdiff--region-or-close-overlay))
+  (let* ((vdiff--inhibit-diff-update t)
+         target-ovrs)
+    (dolist (ovr (overlays-in beg end))
+      (cond ((and (setq target-ovrs
+                        (or targets (vdiff--target-overlays ovr t)))
                   receive)
-             (let* ((other-ovr (overlay-get ovr 'vdiff-other-overlay))
-                    (pos (overlay-start other-ovr)))
+             ;; Assume that
+             (let ((pos (overlay-start (car target-ovrs))))
                (vdiff--with-other-window
                 (vdiff-send-changes pos (1+ pos)))))
             ((memq (overlay-get ovr 'vdiff-type)
                    '(change addition))
-             (vdiff--transmit-change ovr))
+             (vdiff--transmit-change ovr targets))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
-             (vdiff--transmit-subtraction ovr))))
+             (vdiff--transmit-subtraction ovr targets))))
     (vdiff-refresh)
     (vdiff--scroll-function)))
 
@@ -893,36 +1030,38 @@ changes under point or on the immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
   (vdiff-send-changes beg end t))
 
-(defun vdiff--transmit-change (ovr)
+(defun vdiff--transmit-change (ovr &optional targets)
   "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
-         (message "No change found")
+      (message "No change found")
     (let* ((addition (eq 'addition (overlay-get ovr 'vdiff-type)))
-           (other-ovr (overlay-get ovr 'vdiff-other-overlay))
+           (target-ovrs (or targets (vdiff--target-overlays ovr)))
            (text (buffer-substring-no-properties
                   (overlay-start ovr)
                   (overlay-end ovr))))
-      (with-current-buffer (vdiff--other-buffer)
-        (save-excursion
-          (goto-char (overlay-start other-ovr))
-          (unless addition
-            (delete-region (overlay-start other-ovr)
-                           (overlay-end other-ovr)))
-          (insert text))
-        (delete-overlay other-ovr))
+      (dolist (target target-ovrs)
+        (with-current-buffer (overlay-buffer target)
+          (save-excursion
+            (goto-char (overlay-start target))
+            (unless addition
+              (delete-region (overlay-start target)
+                             (overlay-end target)))
+            (insert text))
+          (delete-overlay target)))
       (delete-overlay ovr))))
 
-(defun vdiff--transmit-subtraction (ovr)
+(defun vdiff--transmit-subtraction (ovr &optional targets)
   "Same idea as `vdiff--transmit-change' except we are
 just deleting text in the other buffer."
   (if (not (overlayp ovr))
-         (message "No change found")
-    (let* ((other-ovr (overlay-get ovr 'vdiff-other-overlay)))
-      (when other-ovr
-        (with-current-buffer (vdiff--other-buffer)
-          (delete-region (overlay-start other-ovr)
-                         (overlay-end other-ovr))
-          (delete-overlay other-ovr))))))
+      (message "No change found")
+    (let* ((target-ovrs (or targets
+                            (vdiff--target-overlays ovr))))
+      (dolist (target target-ovrs)
+        (with-current-buffer (overlay-buffer target)
+          (delete-region (overlay-start target)
+                         (overlay-end target))
+          (delete-overlay target))))))
 
 ;; * Scrolling and line syncing
 
@@ -934,48 +1073,49 @@ just deleting text in the other buffer."
   ;; l-post  3     1 s-post
   `(let* ((l-beg (1+ ,l-prior))
           (l-len (1- (- ,l-post ,l-prior))))
-     (push (list ,s-prior ,l-prior 0 entry) ,s-l-map)
-     (push (list ,s-post  ,l-post 0 entry)  ,s-l-map)
-     (push (list ,l-prior ,s-prior 0 entry) ,l-s-map)
+     (push (list ,s-prior ,l-prior 0) ,s-l-map)
+     (push (list ,s-post  ,l-post 0)  ,s-l-map)
+     (push (list ,l-prior ,s-prior 0) ,l-s-map)
      (dotimes (offset (1+ l-len))
-       (push (list (+ offset l-beg) ,s-post offset entry)
+       (push (list (+ offset l-beg) ,s-post offset)
              ,l-s-map))
-     (push (list (1+ ,l-post) (1+ ,s-post) 0 entry) ,l-s-map)))
+     (push (list (1+ ,l-post) (1+ ,s-post) 0) ,l-s-map)))
 
 (defun vdiff--refresh-line-maps ()
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
   (let ((vdiff--inhibit-diff-update t)
-        a-b-map b-a-map)
-    (dolist (entry vdiff--diff-data)
-      (let* ((code (car entry))
-             (a-lines (nth 1 entry))
+        a-map b-map)
+    (dolist (hunk vdiff--diff-data)
+      (let* ((a-lines (nth 0 hunk))
              (a-beg (car a-lines))
              (a-prior (1- a-beg))
              (a-end (cdr a-lines))
-             (a-post (if (string= code "a") a-end (1+ a-end)))
-             (a-len (1+ (- a-end a-beg)))
-             (b-lines (nth 2 entry))
+             (a-post (if a-end (1+ a-end) a-beg))
+             (a-insert (null a-end))
+             (a-len (unless a-insert (1+ (- a-end a-beg))))
+             (b-lines (nth 1 hunk))
              (b-beg (car b-lines))
              (b-prior (1- b-beg))
              (b-end (cdr b-lines))
-             (b-post (if (string= code "d") b-end (1+ b-end)))
-             (b-len (1+ (- b-end b-beg))))
+             (b-post (if b-end (1+ b-end) b-beg))
+             (b-insert (null b-end))
+             (b-len (unless b-insert (1+ (- b-end b-beg)))))
         ;; Format is (line-key line-a-to-align line-b-to-align extra-scroll entry-info)
-        (cond ((string= code "d")
-               ;; a-prior 0     0 b-prior
-               ;; a-beg   1 +   -
-               ;; a-end   2 +   -
-               ;; a-post  3     1 b-beg=b-end=b-post
-               (vdiff--calculate-unbalanced-section
-                a-b-map b-a-map a-prior b-prior a-post b-post))
-              ((string= code "a")
+        (cond (a-insert
                ;; 0     0
                ;; -     1 +
                ;; -     2 +
                ;; 1     3
                (vdiff--calculate-unbalanced-section
-                b-a-map a-b-map b-prior a-prior b-post a-post))
+                b-map a-map b-prior a-prior b-post a-post))
+              (b-insert
+               ;; a-prior 0     0 b-prior
+               ;; a-beg   1 +   -
+               ;; a-end   2 +   -
+               ;; a-post  3     1 b-beg=b-end=b-post
+               (vdiff--calculate-unbalanced-section
+                a-map b-map a-prior b-prior a-post b-post))
               ((> a-len b-len)
                ;; 0     0   b-prior
                ;; 1 ~   1 ~ b-beg
@@ -983,26 +1123,30 @@ just deleting text in the other buffer."
                ;; 3 ~   -
                ;; 4 ~   -
                ;; 5     3   b-post
-               (push (list a-prior b-prior 0 entry) a-b-map)
+               (push (list a-prior b-prior 0) a-map)
                (vdiff--calculate-unbalanced-section
-                a-b-map b-a-map (+ a-prior b-len) b-end a-post b-post))
+                a-map b-map (+ a-prior b-len) b-end a-post b-post))
               ((< a-len b-len)
-               (push (list b-prior a-prior 0 entry) b-a-map)
+               (push (list b-prior a-prior 0) b-map)
                (vdiff--calculate-unbalanced-section
-                b-a-map a-b-map (+ b-prior a-len) a-end b-post a-post))
+                b-map a-map (+ b-prior a-len) a-end b-post a-post))
               ((= a-len b-len)
-               (push (list a-prior b-prior 0 entry) a-b-map)
-               (push (list a-post  b-post 0 entry)  a-b-map)
-               (push (list b-prior a-prior 0 entry) b-a-map)
-               (push (list b-post  a-post 0 entry)  b-a-map)))))
-    (setq vdiff--a-b-line-map (cons (list 0 0 0) (nreverse a-b-map)))
-    (setq vdiff--b-a-line-map (cons (list 0 0 0) (nreverse b-a-map)))))
+               (push (list a-prior b-prior 0) a-map)
+               (push (list a-post  b-post 0)  a-map)
+               (push (list b-prior a-prior 0) b-map)
+               (push (list b-post  a-post 0)  b-map)))))
+    (setq vdiff--line-maps
+          (list
+           (cons (list 0 0 0) (nreverse a-map))
+           (cons (list 0 0 0) (nreverse b-map))))))
 
 (defun vdiff--translate-line (line &optional B-to-A)
   "Translate LINE in buffer A to corresponding line in buffer
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
-  (let ((map (if B-to-A vdiff--b-a-line-map vdiff--a-b-line-map))
+  (let ((map (if B-to-A
+                 (cadr vdiff--line-maps)
+               (car vdiff--line-maps)))
         last-entry res)
     (when map
       (setq last-entry
@@ -1394,8 +1538,7 @@ commands like `vdiff-files' or `vdiff-buffers'."
            (vdiff-scroll-lock-mode -1))
          (setq vdiff--diff-data nil)
          (setq vdiff--buffers nil)
-         (setq vdiff--a-b-line-map nil)
-         (setq vdiff--b-a-line-map nil)
+         (setq vdiff--line-maps nil)
          (setq vdiff--window-configuration nil)
          (when (process-live-p vdiff--process-buffer)
            (kill-process vdiff--process-buffer))
