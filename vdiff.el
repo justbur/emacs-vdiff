@@ -587,28 +587,18 @@ of a \"word\"."
 
 ;; * Add overlays
 
-(defvar vdiff--insertion-arrow-bits
-  (cl-map
-   #'vector
-   (lambda (line)
-     (let ((ex (length line)))
-       (cl-reduce
-        (lambda (acc el)
-          (+ acc (* el (expt 2 (cl-decf ex)))))
-        line
-        :initial-value 0)))
-   '((0 0 1 1 1 1 1 1)
-     (0 0 0 1 1 1 1 1)
-     (0 0 0 0 1 1 1 1)
-     (0 0 0 1 1 1 1 1)
-     (0 0 1 1 1 0 1 1)
-     (0 1 1 1 0 0 0 1)
-     (1 1 1 0 0 0 0 0)
-     (1 1 0 0 0 0 0 0)
-     (1 0 0 0 1 1 1 1))))
-
 (define-fringe-bitmap
-  'vdiff--insertion-arrow vdiff--insertion-arrow-bits nil 8 'top)
+  'vdiff--insertion-arrow
+  [#b00111111
+   #b00011111
+   #b00001111
+   #b00011111
+   #b00111011
+   #b01110001
+   #b11100000
+   #b11000000
+   #b10001111]
+  nil 8 'top)
 
 (defun vdiff--make-subtraction-string (n-lines)
   (let* ((width (1- (vdiff--min-window-width)))
