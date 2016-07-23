@@ -1204,14 +1204,16 @@ folds in the region."
 (defun vdiff-open-all-folds ()
   "Open all folds in both buffers"
   (interactive)
-  (setq vdiff--all-folds-open t)
-  (vdiff-open-fold (point-min) (point-max)))
+  (save-excursion
+    (setq vdiff--all-folds-open t)
+    (vdiff-open-fold (point-min) (point-max))))
 
 (defun vdiff-close-all-folds ()
   "Close all folds in both buffers"
   (interactive)
-  (setq vdiff--all-folds-open nil)
-  (vdiff-close-fold (point-min) (point-max)))
+  (save-excursion
+    (setq vdiff--all-folds-open nil)
+    (vdiff-close-fold (point-min) (point-max))))
 
 (defun vdiff-close-other-folds ()
   "Close all other folds in both buffers"
