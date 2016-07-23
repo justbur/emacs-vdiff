@@ -585,7 +585,28 @@ of a \"word\"."
   (interactive)
   (vdiff-refine-all-hunks "w"))
 
-;; * Add overlays
+;; * Bitmaps
+
+(define-fringe-bitmap
+  'vdiff--vertical-bar
+  (make-vector (frame-char-height) #b00100000)
+  nil 8 'center)
+
+(define-fringe-bitmap
+  'vdiff--top-left-angle
+  (vconcat
+   [#b00111111]
+   (make-vector (1- (frame-char-height))
+                #b00100000))
+  nil 8 'bottom)
+
+(define-fringe-bitmap
+  'vdiff--bottom-left-angle
+  (vconcat
+   (make-vector (1- (frame-char-height))
+                #b00100000)
+   [#b00111111])
+  nil 8 'top)
 
 (define-fringe-bitmap
   'vdiff--insertion-arrow
@@ -599,6 +620,8 @@ of a \"word\"."
    #b11000000
    #b10001111]
   nil 8 'top)
+
+;; * Add overlays
 
 (defun vdiff--make-subtraction-string (n-lines)
   (let* ((width (1- (vdiff--min-window-width)))
@@ -1128,22 +1151,6 @@ buffer)."
            vdiff--after-change-refresh-delay
            nil #'vdiff-refresh))))
 
-(defvar vdiff--bottom-left-angle-bits
-  (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
-    (aset vec 11 (1- (expt 2 8)))
-    (aset vec 12 (1- (expt 2 8)))
-    vec))
-
-(define-fringe-bitmap 'vdiff--bottom-left-angle vdiff--bottom-left-angle-bits)
-
-(defvar vdiff--top-left-angle-bits
-  (let ((vec (make-vector 13 (+ (expt 2 7) (expt 2 6)))))
-    (aset vec 0 (1- (expt 2 8)))
-    (aset vec 1 (1- (expt 2 8)))
-    vec))
-
-(define-fringe-bitmap 'vdiff--top-left-angle vdiff--top-left-angle-bits)
-
 (defun vdiff--set-open-fold-props (ovr)
   "Set overlay properties to open fold OVR."
   (overlay-put ovr 'vdiff-fold-open t)
@@ -1154,7 +1161,7 @@ buffer)."
                 " " 'display '(left-fringe vdiff--top-left-angle)))
   (overlay-put ovr 'line-prefix
                (propertize
-                " " 'display '(left-fringe vertical-bar)))
+                " " 'display '(left-fringe vdiff--vertical-bar)))
   (overlay-put ovr 'after-string
                (propertize
                 " " 'display '(left-fringe vdiff--bottom-left-angle))))
