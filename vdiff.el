@@ -336,19 +336,6 @@ because those are handled differently.")
            (1- (overlay-start ovr))
          (1+ (overlay-end ovr)))))))
 
-(defmacro vdiff--with-other-window (&rest body)
-  "Execute BODY in other vdiff window."
-  `(when (and (vdiff--buffer-p)
-              (not vdiff--inhibit-window-switch)
-              (vdiff--other-window))
-     (setq vdiff--inhibit-window-switch t)
-     (save-selected-window
-       (unwind-protect
-           (progn
-             (select-window (vdiff--other-window))
-             ,@body)
-         (setq vdiff--inhibit-window-switch nil)))))
-
 (defmacro vdiff--with-all-buffers (&rest body)
   "Execute BODY in all vdiff buffers."
   `(dolist (buf vdiff--buffers)
@@ -1191,26 +1178,17 @@ the current one."
     (when line
       (vdiff--move-to-line line))))
 
-(defun vdiff--recenter-both ()
-  (recenter)
-  (vdiff--with-other-window (recenter)))
-
-(defun vdiff--sync-line (line in-a)
-  "Sync point in the other vdiff buffer to the line in this
-buffer. This is usually not necessary."
-  (interactive (list (line-number-at-pos)
-                     (not (vdiff--buffer-a-p))))
-  (let ((new-line (caar (vdiff--translate-line line))))
-    (when new-line
-      (vdiff--with-other-window
-       (goto-char (vdiff--pos-at-line-beginning new-line))))))
+(defun vdiff--recenter-all ()
+  (dolist (win (vdiff--all-windows))
+    (with-selected-window
+        (recenter))))
 
 (defun vdiff-sync-and-center ()
-  "Sync point in the other vdiff buffer to the line in this
-buffer and center both buffers at this line."
+  "Sync point in the other vdiff buffers to the line in this
+buffer and recenter all buffers."
   (interactive)
-  (vdiff--sync-line (line-number-at-pos) (vdiff--buffer-a-p))
-  (vdiff--recenter-both))
+  (vdiff--scroll-function)
+  (vdiff--recenter-all))
 
 (defun vdiff-restore-windows ()
   "Restore initial window configuration."
