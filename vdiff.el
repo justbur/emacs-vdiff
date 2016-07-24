@@ -258,8 +258,9 @@ because those are handled differently.")
                (cons (buffer-name (overlay-buffer ovr))
                      (list ovr)))
              other-ovrs)))
-      (unless just-one
-        (push (cons "all" other-ovrs) choices))
+      ;; FIXME: Doesn't quite send correctly
+      ;; (unless just-one
+      ;;   (push (cons "all" other-ovrs) choices))
       (cdr-safe
        (assoc-string
         (completing-read "Choose a target buffer(s): "
@@ -1049,8 +1050,7 @@ changes under point or on the immediately preceding line."
   "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
       (message "No change found")
-    (let* ((addition (eq 'addition (overlay-get ovr 'vdiff-type)))
-           (target-ovrs (or targets (vdiff--target-overlays ovr)))
+    (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
            (text (buffer-substring-no-properties
                   (overlay-start ovr)
                   (overlay-end ovr))))
@@ -1058,7 +1058,9 @@ changes under point or on the immediately preceding line."
         (with-current-buffer (overlay-buffer target)
           (save-excursion
             (goto-char (overlay-start target))
-            (unless addition
+            ;; subtractions are one char too big on purpose
+            (unless (eq (overlay-get target 'vdiff-type)
+                        'subtraction)
               (delete-region (overlay-start target)
                              (overlay-end target)))
             (insert text))
