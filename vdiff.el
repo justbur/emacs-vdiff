@@ -240,12 +240,6 @@ because those are handled differently.")
   (mapcar #'get-buffer-window
           (vdiff--unselected-buffers)))
 
-(defun vdiff--other-window ()
-  (unless vdiff-3way-mode
-    (get-buffer-window (if (vdiff--buffer-a-p)
-                           (cadr vdiff--buffers)
-                         (car vdiff--buffers)))))
-
 (defun vdiff--all-windows ()
   (mapcar #'get-buffer-window vdiff--buffers))
 
@@ -1174,7 +1168,7 @@ the current one."
   (interactive (list (line-number-at-pos)))
   (vdiff-refresh)
   (let ((line (caar (vdiff--translate-line line))))
-    (select-window (vdiff--other-window))
+    (select-window (car (vdiff--unselected-windows)))
     (when line
       (vdiff--move-to-line line))))
 
