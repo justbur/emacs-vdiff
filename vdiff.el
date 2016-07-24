@@ -241,7 +241,7 @@ because those are handled differently.")
           (vdiff--unselected-buffers)))
 
 (defun vdiff--all-windows ()
-  (mapcar #'get-buffer-window vdiff--buffers))
+  (remq nil (mapcar #'get-buffer-window vdiff--buffers)))
 
 (defun vdiff--all-overlays (ovr)
   (overlay-get ovr 'vdiff-hunk-overlays))
@@ -1174,8 +1174,8 @@ the current one."
 
 (defun vdiff--recenter-all ()
   (dolist (win (vdiff--all-windows))
-    (with-selected-window
-        (recenter))))
+    (with-selected-window win
+      (recenter))))
 
 (defun vdiff-sync-and-center ()
   "Sync point in the other vdiff buffers to the line in this
