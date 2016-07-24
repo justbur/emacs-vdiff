@@ -1230,7 +1230,8 @@ buffer)."
    (lambda ()
      (unless vdiff--setting-vscroll
        (let ((vdiff--setting-vscroll t))
-         (when (eq vdiff-subtraction-style 'full)
+         (when (and vscroll
+                    (eq vdiff-subtraction-style 'full))
            (set-window-vscroll window vscroll))
          (force-window-update window))))))
 
@@ -1285,8 +1286,7 @@ buffer)."
                (3-win (nth 0 3-scroll-data))
                (3-start-pos (nth 1 3-scroll-data))
                (3-pos (nth 2 3-scroll-data))
-               (3-scroll (nth 3 3-scroll-data))
-               (vdiff--in-scroll-hook t))
+               (3-scroll (nth 3 3-scroll-data)))
             (when (and 3-start-pos 3-pos)
               (set-window-point 3-win 3-pos)
               (set-window-start 3-win 3-start-pos)
