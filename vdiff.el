@@ -595,16 +595,16 @@ SYNTAX-CODE."
   (interactive (list vdiff-default-refinement-syntax-code
                      (vdiff--overlay-at-pos)))
   (let* ((ovr (or ovr (vdiff--overlay-at-pos)))
-         (target-ovrs (vdiff--target-overlays ovr))
+         (target-ovr (car (vdiff--target-overlays ovr)))
          (word-syn (or syntax-code
                        vdiff-default-refinement-syntax-code))
          (not-word-syn (concat "^" word-syn))
          instructions ovr-ins)
     (when (and ovr
-               target-ovrs
+               target-ovr
                (consp (setq instructions
-                            (vdiff--diff-words ovr target-ovrs))))
-      (dolist (curr-ovr (vdiff--all-overlays))
+                            (vdiff--diff-words ovr target-ovr))))
+      (dolist (curr-ovr (vdiff--all-overlays ovr))
         (setq ovr-ins (if (eq curr-ovr ovr)
                           (car instructions)
                         (cdr instructions)))
@@ -651,7 +651,7 @@ SYNTAX-CODE."
 
 (defun vdiff-remove-refinements-in-hunk (ovr)
   (interactive (list (vdiff--overlay-at-pos)))
-  (dolist (chg-ovr (vdiff--all-overlays))
+  (dolist (chg-ovr (vdiff--all-overlays ovr))
     (with-current-buffer (overlay-buffer chg-ovr)
       (dolist (sub-ovr (overlays-in
                         (overlay-start chg-ovr)
