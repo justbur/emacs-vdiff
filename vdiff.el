@@ -670,8 +670,10 @@ SYNTAX-CODE.
 See `vdiff-default-refinement-syntax-code' to change the definition
 of a \"word\"."
   (interactive)
-  (dolist (ovr (overlays-in (point-min) (point-max)))
-    (vdiff-refine-this-hunk syntax-code ovr)))
+  ;; Doesn't work for diff3 yet
+  (when vdiff-mode
+    (dolist (ovr (overlays-in (point-min) (point-max)))
+      (vdiff-refine-this-hunk syntax-code ovr))))
 
 ;; Not working yet
 ;; (defun vdiff-refine-all-hunks-whitespace ()
