@@ -75,7 +75,7 @@
   :group 'vdiff
   :type 'string)
 
-(defcustom vdiff-diff-program-args ""
+(defcustom vdiff-diff-extra-args ""
   "Extra arguments to pass to diff. If this is set wrong, you may
 break vdiff. It is empty by default."
   :group 'vdiff
@@ -404,9 +404,9 @@ because those are handled differently.")
                          (nconc
                           (list
                            prgm
-                           vdiff-diff-program-args
                            vdiff--whitespace-args
                            vdiff--case-args
+                           vdiff-diff-extra-args
                            tmp-a tmp-b)
                           (when vdiff--3way
                             (list tmp-c)))
