@@ -901,10 +901,13 @@ of a \"word\"."
   (vdiff--remove-all-overlays)
   (let ((a-buffer (car vdiff--buffers))
         (b-buffer (cadr vdiff--buffers))
+        (c-buffer (nth 2 vdiff--buffers))
         (a-line 1)
         (b-line 1)
+        (c-line 1)
         (a-last-post 1)
         (b-last-post 1)
+        (c-last-post 1)
         (vdiff--inhibit-diff-update t)
         folds)
     (save-excursion
@@ -914,6 +917,10 @@ of a \"word\"."
       (with-current-buffer b-buffer
         (widen)
         (goto-char (point-min)))
+      (when c-buffer
+        (with-current-buffer c-buffer
+          (widen)
+          (goto-char (point-min))))
       (dolist (hunk vdiff--diff-data)
         (let* ((a-range (nth 0 hunk))
                (b-range (nth 1 hunk))
@@ -1234,43 +1241,69 @@ buffer)."
          (window-start (or window-start (window-start)))
          (buf-a (car vdiff--buffers))
          (buf-b (cadr vdiff--buffers))
+         (buf-c (nth 2 vdiff--buffers))
          (win-a (get-buffer-window buf-a))
-         (win-b (get-buffer-window buf-b)))
+         (win-b (get-buffer-window buf-b))
+         (win-c (when buf-c (get-buffer-window buf-c))))
     (when (and (eq window (selected-window))
                (window-live-p win-a)
                (window-live-p win-b)
-               (memq window (list win-a win-b))
+               (window-live-p win-c)
+               (memq window (list win-a win-b win-c))
                (not vdiff--in-scroll-hook)
                vdiff--new-command)
       (setq vdiff--new-command nil)
       (let* ((in-b (eq window win-b))
-             (other-window (if in-b win-a win-b))
-             (other-buffer (if in-b buf-a buf-b))
-             (this-start-line (line-number-at-pos window-start))
+             (other-windows (vdiff--unselected-windows))
+             (other-buffers (vdiff--unselected-buffers))
+             ;; 1 is short for this; 2 is the first other and 3 is the second
+             (1-start-line (line-number-at-pos window-start))
+             (1-line (+ (count-lines window-start (point))
+                        1-start-line))
              (start-translation
-              (vdiff--translate-line this-start-line))
-             (other-curr-start (window-start other-window))
-             (other-start-line (caar start-translation))
-             (other-start-pos (when other-start-line
-                                (vdiff--pos-at-line-beginning
-                                 other-start-line other-buffer)))
-             (scroll-amt (cdar start-translation))
-             (this-line (+ (count-lines window-start (point))
-                           this-start-line))
-             (translation (vdiff--translate-line this-line))
-             (other-pos (when translation
-                          (vdiff--pos-at-line-beginning
-                           (caar translation) other-buffer)))
+              (vdiff--translate-line 1-start-line))
+             (translation (vdiff--translate-line 1-line))
+             (2-start-trans (car start-translation))
+             (2-trans (car translation))
+             (2-win (car other-windows))
+             (2-buf (car other-buffers))
+             (2-curr-start (window-start 2-win))
+             (2-start-line (car 2-start-trans))
+             (2-start-pos (when 2-start-line
+                            (vdiff--pos-at-line-beginning
+                             2-start-line 2-buf)))
+             (2-scroll-amt (cdr 2-start-trans))
+             (2-pos (when translation
+                      (vdiff--pos-at-line-beginning (car 2-trans) 2-buf)))
              (vdiff--in-scroll-hook t))
-        (when (and other-start-pos
-                   other-pos)
-          (set-window-point other-window other-pos)
-          (unless (= other-curr-start other-start-pos)
-            (set-window-start other-window other-start-pos))
+        (when (and 2-start-pos 2-pos)
+          (set-window-point 2-win 2-pos)
+          (unless (= 2-curr-start 2-start-pos)
+            (set-window-start 2-win 2-start-pos))
           (vdiff--set-vscroll-and-force-update
-           other-window
-           (when (eq vdiff-subtraction-style 'full)
-             scroll-amt)))))))
+           2-win (when (eq vdiff-subtraction-style 'full)
+                   2-scroll-amt)))
+        (when vdiff-3way-mode
+          (let* ((3-win (cadr other-windows))
+                 (3-buf (cadr other-buffers))
+                 (3-start-trans (cdr start-translation))
+                 (3-trans (cdr translation))
+                 (3-curr-start (window-start 3-win))
+                 (3-start-line (car 3-start-trans))
+                 (3-start-pos
+                  (when 3-start-line
+                    (vdiff--pos-at-line-beginning 3-start-line 3-buf)))
+                 (3-scroll-amt (cdr 3-start-trans))
+                 (3-pos
+                  (when translation
+                    (vdiff--pos-at-line-beginning (car 3-trans) 3-buf))))
+            (when (and 3-start-pos 3-pos)
+              (set-window-point 3-win 3-pos)
+              (unless (= 3-curr-start 3-start-pos)
+                (set-window-start 3-win 3-start-pos))
+              (vdiff--set-vscroll-and-force-update
+               3-win (when (eq vdiff-subtraction-style 'full)
+                       3-scroll-amt)))))))))
 
 ;; (defun vdiff--post-command-hook ()
 ;;   "Sync scroll for `vdiff--force-sync-commands'."
