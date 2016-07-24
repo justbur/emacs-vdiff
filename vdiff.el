@@ -227,7 +227,9 @@ because those are handled differently.")
   (eq (current-buffer) (nth 2 vdiff--buffers)))
 
 (defun vdiff--buffer-p ()
-  (memq (current-buffer) vdiff--buffers))
+  (cond ((vdiff--buffer-a-p) 'a)
+        ((vdiff--buffer-b-p) 'b)
+        ((vdiff--buffer-c-p) 'c)))
 
 (defun vdiff--other-buffer ()
   (if (vdiff--buffer-a-p)
@@ -238,7 +240,7 @@ because those are handled differently.")
   (get-buffer-window (vdiff--other-buffer)))
 
 (defun vdiff--all-overlays (ovr)
-  (append
+  (nconc
    (list (overlay-get ovr 'vdiff-a-overlay)
          (overlay-get ovr 'vdiff-b-overlay))
    (when vdiff--3way
@@ -252,19 +254,19 @@ because those are handled differently.")
     (let* ((other-ovrs (vdiff--other-overlays ovr))
            (choices
             (cond ((overlay-get ovr 'vdiff-a)
-                   (append
+                   (nconc
                     (list (cons "B" (list (car other-ovrs)))
                           (cons "C" (list (cadr other-ovrs))))
                     (unless just-one
                       (list (cons "B and C" other-ovrs)))))
                   ((overlay-get ovr 'vdiff-b)
-                   (append
+                   (nconc
                     (list (cons "A" (car other-ovrs))
                           (cons "C" (cadr other-ovrs)))
                     (unless just-one
                       (list (cons "A and C" other-ovrs)))))
                   ((overlay-get ovr 'vdiff-c)
-                   (append
+                   (nconc
                     (list (cons "A" (car other-ovrs))
                           (cons "B" (cadr other-ovrs)))
                     (unless just-one
@@ -399,7 +401,7 @@ because those are handled differently.")
                    vdiff-diff3-program
                  vdiff-diff-program))
          (cmd (mapconcat #'identity
-                         (append
+                         (nconc
                           (list
                            prgm
                            vdiff-diff-program-args
@@ -1065,90 +1067,92 @@ just deleting text in the other buffer."
 
 ;; * Scrolling and line syncing
 
-(defmacro vdiff--calculate-unbalanced-section
-    (l-s-map s-l-map l-prior s-prior l-post s-post)
-  ;; l-prior 0     0 s-prior
-  ;; l-beg   1 +   -
-  ;; l-end   2 +   -
-  ;; l-post  3     1 s-post
-  `(let* ((l-beg (1+ ,l-prior))
-          (l-len (1- (- ,l-post ,l-prior))))
-     (push (list ,s-prior ,l-prior 0) ,s-l-map)
-     (push (list ,s-post  ,l-post 0)  ,s-l-map)
-     (push (list ,l-prior ,s-prior 0) ,l-s-map)
-     (dotimes (offset (1+ l-len))
-       (push (list (+ offset l-beg) ,s-post offset)
-             ,l-s-map))
-     (push (list (1+ ,l-post) (1+ ,s-post) 0) ,l-s-map)))
+(defun vdiff--2way-entries (a-prior a-end a-post b-prior b-end b-post)
+  ;; a-prior  0     0 b-prior
+  ;; l-beg    1 +   1 b-beg
+  ;; l-beg    2 +   2 b-end
+  ;;          3 +   -
+  ;;          4 +   -
+  ;; l-end    5 +   -
+  ;; a-post   6     3 b-post
+  (let* (a-entries b-entries)
+    (dotimes (offset (1+ (max (- a-post a-prior)
+                              (- b-post b-prior))))
+      (let ((a-line (+ a-prior offset))
+            (b-line (+ b-prior offset)))
+        (cond ((= offset 0)
+               (push (list a-line b-line 0) a-entries)
+               (push (list b-line a-line 0) b-entries))
+              ((and a-end b-end
+                    (<= b-line b-end)
+                    (<= a-line a-end))
+               (push (list a-line b-line 0) a-entries)
+               (push (list b-line a-line 0) b-entries))
+              ((and (or (null a-end) (> a-line a-end))
+                    (<= b-line b-post))
+               (push (list b-line a-post (- a-line (or a-end a-prior) 1)) b-entries))
+              ((and (or (null b-end) (> b-line b-end))
+                    (<= a-line a-post))
+               (push (list a-line b-post (- b-line (or b-end b-prior) 1)) a-entries)))))
+    (push (list (1+ a-post) (1+ b-post) 0) a-entries)
+    (push (list (1+ b-post) (1+ a-post) 0) b-entries)
+    (cons (nreverse a-entries) (nreverse b-entries))))
+
+(defun vdiff--set-cons (vars expr)
+  (setf (car vars) (car expr))
+  (setf (cdr vars) (cdr expr)))
 
 (defun vdiff--refresh-line-maps ()
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
   (let ((vdiff--inhibit-diff-update t)
-        a-map b-map)
+        a-b b-a a-c c-a b-c c-b)
     (dolist (hunk vdiff--diff-data)
       (let* ((a-lines (nth 0 hunk))
              (a-beg (car a-lines))
              (a-prior (1- a-beg))
              (a-end (cdr a-lines))
              (a-post (if a-end (1+ a-end) a-beg))
-             (a-insert (null a-end))
-             (a-len (unless a-insert (1+ (- a-end a-beg))))
              (b-lines (nth 1 hunk))
              (b-beg (car b-lines))
              (b-prior (1- b-beg))
              (b-end (cdr b-lines))
              (b-post (if b-end (1+ b-end) b-beg))
-             (b-insert (null b-end))
-             (b-len (unless b-insert (1+ (- b-end b-beg)))))
-        ;; Format is (line-key line-a-to-align line-b-to-align extra-scroll entry-info)
-        (cond (a-insert
-               ;; 0     0
-               ;; -     1 +
-               ;; -     2 +
-               ;; 1     3
-               (vdiff--calculate-unbalanced-section
-                b-map a-map b-prior a-prior b-post a-post))
-              (b-insert
-               ;; a-prior 0     0 b-prior
-               ;; a-beg   1 +   -
-               ;; a-end   2 +   -
-               ;; a-post  3     1 b-beg=b-end=b-post
-               (vdiff--calculate-unbalanced-section
-                a-map b-map a-prior b-prior a-post b-post))
-              ((> a-len b-len)
-               ;; 0     0   b-prior
-               ;; 1 ~   1 ~ b-beg
-               ;; 2 ~   2 ~ b-end
-               ;; 3 ~   -
-               ;; 4 ~   -
-               ;; 5     3   b-post
-               (push (list a-prior b-prior 0) a-map)
-               (vdiff--calculate-unbalanced-section
-                a-map b-map (+ a-prior b-len) b-end a-post b-post))
-              ((< a-len b-len)
-               (push (list b-prior a-prior 0) b-map)
-               (vdiff--calculate-unbalanced-section
-                b-map a-map (+ b-prior a-len) a-end b-post a-post))
-              ((= a-len b-len)
-               (push (list a-prior b-prior 0) a-map)
-               (push (list a-post  b-post 0)  a-map)
-               (push (list b-prior a-prior 0) b-map)
-               (push (list b-post  a-post 0)  b-map)))))
+             (c-lines (nth 2 hunk))
+             c-beg c-end c-prior c-post c-len)
+        (let ((new-a-b
+               (vdiff--2way-entries a-prior a-end a-post b-prior b-end b-post)))
+          (setq a-b (nconc a-b (car new-a-b)))
+          (setq b-a (nconc b-a (cdr new-a-b)))
+          (when c-lines
+            (let* ((c-beg (car c-lines))
+                   (c-prior (1- c-beg))
+                   (c-end (cdr c-lines))
+                   (c-post (if c-end (1+ c-end) c-beg))
+                   (new-a-c
+                    (vdiff--2way-entries a-prior a-end a-post c-prior c-end c-post))
+                   (new-b-c
+                    (vdiff--2way-entries b-prior b-end b-post c-prior c-end c-post)))
+              (setq a-c (nconc a-c (car new-a-c)))
+              (setq c-a (nconc c-a (cdr new-a-c)))
+              (setq b-c (nconc b-c (car new-b-c)))
+              (setq c-b (nconc c-b (cdr new-b-c))))))))
     (setq vdiff--line-maps
-          (list
-           (cons (list 0 0 0) (nreverse a-map))
-           (cons (list 0 0 0) (nreverse b-map))))))
+          (if vdiff--3way
+              (list (list 'a a-b a-c)
+                    (list 'b b-a b-c)
+                    (list 'c c-a c-b))
+            (list (list 'a a-b)
+                  (list 'b b-a))))))
 
-(defun vdiff--translate-line (line &optional B-to-A)
+(defun vdiff--translate-line (line &optional from-buffer)
   "Translate LINE in buffer A to corresponding line in buffer
 B. Go from buffer B to A if B-to-A is non nil."
-  (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
-  (let ((map (if B-to-A
-                 (cadr vdiff--line-maps)
-               (car vdiff--line-maps)))
-        last-entry res)
-    (when map
+  (interactive (list (line-number-at-pos)))
+  (let* ((from-buffer (or from-buffer (vdiff--buffer-p)))
+         (maps (cdr (assq from-buffer vdiff--line-maps)))
+         last-entry res-1 res-2)
+    (dolist (map maps)
       (setq last-entry
             (catch 'closest
               (let (prev-entry)
@@ -1164,20 +1168,23 @@ B. Go from buffer B to A if B-to-A is non nil."
       (unless last-entry
         (setq last-entry (list line line))
         (message "Error in line translation"))
-      (prog1
-          (setq res (cons (+ (- line (car last-entry)) (cadr last-entry))
-                          (nth 2 last-entry)))
-        (when (called-interactively-p 'interactive)
-          (message "This line: %s; Other line %s; vscroll-state %s; entry %s"
-                   line res (cdr res) last-entry))))))
+      (if res-1
+          (setq res-2 (cons (+ (- line (car last-entry)) (cadr last-entry))
+                            (nth 2 last-entry)))
+        (setq res-1 (cons (+ (- line (car last-entry)) (cadr last-entry))
+                          (nth 2 last-entry)))))
+    (when (called-interactively-p 'interactive)
+      (message "This line: %s; Other line %s; vscroll-state %s; entry %s"
+               line res-1 (cdr res-1) last-entry))
+    (cons res-1 res-2)))
 
-(defun vdiff-switch-buffer (line in-b)
+(defun vdiff-switch-buffer (line)
   "Jump to the line in the other vdiff buffer that corresponds to
 the current one."
-  (interactive (list (line-number-at-pos) (vdiff--buffer-b-p)))
+  (interactive (list (line-number-at-pos)))
   (vdiff-refresh)
-  (select-window (vdiff--other-window))
-  (let ((line (car-safe (vdiff--translate-line line in-b))))
+  (let ((line (caar (vdiff--translate-line line))))
+    (select-window (vdiff--other-window))
     (when line
       (vdiff--move-to-line line))))
 
@@ -1190,8 +1197,7 @@ the current one."
 buffer. This is usually not necessary."
   (interactive (list (line-number-at-pos)
                      (not (vdiff--buffer-a-p))))
-  (let ((new-line (car-safe (vdiff--translate-line
-                        line (not in-a)))))
+  (let ((new-line (caar (vdiff--translate-line line))))
     (when new-line
       (vdiff--with-other-window
        (goto-char (vdiff--pos-at-line-beginning new-line))))))
@@ -1249,19 +1255,19 @@ buffer)."
              (other-buffer (if in-b buf-a buf-b))
              (this-start-line (line-number-at-pos window-start))
              (start-translation
-              (vdiff--translate-line this-start-line in-b))
+              (vdiff--translate-line this-start-line))
              (other-curr-start (window-start other-window))
-             (other-start-line (car-safe start-translation))
+             (other-start-line (caar start-translation))
              (other-start-pos (when other-start-line
                                 (vdiff--pos-at-line-beginning
                                  other-start-line other-buffer)))
-             (scroll-amt (cdr-safe start-translation))
+             (scroll-amt (cdar start-translation))
              (this-line (+ (count-lines window-start (point))
                            this-start-line))
-             (translation (vdiff--translate-line this-line in-b))
+             (translation (vdiff--translate-line this-line))
              (other-pos (when translation
                           (vdiff--pos-at-line-beginning
-                           (car translation) other-buffer)))
+                           (caar translation) other-buffer)))
              (vdiff--in-scroll-hook t))
         (when (and other-start-pos
                    other-pos)
