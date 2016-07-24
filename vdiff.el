@@ -253,7 +253,7 @@ because those are handled differently.")
   (overlay-get ovr 'vdiff-hunk-overlays))
 
 (defun vdiff--other-overlays (ovr)
-  (delq ovr (vdiff--all-overlays ovr)))
+  (remq ovr (vdiff--all-overlays ovr)))
 
 (defun vdiff--read-3way-target (ovr &optional just-one)
   (when vdiff-3way-mode
@@ -287,7 +287,7 @@ because those are handled differently.")
             (vdiff-3way-mode
              (user-error "vdiff: No target overlay"))
             (t
-             (delq this-ovr other-ovrs))))))
+             (remq this-ovr other-ovrs))))))
 
 (defun vdiff--min-window-width ()
   (apply #'min
