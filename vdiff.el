@@ -1004,7 +1004,7 @@ well. This only returns bounds for `interactive'."
             (forward-line 1)
             (point)))))
 
-(defun vdiff-send-changes (beg end &optional receive targets)
+(defun vdiff-send-changes (beg end &optional receive targets dont-refresh)
   "Send changes in this hunk to other vdiff buffer. If the region
 is active, send all changes found in the region. Otherwise use
 the hunk under point or on the immediately preceding line."
@@ -1017,14 +1017,15 @@ the hunk under point or on the immediately preceding line."
                         (or targets (vdiff--target-overlays ovr t))))
              (let ((pos (overlay-start (car target-ovrs))))
                (with-current-buffer (overlay-buffer (car target-ovrs))
-                 (vdiff-send-changes pos (1+ pos)))))
+                 (vdiff-send-changes pos (1+ pos) nil nil t))))
             ((memq (overlay-get ovr 'vdiff-type)
                    '(change addition))
              (vdiff--transmit-change ovr targets))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
              (vdiff--transmit-subtraction ovr targets))))
-    (vdiff-refresh)
-    (vdiff--scroll-function)))
+    (unless dont-refresh
+      (vdiff-refresh)
+      (vdiff--scroll-function))))
 
 (defun vdiff-receive-changes (beg end)
   "Receive the changes corresponding to this position from the
