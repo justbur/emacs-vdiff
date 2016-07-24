@@ -1009,9 +1009,9 @@ the hunk under point or on the immediately preceding line."
   (let* ((vdiff--inhibit-diff-update t)
          target-ovrs)
     (dolist (ovr (overlays-in beg end))
-      (cond ((and (setq target-ovrs
-                        (or targets (vdiff--target-overlays ovr t)))
-                  receive)
+      (cond ((and receive
+                  (setq target-ovrs
+                        (or targets (vdiff--target-overlays ovr t))))
              ;; Assume that
              (let ((pos (overlay-start (car target-ovrs))))
                (vdiff--with-other-window
