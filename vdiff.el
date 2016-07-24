@@ -495,22 +495,22 @@ because those are handled differently.")
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
   (unless vdiff--inhibit-diff-update
-    (let ((parse-func (if vdiff--3way
+    (let ((parse-func (if (process-get proc 'vdiff-3way)
                           'vdiff--parse-diff3
                         'vdiff--parse-diff))
           finished)
-      (cond ((string= "finished\n" event)
-             ;; means no difference between files
-             (setq vdiff--diff-data nil)
-             (setq finished t))
-            ((string= "exited abnormally with code 1\n" event)
-             (setq vdiff--diff-data
-                   (funcall parse-func (process-buffer proc)))
-             (setq finished t))
-            ((string-match-p "exited abnormally with code" event)
-             (setq vdiff--diff-data nil)
-             (setq finished t)
-             (message "vdiff process error: %s" event)))
+      (cond
+       ;; Was getting different exit code conventions depending on the
+       ;; version of diff used
+       ((or (string= "finished\n" event)
+            (string= "exited abnormally with code 1\n" event))
+        (setq vdiff--diff-data
+              (funcall parse-func (process-buffer proc)))
+        (setq finished t))
+       ((string-match-p "exited abnormally with code" event)
+        (setq vdiff--diff-data nil)
+        (setq finished t)
+        (message "vdiff process error: %s" event)))
       (when finished
         (vdiff--refresh-overlays)
         (vdiff--refresh-line-maps)
