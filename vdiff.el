@@ -234,7 +234,7 @@ because those are handled differently.")
         ((vdiff--buffer-c-p) 'c)))
 
 (defun vdiff--unselected-buffers ()
-  (delq (current-buffer) vdiff--buffers))
+  (remq (current-buffer) vdiff--buffers))
 
 (defun vdiff--unselected-windows ()
   (mapcar #'get-buffer-window
