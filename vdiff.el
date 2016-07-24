@@ -1090,7 +1090,12 @@ just deleting text in the other buffer."
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
   (let ((vdiff--inhibit-diff-update t)
-        a-b b-a a-c c-a b-c c-b)
+        (a-b (list (list 0 0 0)))
+        (b-a (list (list 0 0 0)))
+        (a-c (list (list 0 0 0)))
+        (c-a (list (list 0 0 0)))
+        (b-c (list (list 0 0 0)))
+        (c-b (list (list 0 0 0))))
     (dolist (hunk vdiff--diff-data)
       (let* ((a-lines (nth 0 hunk))
              (a-beg (car a-lines))
@@ -1151,7 +1156,7 @@ B. Go from buffer B to A if B-to-A is non nil."
                 (throw 'closest prev-entry))))
       (unless last-entry
         (setq last-entry (list line line))
-        (message "Error in line translation"))
+        (message "Error in line translation %s %s" line from-buffer))
       (if res-1
           (setq res-2 (cons (+ (- line (car last-entry)) (cadr last-entry))
                             (nth 2 last-entry)))
