@@ -246,6 +246,9 @@ because those are handled differently.")
                            (cadr vdiff--buffers)
                          (car vdiff--buffers)))))
 
+(defun vdiff--all-windows ()
+  (mapcar #'get-buffer-window vdiff--buffers))
+
 (defun vdiff--all-overlays (ovr)
   (overlay-get ovr 'vdiff-hunk-overlays))
 
@@ -1228,82 +1231,67 @@ buffer)."
    (lambda ()
      (unless vdiff--setting-vscroll
        (let ((vdiff--setting-vscroll t))
-         (when vscroll
+         (when (eq vdiff-subtraction-style 'full)
            (set-window-vscroll window vscroll))
          (force-window-update window))))))
 
 (defun vdiff--flag-new-command ()
   (setq vdiff--new-command t))
 
+(defun vdiff--other-win-scroll-data (window window-start &optional buf-c)
+  ;; need other-win, start-pos, pos and scroll-amt
+  (let* ((other-buf (nth (if buf-c 1 0) (vdiff--unselected-buffers)))
+         (other-win (nth (if buf-c 1 0) (vdiff--unselected-windows)))
+         (start-line (line-number-at-pos window-start))
+         (start-trans (vdiff--translate-line start-line))
+         (start-trans (if buf-c
+                          (cdr start-trans)
+                        (car start-trans)))
+         (trans (vdiff--translate-line
+                 (+ (count-lines window-start (point))
+                    start-line)))
+         (trans (if buf-c (cdr trans) (car trans))))
+    (when (and start-trans trans)
+      (list other-win
+            (vdiff--pos-at-line-beginning (car start-trans) other-buf)
+            (vdiff--pos-at-line-beginning (car trans) other-buf)
+            (cdr start-trans)))))
+
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((window (or window (selected-window)))
-         (window-start (or window-start (window-start)))
-         (buf-a (car vdiff--buffers))
-         (buf-b (cadr vdiff--buffers))
-         (buf-c (nth 2 vdiff--buffers))
-         (win-a (get-buffer-window buf-a))
-         (win-b (get-buffer-window buf-b))
-         (win-c (when buf-c (get-buffer-window buf-c))))
+         (window-start (or window-start (window-start))))
     (when (and (eq window (selected-window))
-               (window-live-p win-a)
-               (window-live-p win-b)
-               (window-live-p win-c)
-               (memq window (list win-a win-b win-c))
+               (cl-every #'window-live-p (vdiff--all-windows))
+               (vdiff--buffer-p)
                (not vdiff--in-scroll-hook)
                vdiff--new-command)
       (setq vdiff--new-command nil)
-      (let* ((in-b (eq window win-b))
-             (other-windows (vdiff--unselected-windows))
-             (other-buffers (vdiff--unselected-buffers))
+      (let* ((2-scroll-data (vdiff--other-win-scroll-data
+                             window window-start))
+             (2-win (nth 0 2-scroll-data))
+             (2-start-pos (nth 1 2-scroll-data))
+             (2-pos (nth 2 2-scroll-data))
+             (2-scroll (nth 3 2-scroll-data))
              ;; 1 is short for this; 2 is the first other and 3 is the second
-             (1-start-line (line-number-at-pos window-start))
-             (1-line (+ (count-lines window-start (point))
-                        1-start-line))
-             (start-translation
-              (vdiff--translate-line 1-start-line))
-             (translation (vdiff--translate-line 1-line))
-             (2-start-trans (car start-translation))
-             (2-trans (car translation))
-             (2-win (car other-windows))
-             (2-buf (car other-buffers))
-             (2-curr-start (window-start 2-win))
-             (2-start-line (car 2-start-trans))
-             (2-start-pos (when 2-start-line
-                            (vdiff--pos-at-line-beginning
-                             2-start-line 2-buf)))
-             (2-scroll-amt (cdr 2-start-trans))
-             (2-pos (when translation
-                      (vdiff--pos-at-line-beginning (car 2-trans) 2-buf)))
              (vdiff--in-scroll-hook t))
-        (when (and 2-start-pos 2-pos)
+        (when (and 2-pos 2-start-pos)
           (set-window-point 2-win 2-pos)
-          (unless (= 2-curr-start 2-start-pos)
-            (set-window-start 2-win 2-start-pos))
-          (vdiff--set-vscroll-and-force-update
-           2-win (when (eq vdiff-subtraction-style 'full)
-                   2-scroll-amt)))
+          (set-window-start 2-win 2-start-pos)
+          (vdiff--set-vscroll-and-force-update 2-win 2-scroll))
         (when vdiff-3way-mode
-          (let* ((3-win (cadr other-windows))
-                 (3-buf (cadr other-buffers))
-                 (3-start-trans (cdr start-translation))
-                 (3-trans (cdr translation))
-                 (3-curr-start (window-start 3-win))
-                 (3-start-line (car 3-start-trans))
-                 (3-start-pos
-                  (when 3-start-line
-                    (vdiff--pos-at-line-beginning 3-start-line 3-buf)))
-                 (3-scroll-amt (cdr 3-start-trans))
-                 (3-pos
-                  (when translation
-                    (vdiff--pos-at-line-beginning (car 3-trans) 3-buf))))
+          (let*
+              ((3-scroll-data (vdiff--other-win-scroll-data
+                               window window-start t))
+               (3-win (nth 0 3-scroll-data))
+               (3-start-pos (nth 1 3-scroll-data))
+               (3-pos (nth 2 3-scroll-data))
+               (3-scroll (nth 3 3-scroll-data))
+               (vdiff--in-scroll-hook t))
             (when (and 3-start-pos 3-pos)
               (set-window-point 3-win 3-pos)
-              (unless (= 3-curr-start 3-start-pos)
-                (set-window-start 3-win 3-start-pos))
-              (vdiff--set-vscroll-and-force-update
-               3-win (when (eq vdiff-subtraction-style 'full)
-                       3-scroll-amt)))))))))
+              (set-window-start 3-win 3-start-pos)
+              (vdiff--set-vscroll-and-force-update 3-win 3-scroll))))))))
 
 ;; (defun vdiff--post-command-hook ()
 ;;   "Sync scroll for `vdiff--force-sync-commands'."
