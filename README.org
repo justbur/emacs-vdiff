@@ -27,7 +27,11 @@ find. Contributions and suggestions are very welcome.
    
 ** Screenshot
 
+*** Basic two file diff
 [[./img/leuven.png]]
+
+*** Three file diff with targets for sending changes
+[[./img/leuven3.png]]
 
 ** Installation and Usage
    
