@@ -429,49 +429,50 @@ because those are handled differently.")
 (defun vdiff-refresh ()
   "Asynchronously refresh diff information."
   (interactive)
-  (let* ((tmp-a (make-temp-file "vdiff-a-"))
-         (tmp-b (make-temp-file "vdiff-b-"))
-         (tmp-c (when vdiff-3way-mode
-                  (make-temp-file "vdiff-c-")))
-         (prgm (if vdiff-3way-mode
-                   vdiff-diff3-program
-                 vdiff-diff-program))
-         (ses vdiff--session)
-         (cmd (mapconcat
-               #'identity
-               (vdiff--non-nil-list
-                prgm
-                (vdiff-session-whitespace-args ses)
-                (vdiff-session-case-args ses)
-                vdiff-diff-extra-args
-                tmp-a tmp-b tmp-c)
-               " "))
-         (buffers (vdiff-session-buffers ses))
-         (proc-buf (vdiff-session-process-buffer ses))
-         (proc (get-buffer-process proc-buf)))
-    (setq vdiff--last-command cmd)
-    (with-current-buffer (car buffers)
-      (write-region nil nil tmp-a nil 'quietly))
-    (with-current-buffer (cadr buffers)
-      (write-region nil nil tmp-b nil 'quietly))
-    (when vdiff-3way-mode
-      (with-current-buffer (nth 2 buffers)
-        (write-region nil nil tmp-c nil 'quietly)))
-    (when proc
-      (kill-process proc))
-    (with-current-buffer (get-buffer-create proc-buf)
-      (erase-buffer))
-    ;; (setq vdiff--last-command cmd)
-    (setq proc
-          (start-process-shell-command proc-buf proc-buf cmd))
-    (when vdiff-3way-mode
-      (process-put proc 'vdiff-3way t))
-    (process-put proc 'vdiff-session ses)
-    (process-put proc 'vdiff-tmp-a tmp-a)
-    (process-put proc 'vdiff-tmp-b tmp-b)
-    (when tmp-c
-      (process-put proc 'vdiff-tmp-c tmp-c))
-    (set-process-sentinel proc #'vdiff--diff-refresh-1)))
+  (when (vdiff--buffer-p)
+    (let* ((tmp-a (make-temp-file "vdiff-a-"))
+           (tmp-b (make-temp-file "vdiff-b-"))
+           (tmp-c (when vdiff-3way-mode
+                    (make-temp-file "vdiff-c-")))
+           (prgm (if vdiff-3way-mode
+                     vdiff-diff3-program
+                   vdiff-diff-program))
+           (ses vdiff--session)
+           (cmd (mapconcat
+                 #'identity
+                 (vdiff--non-nil-list
+                  prgm
+                  (vdiff-session-whitespace-args ses)
+                  (vdiff-session-case-args ses)
+                  vdiff-diff-extra-args
+                  tmp-a tmp-b tmp-c)
+                 " "))
+           (buffers (vdiff-session-buffers ses))
+           (proc-buf (vdiff-session-process-buffer ses))
+           (proc (get-buffer-process proc-buf)))
+      (setq vdiff--last-command cmd)
+      (with-current-buffer (car buffers)
+        (write-region nil nil tmp-a nil 'quietly))
+      (with-current-buffer (cadr buffers)
+        (write-region nil nil tmp-b nil 'quietly))
+      (when vdiff-3way-mode
+        (with-current-buffer (nth 2 buffers)
+          (write-region nil nil tmp-c nil 'quietly)))
+      (when proc
+        (kill-process proc))
+      (with-current-buffer (get-buffer-create proc-buf)
+        (erase-buffer))
+      ;; (setq vdiff--last-command cmd)
+      (setq proc
+            (start-process-shell-command proc-buf proc-buf cmd))
+      (when vdiff-3way-mode
+        (process-put proc 'vdiff-3way t))
+      (process-put proc 'vdiff-session ses)
+      (process-put proc 'vdiff-tmp-a tmp-a)
+      (process-put proc 'vdiff-tmp-b tmp-b)
+      (when tmp-c
+        (process-put proc 'vdiff-tmp-c tmp-c))
+      (set-process-sentinel proc #'vdiff--diff-refresh-1))))
 
 (defun vdiff--encode-range (insert beg &optional end)
   (let* ((beg (vdiff--maybe-int beg))
