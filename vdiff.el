@@ -259,8 +259,8 @@ because those are handled differently.")
                      (list ovr)))
              other-ovrs)))
       ;; FIXME: Doesn't quite send correctly
-      ;; (unless just-one
-      ;;   (push (cons "all" other-ovrs) choices))
+      (unless just-one
+        (push (cons "all" other-ovrs) choices))
       (cdr-safe
        (assoc-string
         (completing-read "Choose a target buffer(s): "
@@ -1515,33 +1515,33 @@ asked to select two buffers."
   (set-window-buffer (split-window-vertically) buffer-c)
   (set-window-buffer (split-window-horizontally) buffer-b))
 
-;; ;;;###autoload
-;; (defun vdiff-buffers3 (buffer-a buffer-b buffer-c)
-;;   "Start a vdiff session. If called interactively, you will be
-;; asked to select two buffers."
-;;   (interactive
-;;    (let* ((buffer-a
-;;            (get-buffer
-;;             (read-buffer
-;;              "Buffer A: " (current-buffer))))
-;;           (buffer-b
-;;            (get-buffer
-;;             (read-buffer
-;;              (format "[A:%s] Buffer B: " buffer-a)
-;;              (window-buffer (next-window (selected-window))))))
-;;           (buffer-c
-;;            (get-buffer
-;;             (read-buffer
-;;              (format "[A:%s B:%s] Buffer C: " buffer-a buffer-b)
-;;              (window-buffer (next-window (selected-window)))))))
-;;      (list buffer-a
-;;            buffer-b
-;;            buffer-c)))
-;;   (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
-;;   (setq vdiff--buffers (list buffer-a buffer-b buffer-c))
-;;   (vdiff--with-all-buffers
-;;    (vdiff-3way-mode 1))
-;;   (vdiff-refresh))
+;;;###autoload
+(defun vdiff-buffers3 (buffer-a buffer-b buffer-c)
+  "Start a vdiff session. If called interactively, you will be
+asked to select two buffers."
+  (interactive
+   (let* ((buffer-a
+           (get-buffer
+            (read-buffer
+             "Buffer A: " (current-buffer))))
+          (buffer-b
+           (get-buffer
+            (read-buffer
+             (format "[A:%s] Buffer B: " buffer-a)
+             (window-buffer (next-window (selected-window))))))
+          (buffer-c
+           (get-buffer
+            (read-buffer
+             (format "[A:%s B:%s] Buffer C: " buffer-a buffer-b)
+             (window-buffer (next-window (selected-window)))))))
+     (list buffer-a
+           buffer-b
+           buffer-c)))
+  (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
+  (setq vdiff--buffers (list buffer-a buffer-b buffer-c))
+  (vdiff--with-all-buffers
+   (vdiff-3way-mode 1))
+  (vdiff-refresh))
 
 (defun vdiff-quit ()
   "Quit `vdiff-mode' and clean up."
