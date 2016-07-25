@@ -175,10 +175,6 @@ indicate the subtraction location in the fringe."
 be a need to include commands that scroll the buffer here,
 because those are handled differently.")
 
-(defvar vdiff--buffers nil)
-(defvar vdiff--process-buffer " *vdiff* ")
-(defvar vdiff--word-diff-output-buffer " *vdiff-word* ")
-(defvar vdiff--diff-data nil)
 (defvar vdiff--diff-code-regexp
   "^\\([0-9]+\\),?\\([0-9]+\\)?\\([adc]\\)\\([0-9]+\\),?\\([0-9]+\\)?")
 (defvar vdiff--diff3-code-regexp
@@ -187,26 +183,39 @@ because those are handled differently.")
 (defvar vdiff--inhibit-diff-update nil)
 (defvar vdiff--in-scroll-hook nil)
 ;; (defvar vdiff--in-post-command-hook nil)
-(defvar vdiff--line-maps nil)
-(defvar vdiff--folds nil)
-(defvar vdiff--all-folds-open nil)
 (defvar vdiff--setting-vscroll nil)
-(defvar vdiff--diff-stale nil)
 (defvar vdiff--after-change-timer nil)
 (defvar vdiff--after-change-refresh-delay 1)
-(defvar vdiff--window-configuration nil)
 (defvar vdiff--new-command nil)
-(defvar vdiff--last-command nil)
-(defvar vdiff--case-args "")
+;; (defvar vdiff--last-command nil)
 (defvar vdiff--case-options
   '(("Don't ignore case" . "")
     ("Ignore case (-i)" . "-i")))
-(defvar vdiff--whitespace-args "")
 (defvar vdiff--whitespace-options
   '(("Don't ignore whitespace" . "")
     ("Ignore all whitespace (-w)" . "-w")
     ("Ignore space changes (-b)" . "-b")
     ("Ignore blank lines (-B)" . "-B")))
+
+;; Sessions
+(defvar vdiff--temp-session nil)
+(defvar-local vdiff--session nil)
+(cl-defstruct vdiff-session
+  ;; buffers
+  buffers
+  process-buffer
+  word-diff-output-buffer
+  ;; data
+  diff-data
+  line-maps
+  folds
+  all-folds-open
+  diff-stale
+  ;; other
+  window-config
+  case-args
+  whitespace-args)
+
 
 ;; * Utilities
 
@@ -216,16 +225,28 @@ because those are handled differently.")
                (>= num 0))
       num)))
 
+(defun vdiff--non-nil-list (&rest args)
+  (delq nil (apply #'list args)))
+
 (defun vdiff--buffer-a-p ()
-  (when (eq (current-buffer) (car vdiff--buffers))
+  (when (and
+         vdiff--session
+         (eq (current-buffer)
+             (car (vdiff-session-buffers vdiff--session))))
     (current-buffer)))
 
 (defun vdiff--buffer-b-p ()
-  (when (eq (current-buffer) (cadr vdiff--buffers))
+  (when (and
+         vdiff--session
+         (eq (current-buffer)
+             (cadr (vdiff-session-buffers vdiff--session))))
     (current-buffer)))
 
 (defun vdiff--buffer-c-p ()
-  (when (eq (current-buffer) (nth 2 vdiff--buffers))
+  (when (and
+         vdiff--session
+         (eq (current-buffer)
+             (nth 2 (vdiff-session-buffers vdiff--session))))
     (current-buffer)))
 
 (defun vdiff--buffer-p ()
@@ -234,14 +255,17 @@ because those are handled differently.")
         ((vdiff--buffer-c-p) 'c)))
 
 (defun vdiff--unselected-buffers ()
-  (remq (current-buffer) vdiff--buffers))
+  (remq (current-buffer)
+        (vdiff-session-buffers vdiff--session)))
 
 (defun vdiff--unselected-windows ()
   (mapcar #'get-buffer-window
           (vdiff--unselected-buffers)))
 
 (defun vdiff--all-windows ()
-  (remq nil (mapcar #'get-buffer-window vdiff--buffers)))
+  (remq nil
+        (mapcar #'get-buffer-window
+                (vdiff-session-buffers vdiff--session))))
 
 (defun vdiff--all-overlays (ovr)
   (overlay-get ovr 'vdiff-hunk-overlays))
@@ -288,7 +312,7 @@ because those are handled differently.")
   (apply #'min
          (mapcar (lambda (buf)
                    (window-width (get-buffer-window buf)))
-                 vdiff--buffers)))
+                 (vdiff-session-buffers vdiff--session))))
 
 (defun vdiff--move-to-line (n)
   (goto-char (point-min))
@@ -333,7 +357,7 @@ because those are handled differently.")
 
 (defmacro vdiff--with-all-buffers (&rest body)
   "Execute BODY in all vdiff buffers."
-  `(dolist (buf vdiff--buffers)
+  `(dolist (buf (vdiff-session-buffers vdiff--session))
      (when (buffer-live-p buf)
        (with-current-buffer buf
          ,@body))))
@@ -348,7 +372,8 @@ because those are handled differently.")
            (completing-read "Case options: "
                             vdiff--case-options)
            vdiff--case-options))))
-  (setq vdiff--case-args command-line-arg)
+  (setf (vdiff-session-case-args vdiff--session)
+        command-line-arg)
   (when vdiff-mode
     (vdiff-refresh)))
 
@@ -360,7 +385,8 @@ because those are handled differently.")
            (completing-read "Whitespace options: "
                             vdiff--whitespace-options)
            vdiff--whitespace-options))))
-  (setq vdiff--whitespace-args command-line-arg)
+  (setf (vdiff-session-whitespace-args vdiff--session)
+        command-line-arg)
   (when vdiff-mode
     (vdiff-refresh)))
 
@@ -371,43 +397,46 @@ because those are handled differently.")
   (interactive)
   (let* ((tmp-a (make-temp-file "vdiff-a-"))
          (tmp-b (make-temp-file "vdiff-b-"))
-         (tmp-c (make-temp-file "vdiff-c-"))
+         (tmp-c (when vdiff-3way-mode
+                  (make-temp-file "vdiff-c-")))
          (prgm (if vdiff-3way-mode
                    vdiff-diff3-program
                  vdiff-diff-program))
-         (cmd (mapconcat #'identity
-                         (nconc
-                          (list
-                           prgm
-                           vdiff--whitespace-args
-                           vdiff--case-args
-                           vdiff-diff-extra-args
-                           tmp-a tmp-b)
-                          (when vdiff-3way-mode
-                            (list tmp-c)))
-                         " "))
-         (proc (get-buffer-process vdiff--process-buffer)))
-    (with-current-buffer (car vdiff--buffers)
+         (ses vdiff--session)
+         (cmd (mapconcat
+               #'identity
+               (vdiff--non-nil-list
+                prgm
+                (vdiff-session-whitespace-args ses)
+                (vdiff-session-case-args ses)
+                vdiff-diff-extra-args
+                tmp-a tmp-b tmp-c)
+               " "))
+         (buffers (vdiff-session-buffers ses))
+         (proc-buf (vdiff-session-process-buffer ses))
+         (proc (get-buffer-process proc-buf)))
+    (setq vdiff--last-command cmd)
+    (with-current-buffer (car buffers)
       (write-region nil nil tmp-a nil 'quietly))
-    (with-current-buffer (cadr vdiff--buffers)
+    (with-current-buffer (cadr buffers)
       (write-region nil nil tmp-b nil 'quietly))
     (when vdiff-3way-mode
-      (with-current-buffer (caddr vdiff--buffers)
+      (with-current-buffer (nth 2 buffers)
         (write-region nil nil tmp-c nil 'quietly)))
     (when proc
       (kill-process proc))
-    (with-current-buffer (get-buffer-create vdiff--process-buffer)
+    (with-current-buffer (get-buffer-create proc-buf)
       (erase-buffer))
-    (setq vdiff--last-command cmd)
-    (setq proc (start-process-shell-command
-                vdiff--process-buffer
-                vdiff--process-buffer
-                cmd))
+    ;; (setq vdiff--last-command cmd)
+    (setq proc
+          (start-process-shell-command proc-buf proc-buf cmd))
     (when vdiff-3way-mode
       (process-put proc 'vdiff-3way t))
+    (process-put proc 'vdiff-session ses)
     (process-put proc 'vdiff-tmp-a tmp-a)
     (process-put proc 'vdiff-tmp-b tmp-b)
-    (process-put proc 'vdiff-tmp-c tmp-c)
+    (when tmp-c
+      (process-put proc 'vdiff-tmp-c tmp-c))
     (set-process-sentinel proc #'vdiff--diff-refresh-1)))
 
 (defun vdiff--encode-range (insert beg &optional end)
@@ -425,9 +454,7 @@ because those are handled differently.")
     (with-current-buffer buf
       (goto-char (point-min))
       (while (re-search-forward vdiff--diff-code-regexp nil t)
-        (let* ((code (match-string 3))
-               a-range
-               b-range)
+        (let* ((code (match-string 3)))
           (push
            (cl-case (string-to-char code)
              (?a (list (vdiff--encode-range
@@ -484,17 +511,18 @@ parsing the diff output and triggering the overlay updates."
     (let ((parse-func (if (process-get proc 'vdiff-3way)
                           'vdiff--parse-diff3
                         'vdiff--parse-diff))
+          (ses (process-get proc 'vdiff-session))
           finished)
       (cond
        ;; Was getting different exit code conventions depending on the
        ;; version of diff used
        ((or (string= "finished\n" event)
             (string= "exited abnormally with code 1\n" event))
-        (setq vdiff--diff-data
+        (setf (vdiff-session-diff-data ses)
               (funcall parse-func (process-buffer proc)))
         (setq finished t))
        ((string-match-p "exited abnormally with code" event)
-        (setq vdiff--diff-data nil)
+        (setf (vdiff-session-diff-data ses) nil)
         (setq finished t)
         (message "vdiff process error: %s" event)))
       (when finished
@@ -502,10 +530,11 @@ parsing the diff output and triggering the overlay updates."
         (vdiff--refresh-line-maps)
         (delete-file (process-get proc 'vdiff-tmp-a))
         (delete-file (process-get proc 'vdiff-tmp-b))
-        (delete-file (process-get proc 'vdiff-tmp-c))
+        (when (process-get proc 'vdiff-tmp-c)
+          (delete-file (process-get proc 'vdiff-tmp-c)))
         (when vdiff-auto-refine
-          (vdiff-refine-all-hunks))))
-    (setq vdiff--diff-stale nil)))
+          (vdiff-refine-all-hunks)))
+      (setf (vdiff-session-diff-stale ses) nil))))
 
 (defun vdiff--remove-all-overlays ()
   "Remove all vdiff overlays in both vdiff buffers."
@@ -872,25 +901,23 @@ of a \"word\"."
                            (vdiff--point-in-fold-p b-fold)
                            (and c-fold
                                 (vdiff--point-in-fold-p c-fold))
-                           vdiff--all-folds-open)
+                           (vdiff-session-all-folds-open
+                            vdiff--session))
                        (vdiff--set-open-fold-props fold))
                       (t
                        (vdiff--set-closed-fold-props fold)))))
             (overlay-put a-fold 'vdiff-other-folds
-                         (if c-fold
-                             (list b-fold c-fold)
-                           (list b-fold)))
+                         (vdiff--non-nil-list b-fold c-fold))
             (overlay-put b-fold 'vdiff-other-folds
-                         (if c-fold
-                             (list a-fold c-fold)
-                           (list a-fold)))
+                         (vdiff--non-nil-list a-fold c-fold))
             (when c-fold
               (overlay-put c-fold 'vdiff-other-folds (list a-fold b-fold)))
-            (push (list a-range a-fold b-fold c-fold) new-folds))))))
-    (setq vdiff--folds new-folds)))
+            (push (vdiff--non-nil-list a-range a-fold b-fold c-fold)
+                  new-folds))))))
+    (setf (vdiff-session-folds vdiff--session) new-folds)))
 
 (defun vdiff--remove-fold-overlays (_)
-  (setq vdiff--folds nil))
+  (setf (vdiff-session-folds vdiff--session) nil))
 
 (defun vdiff--add-diff-overlay (this-len other-len-1 other-len-2)
   (let ((max-other-len (max (if other-len-1 other-len-1 0)
@@ -906,9 +933,9 @@ of a \"word\"."
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
   (vdiff--remove-all-overlays)
-  (let ((a-buffer (car vdiff--buffers))
-        (b-buffer (cadr vdiff--buffers))
-        (c-buffer (nth 2 vdiff--buffers))
+  (let ((a-buffer (car (vdiff-session-buffers vdiff--session)))
+        (b-buffer (cadr (vdiff-session-buffers vdiff--session)))
+        (c-buffer (nth 2 (vdiff-session-buffers vdiff--session)))
         (a-line 1)
         (b-line 1)
         (c-line 1)
@@ -928,7 +955,7 @@ of a \"word\"."
         (with-current-buffer c-buffer
           (widen)
           (goto-char (point-min))))
-      (dolist (hunk vdiff--diff-data)
+      (dolist (hunk (vdiff-session-diff-data vdiff--session))
         (let* ((a-range (nth 0 hunk))
                (b-range (nth 1 hunk))
                (c-range (nth 2 hunk))
@@ -939,7 +966,6 @@ of a \"word\"."
                (b-beg (car b-range))
                (b-end (cdr b-range))
                (b-post (if b-end (1+ b-end) b-beg))
-               (b-insert (null b-end))
                (b-len (when b-end (1+ (- b-end b-beg))))
                c-beg c-end c-post c-len)
           (when c-buffer
@@ -972,9 +998,7 @@ of a \"word\"."
                 (forward-line (- c-beg c-line))
                 (setq c-line c-beg)
                 (setq ovr-c (vdiff--add-diff-overlay c-len a-len b-len))))
-            (let ((ovr-group (if c-buffer
-                                 (list ovr-a ovr-b ovr-c)
-                               (list ovr-a ovr-b))))
+            (let ((ovr-group (vdiff--non-nil-list ovr-a ovr-b ovr-c)))
               (overlay-put ovr-a 'vdiff-a t)
               (overlay-put ovr-a 'vdiff-hunk-overlays ovr-group)
               (overlay-put ovr-b 'vdiff-b t)
@@ -1129,7 +1153,7 @@ just deleting text in the other buffer."
         (c-a (list (list 0 0 0)))
         (b-c (list (list 0 0 0)))
         (c-b (list (list 0 0 0))))
-    (dolist (hunk vdiff--diff-data)
+    (dolist (hunk (vdiff-session-diff-data vdiff--session))
       (let* ((a-lines (nth 0 hunk))
              (a-beg (car a-lines))
              (a-prior (1- a-beg))
@@ -1140,8 +1164,7 @@ just deleting text in the other buffer."
              (b-prior (1- b-beg))
              (b-end (cdr b-lines))
              (b-post (if b-end (1+ b-end) b-beg))
-             (c-lines (nth 2 hunk))
-             c-beg c-end c-prior c-post c-len)
+             (c-lines (nth 2 hunk)))
         (let ((new-a-b
                (vdiff--2way-entries a-prior a-end a-post b-prior b-end b-post)))
           (setq a-b (nconc a-b (car new-a-b)))
@@ -1159,7 +1182,7 @@ just deleting text in the other buffer."
               (setq c-a (nconc c-a (cdr new-a-c)))
               (setq b-c (nconc b-c (car new-b-c)))
               (setq c-b (nconc c-b (cdr new-b-c))))))))
-    (setq vdiff--line-maps
+    (setf (vdiff-session-line-maps vdiff--session)
           (if vdiff-3way-mode
               (list (list 'a a-b a-c)
                     (list 'b b-a b-c)
@@ -1172,7 +1195,9 @@ just deleting text in the other buffer."
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos)))
   (let* ((from-buffer (or from-buffer (vdiff--buffer-p)))
-         (maps (cdr (assq from-buffer vdiff--line-maps)))
+         (maps
+          (cdr
+           (assq from-buffer (vdiff-session-line-maps vdiff--session))))
          last-entry res-1 res-2)
     (dolist (map maps)
       (setq last-entry
@@ -1225,7 +1250,8 @@ buffer and recenter all buffers."
 (defun vdiff-restore-windows ()
   "Restore initial window configuration."
   (interactive)
-  (set-window-configuration vdiff--window-configuration))
+  (set-window-configuration
+   (vdiff-session-window-config vdiff--session)))
 
 (defun vdiff--pos-at-line-beginning (line &optional buffer)
   "Return position at beginning of LINE in BUFFER (or current
@@ -1316,8 +1342,8 @@ buffer)."
 ;;         (vdiff--scroll-function)))))
 
 (defun vdiff--after-change-function (&rest _)
-  (unless vdiff--diff-stale
-    (setq vdiff--diff-stale t)
+  (unless (vdiff-session-diff-stale vdiff--session)
+    (setf (vdiff-session-diff-stale vdiff--session) t)
     (when (timerp vdiff--after-change-timer)
       (cancel-timer vdiff--after-change-timer))
     (setq vdiff--after-change-timer
@@ -1369,7 +1395,7 @@ folds in the region."
   (interactive (vdiff--region-or-close-overlay))
   (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
-      (setq vdiff--all-folds-open nil)
+      (setf (vdiff-session-all-folds-open vdiff--session) nil)
       (goto-char (overlay-start ovr))
       (vdiff--set-closed-fold-props ovr)
       (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
@@ -1379,14 +1405,14 @@ folds in the region."
   "Open all folds in both buffers"
   (interactive)
   (save-excursion
-    (setq vdiff--all-folds-open t)
+    (setf (vdiff-session-all-folds-open vdiff--session) t)
     (vdiff-open-fold (point-min) (point-max))))
 
 (defun vdiff-close-all-folds ()
   "Close all folds in both buffers"
   (interactive)
   (save-excursion
-    (setq vdiff--all-folds-open nil)
+    (setf (vdiff-session-all-folds-open vdiff--session) nil)
     (vdiff-close-fold (point-min) (point-max))))
 
 (defun vdiff-close-other-folds ()
@@ -1395,7 +1421,7 @@ folds in the region."
   (dolist (ovr (overlays-in (point-min) (point-max)))
     (when (and (eq (overlay-get ovr 'vdiff-type) 'fold)
                (not (vdiff--point-in-fold-p ovr)))
-      (setq vdiff--all-folds-open nil)
+      (setf (vdiff-session-all-folds-open vdiff--session) nil)
       (vdiff--set-closed-fold-props ovr)
       (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
         (vdiff--set-closed-fold-props other-fold)))))
@@ -1454,6 +1480,25 @@ with non-nil USE-FOLDS."
     (goto-char (vdiff--nth-hunk count t))
     (vdiff-sync-and-center)))
 
+;; * Session
+
+;; modified from ediff
+(defun vdiff--unique-buffer-name (name)
+  (if (null (get-buffer name))
+      name
+    (let ((n 2))
+      (while (get-buffer (format "%s<%d>" name n))
+        (setq n (1+ n)))
+      (format "%s<%d>" name n))))
+
+(defun vdiff--init-session (buffer-a buffer-b &optional buffer-c)
+  (make-vdiff-session
+   :buffers (vdiff--non-nil-list buffer-a buffer-b buffer-c)
+   :process-buffer (vdiff--unique-buffer-name " *vdiff* ")
+   :word-diff-output-buffer (vdiff--unique-buffer-name " *vdiff-word* ")
+   :case-args ""
+   :whitespace-args ""))
+
 ;; * Entry points
 
 ;;;###autoload
@@ -1498,9 +1543,11 @@ asked to select two buffers."
         (split-window-vertically)
       (split-window-horizontally))
     (switch-to-buffer-other-window buffer-b)
-    (setq vdiff--buffers (list buffer-a buffer-b))
-    (vdiff--with-all-buffers
-     (vdiff-mode 1)))
+    (setq vdiff--temp-session
+          (vdiff--init-session buffer-a buffer-b))
+    (dolist (buf (list buffer-a buffer-b))
+      (with-current-buffer buf
+        (vdiff-mode 1))))
   (vdiff-refresh))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
@@ -1543,12 +1590,15 @@ asked to select two buffers."
    (vdiff-3way-mode 1))
   (vdiff-refresh))
 
+(defvar vdiff-quit-hook nil)
+
 (defun vdiff-quit ()
   "Quit `vdiff-mode' and clean up."
   (interactive)
-  (dolist (buf vdiff--buffers)
+  (dolist (buf (vdiff-session-buffers vdiff--session))
     (with-current-buffer buf
       (vdiff-mode -1)))
+  (run-hooks 'vdiff-quit-hook)
   (message "vdiff exited"))
 
 (defvar vdiff-mode-map
@@ -1590,11 +1640,14 @@ asked to select two buffers."
 (defvar vdiff-scroll-lock-mode)
 
 (defun vdiff--init ()
+  ;; this is a buffer-local var
+  (setq vdiff--session vdiff--temp-session)
   (setq cursor-in-non-selected-windows nil)
   (add-hook 'after-save-hook #'vdiff-refresh nil t)
   (add-hook 'after-change-functions #'vdiff--after-change-function nil t)
   (add-hook 'pre-command-hook #'vdiff--flag-new-command nil t)
-  (setq vdiff--window-configuration (current-window-configuration)))
+  (setf (vdiff-session-window-config vdiff--session)
+        (current-window-configuration)))
 
 (defun vdiff--cleanup ()
   (vdiff--remove-all-overlays)
@@ -1604,14 +1657,14 @@ asked to select two buffers."
   (remove-hook 'pre-command-hook #'vdiff--flag-new-command t)
   (when vdiff-scroll-lock-mode
     (vdiff-scroll-lock-mode -1))
-  (setq vdiff--diff-data nil)
-  (setq vdiff--buffers nil)
-  (setq vdiff--line-maps nil)
-  (setq vdiff--window-configuration nil)
-  (dolist (buf (list vdiff--process-buffer vdiff--word-diff-output-buffer))
+  (dolist (buf (list (vdiff-session-process-buffer
+                      vdiff--session)
+                     (vdiff-session-word-diff-output-buffer
+                      vdiff--session)))
     (when (process-live-p (get-buffer-process buf))
       (kill-process (get-buffer-process buf)))
-    (when (buffer-live-p buf) (kill-buffer buf))))
+    (when (buffer-live-p buf) (kill-buffer buf)))
+  (setq vdiff--session nil))
 
 (define-minor-mode vdiff-mode
   "Minor mode active in a vdiff session involving two
@@ -1657,10 +1710,12 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
          (message "Scrolling unlocked"))))
 
 (defun vdiff--current-case ()
-  (if (string= "" vdiff--case-args) "off" "on (-i)"))
+  (if (string= "" (vdiff-session-case-args vdiff--session))
+      "off"
+    "on (-i)"))
 
 (defun vdiff--current-whitespace ()
-  (pcase vdiff--whitespace-args
+  (pcase (vdiff-session-whitespace-args vdiff--session)
     ("" "off")
     ("-w" "all (-w)")
     ("-b" "space changes (-b)")
