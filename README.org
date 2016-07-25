@@ -21,6 +21,9 @@ buffer to the other. The main features are
 
 vdiff has not been extensively tested yet, so please report any issues you
 find. Contributions and suggestions are very welcome.
+
+** Recent Changes
+  - [2016-07-25] Added three-way diff support. See =vdiff-buffers3= and =vdiff-files3=.
    
 ** Screenshot
 
