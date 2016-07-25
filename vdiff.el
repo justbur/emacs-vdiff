@@ -960,7 +960,7 @@ of a \"word\"."
     (cond ((and (null other-len-1) (null other-len-2))
            (vdiff--add-hunk-overlay this-len t))
           ((null this-len)
-           (vdiff--add-subtraction-overlay other-len-1))
+           (vdiff--add-subtraction-overlay max-other-len))
           (t
            (vdiff--add-hunk-overlay this-len nil
                                     (- max-other-len this-len))))))
