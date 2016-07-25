@@ -1608,10 +1608,10 @@ asked to select two buffers."
   (setq vdiff--buffers nil)
   (setq vdiff--line-maps nil)
   (setq vdiff--window-configuration nil)
-  (when (process-live-p vdiff--process-buffer)
-    (kill-process vdiff--process-buffer))
-  (when (buffer-live-p vdiff--process-buffer)
-    (kill-buffer vdiff--process-buffer)))
+  (dolist (buf (list vdiff--process-buffer vdiff--word-diff-output-buffer))
+    (when (process-live-p (get-buffer-process buf))
+      (kill-process (get-buffer-process buf)))
+    (when (buffer-live-p buf) (kill-buffer buf))))
 
 (define-minor-mode vdiff-mode
   "Minor mode active in a vdiff session involving two
