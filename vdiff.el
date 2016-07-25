@@ -1311,7 +1311,7 @@ buffer)."
 (defun vdiff--flag-new-command ()
   (setq vdiff--new-command t))
 
-(defun vdiff--other-win-scroll-data (window window-start &optional buf-c)
+(defun vdiff--other-win-scroll-data (_window window-start &optional buf-c)
   ;; need other-win, start-pos, pos and scroll-amt
   (let* ((other-buf (nth (if buf-c 1 0) (vdiff--unselected-buffers)))
          (other-win (nth (if buf-c 1 0) (vdiff--unselected-windows)))
