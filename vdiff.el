@@ -167,6 +167,11 @@ indicate the subtraction location in the fringe."
   "Face for word changes within a hunk"
   :group 'vdiff)
 
+(defface vdiff-target-face
+  '((t :inverse-video t :inherit warning))
+  "Face for selecting hunk targets."
+  :group 'vdiff)
+
 (defvar vdiff--force-sync-commands '(next-line
                                      previous-line
                                      beginning-of-buffer
@@ -273,23 +278,52 @@ because those are handled differently.")
 (defun vdiff--other-overlays (ovr)
   (remq ovr (vdiff--all-overlays ovr)))
 
+(defun vdiff--overlay-marker (ovr)
+  (let ((current (eq (current-buffer) (overlay-buffer ovr))))
+    (propertize
+     (format "%s%s\n"
+             (1+
+              (cl-position
+               (overlay-buffer ovr)
+               (vdiff-session-buffers vdiff--session)))
+             (if current " (to all) " ""))
+     'face 'vdiff-target-face)))
+
+(defun vdiff--add-overlay-marker (ovr)
+  (overlay-put ovr 'before-string
+               (concat (vdiff--overlay-marker ovr)
+                       (overlay-get ovr 'before-string))))
+
+(defun vdiff--remove-overlay-marker (ovr)
+  (overlay-put ovr 'before-string
+               (substring
+                (overlay-get ovr 'before-string)
+                (length (vdiff--overlay-marker ovr)))))
+
 (defun vdiff--read-3way-target (ovr &optional just-one)
   (when vdiff-3way-mode
-    (let* ((other-ovrs (vdiff--other-overlays ovr))
-           (choices
-            (mapcar
-             (lambda (ovr)
-               (cons (buffer-name (overlay-buffer ovr))
-                     (list ovr)))
-             other-ovrs)))
-      ;; FIXME: Doesn't quite send correctly
-      (unless just-one
-        (push (cons "all" other-ovrs) choices))
-      (cdr-safe
-       (assoc-string
-        (completing-read "Choose a target buffer(s): "
-                         choices)
-        choices)))))
+    (let* ((all-ovrs (vdiff--all-overlays ovr))
+           (other-ovrs (remq ovr all-ovrs))
+           (this-idx (cl-position (vdiff--overlay-at-pos)
+                                  all-ovrs))
+           (marked-ovrs (if just-one other-ovrs all-ovrs))
+           target)
+      (unwind-protect
+          (progn
+            (mapc #'vdiff--add-overlay-marker marked-ovrs)
+            (setq target (1- (string-to-number
+                              (char-to-string
+                               (read-char "Select target: ")))))
+            (cond ((or (not (member target (list 0 1 2)))
+                       (and just-one (= target this-idx)))
+                   (user-error "Invalid target"))
+                  ((= target this-idx)
+                   (message "all others %s %s" target this-idx)
+                   other-ovrs)
+                  (t
+                   (message "just %s" (nth target all-ovrs))
+                   (list (nth target all-ovrs)))))
+        (mapc #'vdiff--remove-overlay-marker marked-ovrs)))))
 
 (defun vdiff--target-overlays (this-ovr &optional just-one)
   (when (and (overlayp this-ovr)
@@ -1042,9 +1076,9 @@ well. This only returns bounds for `interactive'."
             (point)))))
 
 (defun vdiff-send-changes (beg end &optional receive targets dont-refresh)
-  "Send changes in this hunk to other vdiff buffer. If the region
-is active, send all changes found in the region. Otherwise use
-the hunk under point or on the immediately preceding line."
+  "Send changes in this hunk to another vdiff buffer. If the
+region is active, send all changes found in the region. Otherwise
+use the hunk under point or on the immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
   (let* ((vdiff--inhibit-diff-update t)
          target-ovrs)
@@ -1065,10 +1099,12 @@ the hunk under point or on the immediately preceding line."
       (vdiff--scroll-function))))
 
 (defun vdiff-receive-changes (beg end)
-  "Receive the changes corresponding to this position from the
-other vdiff buffer. If the region is active, receive all
-corresponding changes found in the region. Otherwise use the
-changes under point or on the immediately preceding line."
+  "Receive the changes corresponding to this position from
+another vdiff buffer. This is equivalent to jumping to the
+corresponding buffer and sending from there. If the region is
+active, receive all corresponding changes found in the
+region. Otherwise use the changes under point or on the
+immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
   (vdiff-send-changes beg end t))
 
@@ -1095,7 +1131,7 @@ changes under point or on the immediately preceding line."
 
 (defun vdiff--transmit-subtraction (ovr &optional targets)
   "Same idea as `vdiff--transmit-change' except we are
-just deleting text in the other buffer."
+just deleting text in another buffer."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets
@@ -1226,7 +1262,7 @@ B. Go from buffer B to A if B-to-A is non nil."
     (cons res-1 res-2)))
 
 (defun vdiff-switch-buffer (line)
-  "Jump to the line in the other vdiff buffer that corresponds to
+  "Jump to the line in another vdiff buffer that corresponds to
 the current one."
   (interactive (list (line-number-at-pos)))
   (vdiff-refresh)
@@ -1241,7 +1277,7 @@ the current one."
       (recenter))))
 
 (defun vdiff-sync-and-center ()
-  "Sync point in the other vdiff buffers to the line in this
+  "Sync point in another vdiff buffers to the line in this
 buffer and recenter all buffers."
   (interactive)
   (vdiff--scroll-function)
@@ -1570,25 +1606,47 @@ asked to select two buffers."
    (let* ((buffer-a
            (get-buffer
             (read-buffer
-             "Buffer A: " (current-buffer))))
+             "Buffer 1: " (current-buffer))))
           (buffer-b
            (get-buffer
             (read-buffer
-             (format "[A:%s] Buffer B: " buffer-a)
+             (format "[2:%s] Buffer 3: " buffer-a)
              (window-buffer (next-window (selected-window))))))
           (buffer-c
            (get-buffer
             (read-buffer
-             (format "[A:%s B:%s] Buffer C: " buffer-a buffer-b)
+             (format "[1:%s 2:%s] Buffer 3: " buffer-a buffer-b)
              (window-buffer (next-window (selected-window)))))))
-     (list buffer-a
-           buffer-b
-           buffer-c)))
+     (list buffer-a buffer-b buffer-c)))
   (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
-  (setq vdiff--buffers (list buffer-a buffer-b buffer-c))
-  (vdiff--with-all-buffers
-   (vdiff-3way-mode 1))
+  (setq vdiff--temp-session
+        (vdiff--init-session buffer-a buffer-b buffer-c))
+  (dolist (buf (list buffer-a buffer-b buffer-c))
+    (with-current-buffer buf
+      (vdiff-3way-mode 1)))
   (vdiff-refresh))
+
+;;;###autoload
+(defun vdiff-files3 (file-a file-b file-c)
+  "Start a vdiff session with 3 files. If called interactively,
+you will be asked to select two files."
+  (interactive
+   (let* ((file-a (read-file-name "File 1: "))
+          (default-directory
+            (file-name-directory file-a))
+          (file-b
+           (read-file-name
+            (format "[1:%s] File 2: "
+                    (file-name-nondirectory file-a))))
+          (file-c
+           (read-file-name
+            (format "[1:%s 2:%s] File 3: "
+                    (file-name-nondirectory file-a)
+                    (file-name-nondirectory file-b)))))
+     (list file-a file-b file-c)))
+  (vdiff-buffers3 (find-file-noselect file-a)
+                  (find-file-noselect file-b)
+                  (find-file-noselect file-c)))
 
 (defvar vdiff-quit-hook nil)
 
