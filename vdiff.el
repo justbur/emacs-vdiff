@@ -1585,7 +1585,8 @@ asked to select two buffers."
       (vdiff-mode -1)
       (vdiff-3way-mode -1)
       (vdiff-mode 1)))
-  (vdiff-refresh))
+  (vdiff-refresh)
+  (vdiff-sync-and-center))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
   "Function to layout windows in 3way diffs"
@@ -1626,7 +1627,8 @@ asked to select two buffers."
       (vdiff-mode -1)
       (vdiff-3way-mode -1)
       (vdiff-3way-mode 1)))
-  (vdiff-refresh))
+  (vdiff-refresh)
+  (vdiff-sync-and-center))
 
 ;;;###autoload
 (defun vdiff-files3 (file-a file-b file-c)
