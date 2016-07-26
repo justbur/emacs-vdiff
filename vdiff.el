@@ -793,8 +793,8 @@ of a \"word\"."
 ;; * Add overlays
 
 (defun vdiff--make-subtraction-string (n-lines)
-  (let* ((width (1- (window-width)))
-         (win-height (window-height))
+  (let* ((width (1- (window-width (get-buffer-window (current-buffer)))))
+         (win-height (window-height (get-buffer-window (current-buffer))))
          (max-lines (floor (* 0.7 win-height)))
          (truncate (> n-lines max-lines))
          (trunc-n-lines
