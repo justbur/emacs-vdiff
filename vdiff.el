@@ -222,7 +222,9 @@ because those are handled differently.")
   ;; other
   window-config
   case-args
-  whitespace-args)
+  whitespace-args
+  ;; Quit hook
+  on-quit)
 
 
 ;; * Utilities
@@ -1533,20 +1535,25 @@ with non-nil USE-FOLDS."
         (setq n (1+ n)))
       (format "%s<%d>" name n))))
 
-(defun vdiff--init-session (buffer-a buffer-b &optional buffer-c)
+(defun vdiff--init-session (buffer-a buffer-b &optional buffer-c on-quit)
   (make-vdiff-session
    :buffers (vdiff--non-nil-list buffer-a buffer-b buffer-c)
    :process-buffer (vdiff--unique-buffer-name " *vdiff* ")
    :word-diff-output-buffer (vdiff--unique-buffer-name " *vdiff-word* ")
    :case-args ""
-   :whitespace-args ""))
+   :whitespace-args ""
+   :on-quit on-quit))
 
 ;; * Entry points
 
 ;;;###autoload
-(defun vdiff-files (file-a file-b &optional horizontal)
+(defun vdiff-files (file-a file-b &optional horizontal on-quit)
   "Start a vdiff session. If called interactively, you will be
-asked to select two files."
+asked to select two files. HORIZONTAL adjusts the buffer's
+initial layout. A prefix argument can be used to set this
+variable interactively. ON-QUIT is a function to run on exiting
+the vdiff session. It is called with the two vdiff buffers as
+arguments."
   (interactive
    (let* ((file-a (read-file-name "File 1: "))
           (default-directory
@@ -1559,12 +1566,16 @@ asked to select two files."
       current-prefix-arg)))
   (vdiff-buffers (find-file-noselect file-a)
                  (find-file-noselect file-b)
-                 horizontal))
+                 horizontal on-quit))
 
 ;;;###autoload
-(defun vdiff-buffers (buffer-a buffer-b &optional horizontal)
+(defun vdiff-buffers (buffer-a buffer-b &optional horizontal on-quit)
   "Start a vdiff session. If called interactively, you will be
-asked to select two buffers."
+asked to select two buffers. HORIZONTAL adjusts the buffer's
+initial layout. A prefix argument can be used to set this
+variable interactively. ON-QUIT is a function to run on exiting
+the vdiff session. It is called with the two vdiff buffers as
+arguments."
   (interactive
    (let* ((buffer-a
            (get-buffer
@@ -1585,7 +1596,7 @@ asked to select two buffers."
       (split-window-horizontally))
     (switch-to-buffer-other-window buffer-b))
   (setq vdiff--temp-session
-        (vdiff--init-session buffer-a buffer-b))
+        (vdiff--init-session buffer-a buffer-b nil on-quit))
   (dolist (buf (list buffer-a buffer-b))
     (with-current-buffer buf
       (vdiff-mode -1)
@@ -1606,9 +1617,11 @@ asked to select two buffers."
   (set-window-buffer (split-window-horizontally) buffer-b))
 
 ;;;###autoload
-(defun vdiff-buffers3 (buffer-a buffer-b buffer-c)
+(defun vdiff-buffers3 (buffer-a buffer-b buffer-c &optional on-quit)
   "Start a vdiff session. If called interactively, you will be
-asked to select two buffers."
+asked to select two buffers. ON-QUIT is a function to run on
+exiting the vdiff session. It is called with the three vdiff
+buffers as arguments."
   (interactive
    (let* ((buffer-a
            (get-buffer
@@ -1627,7 +1640,7 @@ asked to select two buffers."
      (list buffer-a buffer-b buffer-c)))
   (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
   (setq vdiff--temp-session
-        (vdiff--init-session buffer-a buffer-b buffer-c))
+        (vdiff--init-session buffer-a buffer-b buffer-c on-quit))
   (dolist (buf (list buffer-a buffer-b buffer-c))
     (with-current-buffer buf
       (vdiff-mode -1)
@@ -1637,7 +1650,7 @@ asked to select two buffers."
   (vdiff-sync-and-center))
 
 ;;;###autoload
-(defun vdiff-files3 (file-a file-b file-c)
+(defun vdiff-files3 (file-a file-b file-c &optional on-quit)
   "Start a vdiff session with 3 files. If called interactively,
 you will be asked to select two files."
   (interactive
@@ -1663,11 +1676,16 @@ you will be asked to select two files."
 (defun vdiff-quit ()
   "Quit `vdiff-mode' and clean up."
   (interactive)
-  (dolist (buf (vdiff-session-buffers vdiff--session))
-    (with-current-buffer buf
-      (vdiff-mode -1)))
-  (run-hooks 'vdiff-quit-hook)
-  (message "vdiff exited"))
+  (if (null vdiff--session)
+      (user-error "Not in a vdiff buffer")
+    (when (functionp (vdiff-session-on-quit vdiff--session))
+      (apply (vdiff-session-on-quit vdiff--session)
+             (vdiff-session-buffers vdiff--session)))
+    (dolist (buf (vdiff-session-buffers vdiff--session))
+      (with-current-buffer buf
+        (vdiff-mode -1)))
+    (run-hooks 'vdiff-quit-hook)
+    (message "vdiff exited")))
 
 (defvar vdiff-mode-map
   (let ((map (make-sparse-keymap)))
