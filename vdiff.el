@@ -1525,20 +1525,11 @@ with non-nil USE-FOLDS."
 
 ;; * Session
 
-;; modified from ediff
-(defun vdiff--unique-buffer-name (name)
-  (if (null (get-buffer name))
-      name
-    (let ((n 2))
-      (while (get-buffer (format "%s<%d>" name n))
-        (setq n (1+ n)))
-      (format "%s<%d>" name n))))
-
 (defun vdiff--init-session (buffer-a buffer-b &optional buffer-c on-quit)
   (make-vdiff-session
    :buffers (vdiff--non-nil-list buffer-a buffer-b buffer-c)
-   :process-buffer (vdiff--unique-buffer-name " *vdiff* ")
-   :word-diff-output-buffer (vdiff--unique-buffer-name " *vdiff-word* ")
+   :process-buffer (generate-new-buffer-name " *vdiff* ")
+   :word-diff-output-buffer (generate-new-buffer-name " *vdiff-word* ")
    :case-args ""
    :whitespace-args ""
    :on-quit on-quit))
