@@ -1682,7 +1682,9 @@ you will be asked to select two files."
              (vdiff-session-buffers vdiff--session)))
     (dolist (buf (vdiff-session-buffers vdiff--session))
       (with-current-buffer buf
-        (vdiff-mode -1)))
+        (if vdiff-3way-mode
+            (vdiff-3way-mode -1)
+          (vdiff-mode -1))))
     (run-hooks 'vdiff-quit-hook)
     (message "vdiff exited")))
 
