@@ -1583,14 +1583,14 @@ asked to select two buffers."
     (if horizontal
         (split-window-vertically)
       (split-window-horizontally))
-    (switch-to-buffer-other-window buffer-b)
-    (setq vdiff--temp-session
-          (vdiff--init-session buffer-a buffer-b))
-    (dolist (buf (list buffer-a buffer-b))
-      (with-current-buffer buf
-        (vdiff-mode -1)
-        (vdiff-3way-mode -1)
-        (vdiff-mode 1))))
+    (switch-to-buffer-other-window buffer-b))
+  (setq vdiff--temp-session
+        (vdiff--init-session buffer-a buffer-b))
+  (dolist (buf (list buffer-a buffer-b))
+    (with-current-buffer buf
+      (vdiff-mode -1)
+      (vdiff-3way-mode -1)
+      (vdiff-mode 1)))
   (vdiff-refresh))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
