@@ -342,12 +342,6 @@ because those are handled differently.")
             (t
              (remq this-ovr other-ovrs))))))
 
-(defun vdiff--min-window-width ()
-  (apply #'min
-         (mapcar (lambda (buf)
-                   (window-width (get-buffer-window buf)))
-                 (vdiff-session-buffers vdiff--session))))
-
 (defun vdiff--move-to-line (n)
   (goto-char (point-min))
   (forward-line (1- n)))
@@ -795,7 +789,7 @@ of a \"word\"."
 ;; * Add overlays
 
 (defun vdiff--make-subtraction-string (n-lines)
-  (let* ((width (1- (vdiff--min-window-width)))
+  (let* ((width (1- (window-width)))
          (win-height (window-height))
          (max-lines (floor (* 0.7 win-height)))
          (truncate (> n-lines max-lines))
@@ -885,7 +879,8 @@ of a \"word\"."
             (propertize (funcall vdiff-fold-string-function
                                  (- end-line beg-line)
                                  first-line-text
-                                 (vdiff--min-window-width))
+                                 (window-width
+                                  (get-buffer-window buffer)))
                         'face 'vdiff-closed-fold-face)))
       (overlay-put ovr 'face 'vdiff-open-fold-face)
       (overlay-put ovr 'vdiff-fold-text text)
