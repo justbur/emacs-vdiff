@@ -1578,7 +1578,6 @@ asked to select two buffers."
       current-prefix-arg)))
   (delete-other-windows)
   (switch-to-buffer buffer-a)
-  (goto-char (point-min))
   (save-selected-window
     (if horizontal
         (split-window-vertically)
@@ -1601,7 +1600,6 @@ asked to select two buffers."
 (defun vdiff-3way-layout-function-default (buffer-a buffer-b buffer-c)
   (delete-other-windows)
   (switch-to-buffer buffer-a)
-  (goto-char (point-min))
   (set-window-buffer (split-window-vertically) buffer-c)
   (set-window-buffer (split-window-horizontally) buffer-b))
 
