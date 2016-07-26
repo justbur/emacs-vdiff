@@ -309,8 +309,7 @@ because those are handled differently.")
   (when vdiff-3way-mode
     (let* ((all-ovrs (vdiff--all-overlays ovr))
            (other-ovrs (remq ovr all-ovrs))
-           (this-idx (cl-position (vdiff--overlay-at-pos)
-                                  all-ovrs))
+           (this-idx (cl-position ovr all-ovrs))
            (marked-ovrs (if just-one other-ovrs all-ovrs))
            target)
       (unwind-protect
