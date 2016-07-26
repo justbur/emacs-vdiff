@@ -573,8 +573,9 @@ parsing the diff output and triggering the overlay updates."
 
 (defun vdiff--remove-all-overlays ()
   "Remove all vdiff overlays in both vdiff buffers."
-  (vdiff--with-all-buffers
-   (remove-overlays (point-min) (point-max) 'vdiff t)))
+  (when (vdiff--buffer-p)
+    (vdiff--with-all-buffers
+     (remove-overlays (point-min) (point-max) 'vdiff t))))
 
 (defun vdiff-save-buffers ()
   "Save all vdiff buffers."
@@ -967,92 +968,93 @@ of a \"word\"."
 
 (defun vdiff--refresh-overlays ()
   "Delete and recreate overlays in both buffers."
-  (vdiff--remove-all-overlays)
-  (let ((a-buffer (car (vdiff-session-buffers vdiff--session)))
-        (b-buffer (cadr (vdiff-session-buffers vdiff--session)))
-        (c-buffer (nth 2 (vdiff-session-buffers vdiff--session)))
-        (a-line 1)
-        (b-line 1)
-        (c-line 1)
-        (a-last-post 1)
-        (b-last-post 1)
-        (c-last-post 1)
-        (vdiff--inhibit-diff-update t)
-        folds)
-    (save-excursion
-      (with-current-buffer a-buffer
-        (widen)
-        (goto-char (point-min)))
-      (with-current-buffer b-buffer
-        (widen)
-        (goto-char (point-min)))
-      (when c-buffer
-        (with-current-buffer c-buffer
+  (when (vdiff--buffer-p)
+    (vdiff--remove-all-overlays)
+    (let ((a-buffer (car (vdiff-session-buffers vdiff--session)))
+          (b-buffer (cadr (vdiff-session-buffers vdiff--session)))
+          (c-buffer (nth 2 (vdiff-session-buffers vdiff--session)))
+          (a-line 1)
+          (b-line 1)
+          (c-line 1)
+          (a-last-post 1)
+          (b-last-post 1)
+          (c-last-post 1)
+          (vdiff--inhibit-diff-update t)
+          folds)
+      (save-excursion
+        (with-current-buffer a-buffer
           (widen)
-          (goto-char (point-min))))
-      (dolist (hunk (vdiff-session-diff-data vdiff--session))
-        (let* ((a-range (nth 0 hunk))
-               (b-range (nth 1 hunk))
-               (c-range (nth 2 hunk))
-               (a-beg (car a-range))
-               (a-end (cdr a-range))
-               (a-post (if a-end (1+ a-end) a-beg))
-               (a-len (when a-end (1+ (- a-end a-beg))))
-               (b-beg (car b-range))
-               (b-end (cdr b-range))
-               (b-post (if b-end (1+ b-end) b-beg))
-               (b-len (when b-end (1+ (- b-end b-beg))))
-               c-beg c-end c-post c-len)
-          (when c-buffer
-            (setq c-beg (car c-range))
-            (setq c-end (cdr c-range))
-            (setq c-post (if c-end (1+ c-end) c-beg))
-            (setq c-len (when c-end (1+ (- c-end c-beg)))))
-
-          (push (list (cons a-last-post (1- a-beg))
-                      (cons b-last-post (1- b-beg))
-                      (when c-beg
-                        (cons c-last-post (1- c-beg))))
-                folds)
-          (setq a-last-post a-post)
-          (setq b-last-post b-post)
-          (when c-buffer
-            (setq c-last-post c-post))
-
-          (let (ovr-a ovr-b ovr-c)
-            (with-current-buffer a-buffer
-              (forward-line (- a-beg a-line))
-              (setq a-line a-beg)
-              (setq ovr-a (vdiff--add-diff-overlay a-len b-len c-len)))
-            (with-current-buffer b-buffer
-              (forward-line (- b-beg b-line))
-              (setq b-line b-beg)
-              (setq ovr-b (vdiff--add-diff-overlay b-len a-len c-len)))
+          (goto-char (point-min)))
+        (with-current-buffer b-buffer
+          (widen)
+          (goto-char (point-min)))
+        (when c-buffer
+          (with-current-buffer c-buffer
+            (widen)
+            (goto-char (point-min))))
+        (dolist (hunk (vdiff-session-diff-data vdiff--session))
+          (let* ((a-range (nth 0 hunk))
+                 (b-range (nth 1 hunk))
+                 (c-range (nth 2 hunk))
+                 (a-beg (car a-range))
+                 (a-end (cdr a-range))
+                 (a-post (if a-end (1+ a-end) a-beg))
+                 (a-len (when a-end (1+ (- a-end a-beg))))
+                 (b-beg (car b-range))
+                 (b-end (cdr b-range))
+                 (b-post (if b-end (1+ b-end) b-beg))
+                 (b-len (when b-end (1+ (- b-end b-beg))))
+                 c-beg c-end c-post c-len)
             (when c-buffer
-              (with-current-buffer c-buffer
-                (forward-line (- c-beg c-line))
-                (setq c-line c-beg)
-                (setq ovr-c (vdiff--add-diff-overlay c-len a-len b-len))))
-            (let ((ovr-group (vdiff--non-nil-list ovr-a ovr-b ovr-c)))
-              (overlay-put ovr-a 'vdiff-a t)
-              (overlay-put ovr-a 'vdiff-hunk-overlays ovr-group)
-              (overlay-put ovr-b 'vdiff-b t)
-              (overlay-put ovr-b 'vdiff-hunk-overlays ovr-group)
+              (setq c-beg (car c-range))
+              (setq c-end (cdr c-range))
+              (setq c-post (if c-end (1+ c-end) c-beg))
+              (setq c-len (when c-end (1+ (- c-end c-beg)))))
+
+            (push (list (cons a-last-post (1- a-beg))
+                        (cons b-last-post (1- b-beg))
+                        (when c-beg
+                          (cons c-last-post (1- c-beg))))
+                  folds)
+            (setq a-last-post a-post)
+            (setq b-last-post b-post)
+            (when c-buffer
+              (setq c-last-post c-post))
+
+            (let (ovr-a ovr-b ovr-c)
+              (with-current-buffer a-buffer
+                (forward-line (- a-beg a-line))
+                (setq a-line a-beg)
+                (setq ovr-a (vdiff--add-diff-overlay a-len b-len c-len)))
+              (with-current-buffer b-buffer
+                (forward-line (- b-beg b-line))
+                (setq b-line b-beg)
+                (setq ovr-b (vdiff--add-diff-overlay b-len a-len c-len)))
               (when c-buffer
-                (overlay-put ovr-c 'vdiff-c t)
-                (overlay-put ovr-c 'vdiff-hunk-overlays ovr-group))))))
-      (push (list (cons a-last-post
-                        (with-current-buffer a-buffer
-                          (line-number-at-pos (point-max))))
-                  (cons b-last-post
-                        (with-current-buffer b-buffer
-                          (line-number-at-pos (point-max))))
-                  (when c-buffer
-                    (cons c-last-post
-                          (with-current-buffer c-buffer
-                            (line-number-at-pos (point-max))))))
-            folds))
-    (vdiff--add-folds a-buffer b-buffer c-buffer folds)))
+                (with-current-buffer c-buffer
+                  (forward-line (- c-beg c-line))
+                  (setq c-line c-beg)
+                  (setq ovr-c (vdiff--add-diff-overlay c-len a-len b-len))))
+              (let ((ovr-group (vdiff--non-nil-list ovr-a ovr-b ovr-c)))
+                (overlay-put ovr-a 'vdiff-a t)
+                (overlay-put ovr-a 'vdiff-hunk-overlays ovr-group)
+                (overlay-put ovr-b 'vdiff-b t)
+                (overlay-put ovr-b 'vdiff-hunk-overlays ovr-group)
+                (when c-buffer
+                  (overlay-put ovr-c 'vdiff-c t)
+                  (overlay-put ovr-c 'vdiff-hunk-overlays ovr-group))))))
+        (push (list (cons a-last-post
+                          (with-current-buffer a-buffer
+                            (line-number-at-pos (point-max))))
+                    (cons b-last-post
+                          (with-current-buffer b-buffer
+                            (line-number-at-pos (point-max))))
+                    (when c-buffer
+                      (cons c-last-post
+                            (with-current-buffer c-buffer
+                              (line-number-at-pos (point-max))))))
+              folds))
+      (vdiff--add-folds a-buffer b-buffer c-buffer folds))))
 
 ;; * Send/Receive changes
 
@@ -1183,49 +1185,50 @@ just deleting text in another buffer."
 (defun vdiff--refresh-line-maps ()
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
-  (let ((vdiff--inhibit-diff-update t)
-        (a-b (list (list 0 0 0)))
-        (b-a (list (list 0 0 0)))
-        (a-c (list (list 0 0 0)))
-        (c-a (list (list 0 0 0)))
-        (b-c (list (list 0 0 0)))
-        (c-b (list (list 0 0 0))))
-    (dolist (hunk (vdiff-session-diff-data vdiff--session))
-      (let* ((a-lines (nth 0 hunk))
-             (a-beg (car a-lines))
-             (a-prior (1- a-beg))
-             (a-end (cdr a-lines))
-             (a-post (if a-end (1+ a-end) a-beg))
-             (b-lines (nth 1 hunk))
-             (b-beg (car b-lines))
-             (b-prior (1- b-beg))
-             (b-end (cdr b-lines))
-             (b-post (if b-end (1+ b-end) b-beg))
-             (c-lines (nth 2 hunk)))
-        (let ((new-a-b
-               (vdiff--2way-entries a-prior a-end a-post b-prior b-end b-post)))
-          (setq a-b (nconc a-b (car new-a-b)))
-          (setq b-a (nconc b-a (cdr new-a-b)))
-          (when c-lines
-            (let* ((c-beg (car c-lines))
-                   (c-prior (1- c-beg))
-                   (c-end (cdr c-lines))
-                   (c-post (if c-end (1+ c-end) c-beg))
-                   (new-a-c
-                    (vdiff--2way-entries a-prior a-end a-post c-prior c-end c-post))
-                   (new-b-c
-                    (vdiff--2way-entries b-prior b-end b-post c-prior c-end c-post)))
-              (setq a-c (nconc a-c (car new-a-c)))
-              (setq c-a (nconc c-a (cdr new-a-c)))
-              (setq b-c (nconc b-c (car new-b-c)))
-              (setq c-b (nconc c-b (cdr new-b-c))))))))
-    (setf (vdiff-session-line-maps vdiff--session)
-          (if vdiff-3way-mode
-              (list (list 'a a-b a-c)
-                    (list 'b b-a b-c)
-                    (list 'c c-a c-b))
-            (list (list 'a a-b)
-                  (list 'b b-a))))))
+  (when (vdiff--buffer-p)
+    (let ((vdiff--inhibit-diff-update t)
+          (a-b (list (list 0 0 0)))
+          (b-a (list (list 0 0 0)))
+          (a-c (list (list 0 0 0)))
+          (c-a (list (list 0 0 0)))
+          (b-c (list (list 0 0 0)))
+          (c-b (list (list 0 0 0))))
+      (dolist (hunk (vdiff-session-diff-data vdiff--session))
+        (let* ((a-lines (nth 0 hunk))
+               (a-beg (car a-lines))
+               (a-prior (1- a-beg))
+               (a-end (cdr a-lines))
+               (a-post (if a-end (1+ a-end) a-beg))
+               (b-lines (nth 1 hunk))
+               (b-beg (car b-lines))
+               (b-prior (1- b-beg))
+               (b-end (cdr b-lines))
+               (b-post (if b-end (1+ b-end) b-beg))
+               (c-lines (nth 2 hunk)))
+          (let ((new-a-b
+                 (vdiff--2way-entries a-prior a-end a-post b-prior b-end b-post)))
+            (setq a-b (nconc a-b (car new-a-b)))
+            (setq b-a (nconc b-a (cdr new-a-b)))
+            (when c-lines
+              (let* ((c-beg (car c-lines))
+                     (c-prior (1- c-beg))
+                     (c-end (cdr c-lines))
+                     (c-post (if c-end (1+ c-end) c-beg))
+                     (new-a-c
+                      (vdiff--2way-entries a-prior a-end a-post c-prior c-end c-post))
+                     (new-b-c
+                      (vdiff--2way-entries b-prior b-end b-post c-prior c-end c-post)))
+                (setq a-c (nconc a-c (car new-a-c)))
+                (setq c-a (nconc c-a (cdr new-a-c)))
+                (setq b-c (nconc b-c (car new-b-c)))
+                (setq c-b (nconc c-b (cdr new-b-c))))))))
+      (setf (vdiff-session-line-maps vdiff--session)
+            (if vdiff-3way-mode
+                (list (list 'a a-b a-c)
+                      (list 'b b-a b-c)
+                      (list 'c c-a c-b))
+              (list (list 'a a-b)
+                    (list 'b b-a)))))))
 
 (defun vdiff--translate-line (line &optional from-buffer)
   "Translate LINE in buffer A to corresponding line in buffer
@@ -1379,14 +1382,15 @@ buffer)."
 ;;         (vdiff--scroll-function)))))
 
 (defun vdiff--after-change-function (&rest _)
-  (unless (vdiff-session-diff-stale vdiff--session)
-    (setf (vdiff-session-diff-stale vdiff--session) t)
-    (when (timerp vdiff--after-change-timer)
-      (cancel-timer vdiff--after-change-timer))
-    (setq vdiff--after-change-timer
-          (run-with-idle-timer
-           vdiff--after-change-refresh-delay
-           nil #'vdiff-refresh))))
+  (when (vdiff--buffer-p)
+    (unless (vdiff-session-diff-stale vdiff--session)
+      (setf (vdiff-session-diff-stale vdiff--session) t)
+      (when (timerp vdiff--after-change-timer)
+        (cancel-timer vdiff--after-change-timer))
+      (setq vdiff--after-change-timer
+            (run-with-idle-timer
+             vdiff--after-change-refresh-delay
+             nil #'vdiff-refresh)))))
 
 (defun vdiff--set-open-fold-props (ovr)
   "Set overlay properties to open fold OVR."
@@ -1584,6 +1588,8 @@ asked to select two buffers."
           (vdiff--init-session buffer-a buffer-b))
     (dolist (buf (list buffer-a buffer-b))
       (with-current-buffer buf
+        (vdiff-mode -1)
+        (vdiff-3way-mode -1)
         (vdiff-mode 1))))
   (vdiff-refresh))
 
@@ -1624,6 +1630,8 @@ asked to select two buffers."
         (vdiff--init-session buffer-a buffer-b buffer-c))
   (dolist (buf (list buffer-a buffer-b buffer-c))
     (with-current-buffer buf
+      (vdiff-mode -1)
+      (vdiff-3way-mode -1)
       (vdiff-3way-mode 1)))
   (vdiff-refresh))
 
@@ -1716,13 +1724,14 @@ you will be asked to select two files."
   (remove-hook 'pre-command-hook #'vdiff--flag-new-command t)
   (when vdiff-scroll-lock-mode
     (vdiff-scroll-lock-mode -1))
-  (dolist (buf (list (vdiff-session-process-buffer
-                      vdiff--session)
-                     (vdiff-session-word-diff-output-buffer
-                      vdiff--session)))
-    (when (process-live-p (get-buffer-process buf))
-      (kill-process (get-buffer-process buf)))
-    (when (buffer-live-p buf) (kill-buffer buf)))
+  (when vdiff--session
+    (dolist (buf (list (vdiff-session-process-buffer
+                        vdiff--session)
+                       (vdiff-session-word-diff-output-buffer
+                        vdiff--session)))
+      (when (process-live-p (get-buffer-process buf))
+        (kill-process (get-buffer-process buf)))
+      (when (buffer-live-p buf) (kill-buffer buf))))
   (setq vdiff--session nil))
 
 (define-minor-mode vdiff-mode
