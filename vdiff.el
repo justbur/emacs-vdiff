@@ -1353,7 +1353,9 @@ buffer)."
              (vdiff--in-scroll-hook t))
         (when (and 2-pos 2-start-pos)
           (set-window-point 2-win 2-pos)
-          (set-window-start 2-win 2-start-pos)
+          ;; For some reason without this unless the vscroll gets eff'd
+          (unless (= (window-start 2-win) 2-start-pos)
+            (set-window-start 2-win 2-start-pos))
           (vdiff--set-vscroll-and-force-update 2-win 2-scroll))
         (when vdiff-3way-mode
           (let*
