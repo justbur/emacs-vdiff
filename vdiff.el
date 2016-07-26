@@ -54,6 +54,9 @@
 (require 'diff-mode)
 (require 'hydra)
 
+(defvar vdiff-mode)
+(defvar vdiff-3way-mode)
+
 (defgroup vdiff nil
   "Diff tool that is like vimdiff"
   :tag "Vdiff"
@@ -192,7 +195,7 @@ because those are handled differently.")
 (defvar vdiff--after-change-timer nil)
 (defvar vdiff--after-change-refresh-delay 1)
 (defvar vdiff--new-command nil)
-;; (defvar vdiff--last-command nil)
+(defvar vdiff--last-command nil)
 (defvar vdiff--case-options
   '(("Don't ignore case" . "")
     ("Ignore case (-i)" . "-i")))
@@ -613,7 +616,8 @@ parsing the diff output and triggering the overlay updates."
            (tmp-file-a (make-temp-file "vdiff-word-a-"))
            (tmp-file-b (make-temp-file "vdiff-word-b-"))
            (out-buffer (get-buffer-create
-                        vdiff--word-diff-output-buffer))
+                        (vdiff-session-word-diff-output-buffer
+                         vdiff--session)))
            (a-result '())
            (b-result '()))
       (write-region a-words nil tmp-file-a nil 'quietly)
