@@ -223,8 +223,10 @@ because those are handled differently.")
   window-config
   case-args
   whitespace-args
-  ;; Quit hook
-  on-quit)
+  ;; Quit hooks
+  on-quit
+  prior-window-config
+  kill-buffers-on-quit)
 
 
 ;; * Utilities
@@ -1525,14 +1527,18 @@ with non-nil USE-FOLDS."
 
 ;; * Session
 
-(defun vdiff--init-session (buffer-a buffer-b &optional buffer-c on-quit)
+(defun vdiff--init-session
+    (buffer-a buffer-b
+     &optional buffer-c on-quit prior-window-config kill-buffers-on-quit)
   (make-vdiff-session
    :buffers (vdiff--non-nil-list buffer-a buffer-b buffer-c)
    :process-buffer (generate-new-buffer-name " *vdiff* ")
    :word-diff-output-buffer (generate-new-buffer-name " *vdiff-word* ")
    :case-args ""
    :whitespace-args ""
-   :on-quit on-quit))
+   :prior-window-config prior-window-config
+   :on-quit on-quit
+   :kill-buffers-on-quit kill-buffers-on-quit))
 
 ;; * Entry points
 
@@ -1559,13 +1565,19 @@ arguments."
                  horizontal on-quit))
 
 ;;;###autoload
-(defun vdiff-buffers (buffer-a buffer-b &optional horizontal on-quit)
+(defun vdiff-buffers
+    (buffer-a buffer-b
+     &optional horizontal on-quit restore-windows-on-quit kill-buffers-on-quit)
   "Start a vdiff session. If called interactively, you will be
 asked to select two buffers. HORIZONTAL adjusts the buffer's
 initial layout. A prefix argument can be used to set this
 variable interactively. ON-QUIT is a function to run on exiting
 the vdiff session. It is called with the two vdiff buffers as
-arguments."
+arguments. The last two options, RESTORE-WINDOWS-ON-QUIT and
+KILL-BUFFERS-ON-QUIT restore the previous window configuration
+and kill the vdiff buffers after quitting vdiff. Note that if you
+are going to kill the buffers you should probably be using a
+function for ON-QUIT to do something useful with the result."
   (interactive
    (let* ((buffer-a
            (get-buffer
@@ -1578,22 +1590,28 @@ arguments."
         (format "[Buffer 1 %s] Buffer 2: " buffer-a)
         (window-buffer (next-window (selected-window)))))
       current-prefix-arg)))
-  (delete-other-windows)
-  (switch-to-buffer buffer-a)
-  (save-selected-window
-    (if horizontal
-        (split-window-vertically)
-      (split-window-horizontally))
-    (switch-to-buffer-other-window buffer-b))
-  (setq vdiff--temp-session
-        (vdiff--init-session buffer-a buffer-b nil on-quit))
-  (dolist (buf (list buffer-a buffer-b))
-    (with-current-buffer buf
-      (vdiff-mode -1)
-      (vdiff-3way-mode -1)
-      (vdiff-mode 1)))
-  (vdiff-refresh)
-  (vdiff-sync-and-center))
+  (let ((prior-window-config (when restore-windows-on-quit
+                               (current-window-configuration)))
+        (buffer-a (get-buffer buffer-a))
+        (buffer-b (get-buffer buffer-b)))
+    (delete-other-windows)
+    (switch-to-buffer buffer-a)
+    (save-selected-window
+      (if horizontal
+          (split-window-vertically)
+        (split-window-horizontally))
+      (switch-to-buffer-other-window buffer-b))
+    (setq vdiff--temp-session
+          (vdiff--init-session
+           buffer-a buffer-b nil
+           on-quit prior-window-config kill-buffers-on-quit))
+    (dolist (buf (list buffer-a buffer-b))
+      (with-current-buffer buf
+        (vdiff-mode -1)
+        (vdiff-3way-mode -1)
+        (vdiff-mode 1)))
+    (vdiff-refresh)
+    (vdiff-sync-and-center)))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
   "Function to layout windows in 3way diffs"
@@ -1607,11 +1625,17 @@ arguments."
   (set-window-buffer (split-window-horizontally) buffer-b))
 
 ;;;###autoload
-(defun vdiff-buffers3 (buffer-a buffer-b buffer-c &optional on-quit)
+(defun vdiff-buffers3
+    (buffer-a buffer-b buffer-c
+     &optional on-quit restore-windows-on-quit kill-buffers-on-quit)
   "Start a vdiff session. If called interactively, you will be
 asked to select two buffers. ON-QUIT is a function to run on
 exiting the vdiff session. It is called with the three vdiff
-buffers as arguments."
+buffers as arguments. The last two options, RESTORE-WINDOWS-ON-QUIT and
+KILL-BUFFERS-ON-QUIT restore the previous window configuration
+and kill the vdiff buffers after quitting vdiff. Note that if you
+are going to kill the buffers you should probably be using a
+function for ON-QUIT to do something useful with the result."
   (interactive
    (let* ((buffer-a
            (get-buffer
@@ -1628,16 +1652,23 @@ buffers as arguments."
              (format "[1:%s 2:%s] Buffer 3: " buffer-a buffer-b)
              (window-buffer (next-window (selected-window)))))))
      (list buffer-a buffer-b buffer-c)))
-  (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
-  (setq vdiff--temp-session
-        (vdiff--init-session buffer-a buffer-b buffer-c on-quit))
-  (dolist (buf (list buffer-a buffer-b buffer-c))
-    (with-current-buffer buf
-      (vdiff-mode -1)
-      (vdiff-3way-mode -1)
-      (vdiff-3way-mode 1)))
-  (vdiff-refresh)
-  (vdiff-sync-and-center))
+  (let ((prior-window-config (when restore-windows-on-quit
+                               (current-window-configuration)))
+        (buffer-a (get-buffer buffer-a))
+        (buffer-b (get-buffer buffer-b))
+        (buffer-c (get-buffer buffer-c)))
+    (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
+    (setq vdiff--temp-session
+          (vdiff--init-session
+           buffer-a buffer-b buffer-c
+           on-quit prior-window-config kill-buffers-on-quit))
+    (dolist (buf (list buffer-a buffer-b buffer-c))
+      (with-current-buffer buf
+        (vdiff-mode -1)
+        (vdiff-3way-mode -1)
+        (vdiff-3way-mode 1)))
+    (vdiff-refresh)
+    (vdiff-sync-and-center)))
 
 ;;;###autoload
 (defun vdiff-files3 (file-a file-b file-c &optional on-quit)
@@ -1659,24 +1690,39 @@ you will be asked to select two files."
      (list file-a file-b file-c)))
   (vdiff-buffers3 (find-file-noselect file-a)
                   (find-file-noselect file-b)
-                  (find-file-noselect file-c)))
+                  (find-file-noselect file-c)
+                  on-quit))
 
-(defvar vdiff-quit-hook nil)
+;; (defvar vdiff-quit-hook nil)
 
 (defun vdiff-quit ()
   "Quit `vdiff-mode' and clean up."
   (interactive)
   (if (null vdiff--session)
       (user-error "Not in a vdiff buffer")
-    (when (functionp (vdiff-session-on-quit vdiff--session))
-      (apply (vdiff-session-on-quit vdiff--session)
-             (vdiff-session-buffers vdiff--session)))
-    (dolist (buf (vdiff-session-buffers vdiff--session))
-      (with-current-buffer buf
-        (if vdiff-3way-mode
-            (vdiff-3way-mode -1)
-          (vdiff-mode -1))))
-    (run-hooks 'vdiff-quit-hook)
+    (let ((ses vdiff--session))
+      (when (functionp (vdiff-session-on-quit ses))
+        (apply (vdiff-session-on-quit ses)
+               (vdiff-session-buffers ses)))
+      (dolist (buf (list (vdiff-session-process-buffer
+                          ses)
+                         (vdiff-session-word-diff-output-buffer
+                          ses)))
+        (when (process-live-p (get-buffer-process buf))
+          (kill-process (get-buffer-process buf)))
+        (when (buffer-live-p buf) (kill-buffer buf)))
+      (dolist (buf (vdiff-session-buffers ses))
+        (with-current-buffer buf
+          (if vdiff-3way-mode
+              (vdiff-3way-mode -1)
+            (vdiff-mode -1)))
+        (when (vdiff-session-kill-buffers-on-quit ses)
+          (kill-buffer buf)))
+      ;; (run-hooks 'vdiff-quit-hook)
+      (when (vdiff-session-prior-window-config ses)
+        (set-window-configuration
+         (vdiff-session-prior-window-config ses))))
+    (setq vdiff--session nil)
     (message "vdiff exited")))
 
 (defvar vdiff-mode-map
@@ -1717,7 +1763,7 @@ you will be asked to select two files."
 
 (defvar vdiff-scroll-lock-mode)
 
-(defun vdiff--init ()
+(defun vdiff--buffer-init ()
   ;; this is a buffer-local var
   (setq vdiff--session vdiff--temp-session)
   (setq cursor-in-non-selected-windows nil)
@@ -1727,23 +1773,14 @@ you will be asked to select two files."
   (setf (vdiff-session-window-config vdiff--session)
         (current-window-configuration)))
 
-(defun vdiff--cleanup ()
+(defun vdiff--buffer-cleanup ()
   (vdiff--remove-all-overlays)
   (setq cursor-in-non-selected-windows t)
   (remove-hook 'after-save-hook #'vdiff-refresh t)
   (remove-hook 'after-change-functions #'vdiff--after-change-function t)
   (remove-hook 'pre-command-hook #'vdiff--flag-new-command t)
   (when vdiff-scroll-lock-mode
-    (vdiff-scroll-lock-mode -1))
-  (when vdiff--session
-    (dolist (buf (list (vdiff-session-process-buffer
-                        vdiff--session)
-                       (vdiff-session-word-diff-output-buffer
-                        vdiff--session)))
-      (when (process-live-p (get-buffer-process buf))
-        (kill-process (get-buffer-process buf)))
-      (when (buffer-live-p buf) (kill-buffer buf))))
-  (setq vdiff--session nil))
+    (vdiff-scroll-lock-mode -1)))
 
 (define-minor-mode vdiff-mode
   "Minor mode active in a vdiff session involving two
@@ -1753,11 +1790,11 @@ automatically after calling commands like `vdiff-files' or
 `vdiff-buffers'."
   nil " vdiff" 'vdiff-mode-map
   (cond (vdiff-mode
-         (vdiff--init)
+         (vdiff--buffer-init)
          (when vdiff-lock-scrolling
            (vdiff-scroll-lock-mode 1)))
         (t
-         (vdiff--cleanup))))
+         (vdiff--buffer-cleanup))))
 
 (define-minor-mode vdiff-3way-mode
   "Minor mode active in a vdiff session involving three
@@ -1767,11 +1804,11 @@ automatically after calling commands like `vdiff-files3' or
 `vdiff-buffers3'."
   nil " vdiff3" 'vdiff-3way-mode-map
   (cond (vdiff-3way-mode
-         (vdiff--init)
+         (vdiff--buffer-init)
          (when vdiff-lock-scrolling
            (vdiff-scroll-lock-mode 1)))
         (t
-         (vdiff--cleanup))))
+         (vdiff--buffer-cleanup))))
 
 (define-minor-mode vdiff-scroll-lock-mode
   "Lock scrolling between vdiff buffers. This minor mode will be
