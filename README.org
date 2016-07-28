@@ -27,7 +27,7 @@ find. Contributions and suggestions are very welcome.
    
 ** Screenshot
 
-*** Basic two file diff
+*** Basic two file diff with refined hunks
 [[./img/leuven.png]]
 
 *** Three file diff with targets for sending changes
