@@ -116,7 +116,12 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
 (defcustom vdiff-auto-refine nil
   "If non-nil, automatically refine all hunks."
   :group 'vdiff
-  :type 'bool)
+  :type 'boolean)
+
+(defcustom vdiff-may-close-fold-on-point t
+  "If non-nil, avoid closing new folds around point."
+  :group 'vdiff
+  :type 'boolean)
 
 (defcustom vdiff-subtraction-style 'full
   "How to represent subtractions (i.e., deleted lines). The
@@ -907,17 +912,21 @@ of a \"word\"."
        (<= (point) (overlay-end fold))))
 
 (defun vdiff--add-folds (a-buffer b-buffer c-buffer folds)
-  (let (new-folds)
+  (let ((ses vdiff--session))
     (dolist (fold folds)
-      (let ((a-range (vdiff--narrow-fold-range (nth 0 fold)))
-            (b-range (vdiff--narrow-fold-range (nth 1 fold)))
-            (c-range (when c-buffer
-                       (vdiff--narrow-fold-range (nth 2 fold)))))
+      (let* ((a-range (vdiff--narrow-fold-range (nth 0 fold)))
+             (b-range (vdiff--narrow-fold-range (nth 1 fold)))
+             (c-range (when c-buffer
+                        (vdiff--narrow-fold-range (nth 2 fold))))
+             (fold-sig (list a-range b-range c-range)))
         (cond
-         ;; ((assoc a-range vdiff--folds)
-         ;;  ;; Restore any overlays on same range
-         ;;  (let* ((a-fold (cadr (assoc a-range vdiff--folds)))
-         ;;         (b-fold (cl-caddr (assoc a-range vdiff--folds)))
+         ;; ((gethash fold-sig (vdiff-session-folds ses) nil)
+         ;;  ;; Restore any overlays on same ranges
+         ;;  (let* ((old-folds (gethash fold-sig
+         ;;                             (vdiff-session-folds ses)))
+         ;;         (a-fold (car old-folds))
+         ;;         (b-fold (cadr old-folds))
+         ;;         (c-fold (nth 2 old-folds))
          ;;         (a-beg (vdiff--pos-at-line-beginning
          ;;                 (car a-range) a-buffer))
          ;;         (a-end (vdiff--pos-at-line-beginning
@@ -925,10 +934,19 @@ of a \"word\"."
          ;;         (b-beg (vdiff--pos-at-line-beginning
          ;;                 (car b-range) b-buffer))
          ;;         (b-end (vdiff--pos-at-line-beginning
-         ;;                 (cdr b-range) b-buffer)))
+         ;;                 (cdr b-range) b-buffer))
+         ;;         c-beg c-end)
          ;;    (move-overlay a-fold a-beg a-end a-buffer)
          ;;    (move-overlay b-fold b-beg b-end b-buffer)
-         ;;    (push (list a-range a-fold b-fold) new-folds)))
+         ;;    (when c-fold
+         ;;      (setq c-beg (vdiff--pos-at-line-beginning
+         ;;                   (car c-range) c-buffer))
+         ;;      (setq c-end (vdiff--pos-at-line-beginning
+         ;;                   (cdr c-range) c-buffer))
+         ;;      (move-overlay c-fold c-beg c-end c-buffer))
+         ;;    (puthash fold-sig
+         ;;             (vdiff--non-nil-list a-fold b-fold c-fold)
+         ;;             (vdiff-session-folds ses))))
          ((> (1+ (- (cdr a-range) (car a-range))) vdiff-min-fold-size)
           ;; Ranges include padding
           (let ((a-fold (vdiff--make-fold a-buffer a-range))
@@ -937,12 +955,12 @@ of a \"word\"."
                           (vdiff--make-fold c-buffer c-range))))
             (dolist (fold (list a-fold b-fold c-fold))
               (when fold
-                (cond ((or (vdiff--point-in-fold-p a-fold)
-                           (vdiff--point-in-fold-p b-fold)
-                           (and c-fold
-                                (vdiff--point-in-fold-p c-fold))
-                           (vdiff-session-all-folds-open
-                            vdiff--session))
+                (cond ((or (vdiff-session-all-folds-open vdiff--session)
+                           (and (not vdiff-may-close-fold-on-point)
+                                (or (vdiff--point-in-fold-p a-fold)
+                                    (vdiff--point-in-fold-p b-fold)
+                                    (and c-fold
+                                         (vdiff--point-in-fold-p c-fold)))))
                        (vdiff--set-open-fold-props fold))
                       (t
                        (vdiff--set-closed-fold-props fold)))))
@@ -952,12 +970,11 @@ of a \"word\"."
                          (vdiff--non-nil-list a-fold c-fold))
             (when c-fold
               (overlay-put c-fold 'vdiff-other-folds (list a-fold b-fold)))
-            (push (vdiff--non-nil-list a-range a-fold b-fold c-fold)
-                  new-folds))))))
-    (setf (vdiff-session-folds vdiff--session) new-folds)))
+            (puthash fold-sig (vdiff--non-nil-list a-fold b-fold c-fold)
+                     (vdiff-session-folds ses)))))))))
 
 (defun vdiff--remove-fold-overlays (_)
-  (setf (vdiff-session-folds vdiff--session) nil))
+  (clrhash (vdiff-session-folds vdiff--session)))
 
 (defun vdiff--add-diff-overlay (this-len other-len-1 other-len-2)
   (let ((max-other-len (max (if other-len-1 other-len-1 0)
@@ -1395,7 +1412,9 @@ buffer)."
       (setq vdiff--after-change-timer
             (run-with-idle-timer
              vdiff--after-change-refresh-delay
-             nil #'vdiff-refresh)))))
+             nil (lambda ()
+                   (let ((vdiff-may-close-fold-on-point nil))
+                     (vdiff-refresh))))))))
 
 (defun vdiff--set-open-fold-props (ovr)
   "Set overlay properties to open fold OVR."
@@ -1536,6 +1555,7 @@ with non-nil USE-FOLDS."
    :buffers (vdiff--non-nil-list buffer-a buffer-b buffer-c)
    :process-buffer (generate-new-buffer-name " *vdiff* ")
    :word-diff-output-buffer (generate-new-buffer-name " *vdiff-word* ")
+   :folds (make-hash-table :test 'equal :weakness 'value)
    :case-args ""
    :whitespace-args ""
    :prior-window-config prior-window-config
