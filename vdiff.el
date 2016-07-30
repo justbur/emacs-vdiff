@@ -426,7 +426,7 @@ because those are handled differently.")
 
 ;; * Main overlay refresh routine
 
-(defun vdiff-refresh ()
+(defun vdiff-refresh (&optional post-refresh-hook)
   "Asynchronously refresh diff information."
   (interactive)
   (when (vdiff--buffer-p)
@@ -470,6 +470,7 @@ because those are handled differently.")
       (process-put proc 'vdiff-session ses)
       (process-put proc 'vdiff-tmp-a tmp-a)
       (process-put proc 'vdiff-tmp-b tmp-b)
+      (process-put proc 'vdiff-post-refresh-hook post-refresh-hook)
       (when tmp-c
         (process-put proc 'vdiff-tmp-c tmp-c))
       (set-process-sentinel proc #'vdiff--diff-refresh-1))))
@@ -568,7 +569,8 @@ parsing the diff output and triggering the overlay updates."
         (when (process-get proc 'vdiff-tmp-c)
           (delete-file (process-get proc 'vdiff-tmp-c)))
         (when vdiff-auto-refine
-          (vdiff-refine-all-hunks)))
+          (vdiff-refine-all-hunks))
+        (run-hooks (process-get proc 'vdiff-post-refresh-hook)))
       (setf (vdiff-session-diff-stale ses) nil))))
 
 (defun vdiff--remove-all-overlays ()
@@ -1100,8 +1102,7 @@ use the hunk under point or on the immediately preceding line."
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
              (vdiff--transmit-subtraction ovr targets))))
     (unless dont-refresh
-      (vdiff-refresh)
-      (vdiff--scroll-function))))
+      (vdiff-refresh #'vdiff--scroll-function))))
 
 (defun vdiff-receive-changes (beg end)
   "Receive the changes corresponding to this position from
@@ -1610,8 +1611,7 @@ function for ON-QUIT to do something useful with the result."
         (vdiff-mode -1)
         (vdiff-3way-mode -1)
         (vdiff-mode 1)))
-    (vdiff-refresh)
-    (vdiff-sync-and-center)))
+    (vdiff-refresh #'vdiff-sync-and-center)))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
   "Function to layout windows in 3way diffs"
@@ -1667,8 +1667,7 @@ function for ON-QUIT to do something useful with the result."
         (vdiff-mode -1)
         (vdiff-3way-mode -1)
         (vdiff-3way-mode 1)))
-    (vdiff-refresh)
-    (vdiff-sync-and-center)))
+    (vdiff-refresh #'vdiff-sync-and-center)))
 
 ;;;###autoload
 (defun vdiff-files3 (file-a file-b file-c &optional on-quit)
