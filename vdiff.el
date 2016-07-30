@@ -94,6 +94,11 @@ break vdiff. It is empty by default."
   :group 'vdiff
   :type 'integer)
 
+(defcustom vdiff-may-close-fold-on-point t
+  "If non-nil, avoid closing new folds around point."
+  :group 'vdiff
+  :type 'boolean)
+
 (defcustom vdiff-fold-string-function 'vdiff-fold-string-default
   "Function that returns the string printed for a closed
 fold. The arguments passed are the number of lines folded, the
@@ -115,11 +120,6 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
 
 (defcustom vdiff-auto-refine nil
   "If non-nil, automatically refine all hunks."
-  :group 'vdiff
-  :type 'boolean)
-
-(defcustom vdiff-may-close-fold-on-point t
-  "If non-nil, avoid closing new folds around point."
   :group 'vdiff
   :type 'boolean)
 

@@ -143,6 +143,9 @@ The current customization options and there defaults are
   ;; Minimum number of lines to fold
   (setq vdiff-min-fold-size 4)
 
+  ;; If non-nil, avoid closing new folds around point.
+  (setq vdiff-may-close-fold-on-point t)
+
   ;; Function that returns the string printed for a closed fold. The arguments
   ;; passed are the number of lines folded, the text on the first line, and the
   ;; width of the buffer.
