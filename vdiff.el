@@ -1414,6 +1414,8 @@ buffer)."
 
 (defun vdiff--set-closed-fold-props (ovr)
   "Set overlay properties to close fold OVR."
+  (when (vdiff--point-in-fold-p ovr)
+    (goto-char (overlay-start ovr)))
   (overlay-put ovr 'vdiff-fold-open nil)
   (overlay-put ovr 'before-string nil)
   (overlay-put ovr 'line-prefix nil)
@@ -1442,7 +1444,6 @@ folds in the region."
   (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (setf (vdiff-session-all-folds-open vdiff--session) nil)
-      (goto-char (overlay-start ovr))
       (vdiff--set-closed-fold-props ovr)
       (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
         (vdiff--set-closed-fold-props other-fold)))))
