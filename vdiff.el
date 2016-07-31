@@ -394,6 +394,15 @@ because those are handled differently.")
            (1- (overlay-start ovr))
          (1+ (overlay-end ovr)))))))
 
+(defmacro vdiff--with-buffer-a (session &rest body)
+  "Execute BODY in buffer a of SESSION."
+  (declare (indent 1))
+  `(let ((buf (car (vdiff-session-buffers ,session))))
+     (unless (buffer-live-p buf)
+       (error "vdiff: Session buffer (%s) not live"))
+     (with-current-buffer buf
+       ,@body)))
+
 (defmacro vdiff--with-all-buffers (&rest body)
   "Execute BODY in all vdiff buffers."
   `(dolist (buf (vdiff-session-buffers vdiff--session))
@@ -567,15 +576,16 @@ parsing the diff output and triggering the overlay updates."
         (setq finished t)
         (message "vdiff process error: %s" event)))
       (when finished
-        (vdiff--refresh-overlays)
-        (vdiff--refresh-line-maps)
+        (vdiff--with-buffer-a ses
+          (vdiff--refresh-overlays)
+          (vdiff--refresh-line-maps)
+          (when vdiff-auto-refine
+            (vdiff-refine-all-hunks))
+          (run-hooks (process-get proc 'vdiff-post-refresh-hook)))
         (delete-file (process-get proc 'vdiff-tmp-a))
         (delete-file (process-get proc 'vdiff-tmp-b))
         (when (process-get proc 'vdiff-tmp-c)
-          (delete-file (process-get proc 'vdiff-tmp-c)))
-        (when vdiff-auto-refine
-          (vdiff-refine-all-hunks))
-        (run-hooks (process-get proc 'vdiff-post-refresh-hook)))
+          (delete-file (process-get proc 'vdiff-tmp-c))))
       (setf (vdiff-session-diff-stale ses) nil))))
 
 (defun vdiff--remove-all-overlays ()
