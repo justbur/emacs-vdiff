@@ -1299,7 +1299,6 @@ B. Go from buffer B to A if B-to-A is non nil."
   "Jump to the line in another vdiff buffer that corresponds to
 the current one."
   (interactive (list (line-number-at-pos)))
-  (vdiff-refresh)
   (let ((line (caar (vdiff--translate-line line))))
     (select-window (car (vdiff--unselected-windows)))
     (when line
