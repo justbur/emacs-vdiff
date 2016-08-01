@@ -1358,7 +1358,12 @@ buffer)."
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((window (or window (selected-window)))
-         (window-start (or window-start (window-start))))
+         (window-start (or window-start (progn
+                                          ;; redisplay updates window-start in
+                                          ;; the case where the scroll function
+                                          ;; is called manually
+                                          (redisplay)
+                                          (window-start)))))
     (when (and (eq window (selected-window))
                (cl-every #'window-live-p (vdiff--all-windows))
                (vdiff--buffer-p)
