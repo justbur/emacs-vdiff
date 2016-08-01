@@ -1139,7 +1139,8 @@ active, receive all corresponding changes found in the
 region. Otherwise use the changes under point or on the
 immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
-  (vdiff-send-changes beg end t))
+  (vdiff-send-changes beg end t nil t)
+  (vdiff-refresh #'vdiff--scroll-function))
 
 (defun vdiff--transmit-change (ovr &optional targets)
   "Send text in OVR to corresponding overlay in other buffer."
