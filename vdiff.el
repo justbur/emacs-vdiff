@@ -1458,7 +1458,8 @@ in the region."
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (vdiff--set-open-fold-props ovr)
       (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
-        (vdiff--set-open-fold-props other-fold)))))
+        (vdiff--set-open-fold-props other-fold))))
+  (vdiff--scroll-function))
 
 (defun vdiff-close-fold (beg end)
   "Close folds between BEG and END, as well as corresponding ones
@@ -1471,7 +1472,8 @@ folds in the region."
       (setf (vdiff-session-all-folds-open vdiff--session) nil)
       (vdiff--set-closed-fold-props ovr)
       (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
-        (vdiff--set-closed-fold-props other-fold)))))
+        (vdiff--set-closed-fold-props other-fold))))
+  (vdiff--scroll-function))
 
 (defun vdiff-open-all-folds ()
   "Open all folds in both buffers"
