@@ -394,15 +394,6 @@ because those are handled differently.")
            (1- (overlay-start ovr))
          (1+ (overlay-end ovr)))))))
 
-(defmacro vdiff--with-buffer-a (session &rest body)
-  "Execute BODY in buffer a of SESSION."
-  (declare (indent 1))
-  `(let ((buf (car (vdiff-session-buffers ,session))))
-     (unless (buffer-live-p buf)
-       (error "vdiff: Session buffer (%s) not live"))
-     (with-current-buffer buf
-       ,@body)))
-
 (defmacro vdiff--with-all-buffers (&rest body)
   "Execute BODY in all vdiff buffers."
   `(dolist (buf (vdiff-session-buffers vdiff--session))
@@ -576,9 +567,9 @@ parsing the diff output and triggering the overlay updates."
         (setq finished t)
         (message "vdiff process error: %s" event)))
       (when finished
-        (vdiff--with-buffer-a ses
-          (vdiff--refresh-overlays)
-          (vdiff--refresh-line-maps)
+        (vdiff--refresh-overlays ses)
+        (vdiff--refresh-line-maps ses)
+        (let ((vdiff--session ses))
           (when vdiff-auto-refine
             (vdiff-refine-all-hunks))
           (run-hooks (process-get proc 'vdiff-post-refresh-hook)))
@@ -754,7 +745,7 @@ See `vdiff-default-refinement-syntax-code' to change the definition
 of a \"word\"."
   (interactive)
   ;; Doesn't work for diff3 yet
-  (when vdiff-mode
+  (when (vdiff--buffer-p)
     (dolist (ovr (overlays-in (point-min) (point-max)))
       (vdiff-refine-this-hunk syntax-code ovr))))
 
@@ -997,13 +988,13 @@ of a \"word\"."
            (vdiff--add-hunk-overlay this-len nil
                                     (- max-other-len this-len))))))
 
-(defun vdiff--refresh-overlays ()
+(defun vdiff--refresh-overlays (session)
   "Delete and recreate overlays in both buffers."
   (when (vdiff--buffer-p)
     (vdiff--remove-all-overlays)
-    (let ((a-buffer (car (vdiff-session-buffers vdiff--session)))
-          (b-buffer (cadr (vdiff-session-buffers vdiff--session)))
-          (c-buffer (nth 2 (vdiff-session-buffers vdiff--session)))
+    (let ((a-buffer (car (vdiff-session-buffers session)))
+          (b-buffer (cadr (vdiff-session-buffers session)))
+          (c-buffer (nth 2 (vdiff-session-buffers session)))
           (a-line 1)
           (b-line 1)
           (c-line 1)
@@ -1023,7 +1014,7 @@ of a \"word\"."
           (with-current-buffer c-buffer
             (widen)
             (goto-char (point-min))))
-        (dolist (hunk (vdiff-session-diff-data vdiff--session))
+        (dolist (hunk (vdiff-session-diff-data session))
           (let* ((a-range (nth 0 hunk))
                  (b-range (nth 1 hunk))
                  (c-range (nth 2 hunk))
@@ -1213,7 +1204,7 @@ just deleting text in another buffer."
   (setf (car vars) (car expr))
   (setf (cdr vars) (cdr expr)))
 
-(defun vdiff--refresh-line-maps ()
+(defun vdiff--refresh-line-maps (session)
   "Sync information in `vdiff--line-map' with
 `vdiff--diff-data'."
   (when (vdiff--buffer-p)
@@ -1224,7 +1215,7 @@ just deleting text in another buffer."
           (c-a (list (list 0 0 0)))
           (b-c (list (list 0 0 0)))
           (c-b (list (list 0 0 0))))
-      (dolist (hunk (vdiff-session-diff-data vdiff--session))
+      (dolist (hunk (vdiff-session-diff-data session))
         (let* ((a-lines (nth 0 hunk))
                (a-beg (car a-lines))
                (a-prior (1- a-beg))
@@ -1253,7 +1244,7 @@ just deleting text in another buffer."
                 (setq c-a (nconc c-a (cdr new-a-c)))
                 (setq b-c (nconc b-c (car new-b-c)))
                 (setq c-b (nconc c-b (cdr new-b-c))))))))
-      (setf (vdiff-session-line-maps vdiff--session)
+      (setf (vdiff-session-line-maps session)
             (if vdiff-3way-mode
                 (list (list 'a a-b a-c)
                       (list 'b b-a b-c)
