@@ -1375,6 +1375,7 @@ buffer)."
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
   (let* ((window (or window (selected-window)))
+         (update-window-start (null window-start))
          (window-start (or window-start (progn
                                           ;; redisplay updates window-start in
                                           ;; the case where the scroll function
@@ -1398,7 +1399,11 @@ buffer)."
         (when (and 2-pos 2-start-pos)
           (set-window-point 2-win 2-pos)
           ;; For some reason without this unless the vscroll gets eff'd
-          (unless (= (window-start 2-win) 2-start-pos)
+          (unless (= (progn
+                       (when update-window-start
+                         (redisplay))
+                       (window-start 2-win))
+                     2-start-pos)
             (set-window-start 2-win 2-start-pos))
           (vdiff--set-vscroll-and-force-update 2-win 2-scroll))
         (when vdiff-3way-mode
