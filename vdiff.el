@@ -1325,18 +1325,6 @@ the current one."
     (when line
       (vdiff--move-to-line line))))
 
-(defun vdiff--recenter-all ()
-  (dolist (win (vdiff--all-windows))
-    (with-selected-window win
-      (recenter))))
-
-(defun vdiff-sync-and-center ()
-  "Sync point in another vdiff buffers to the line in this
-buffer and recenter all buffers."
-  (interactive)
-  (vdiff--scroll-function)
-  (vdiff--recenter-all))
-
 (defun vdiff-restore-windows ()
   "Restore initial window configuration."
   (interactive)
@@ -1560,28 +1548,28 @@ with non-nil USE-FOLDS."
   (interactive "p")
   (let ((count (or arg 1)))
     (goto-char (vdiff--nth-hunk count))
-    (vdiff-sync-and-center)))
+    (recenter)))
 
 (defun vdiff-previous-hunk (arg)
   "Jump to previous change in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-hunk count))
-    (vdiff-sync-and-center)))
+    (recenter)))
 
 (defun vdiff-next-fold (arg)
   "Jump to next fold in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
     (goto-char (vdiff--nth-hunk count t))
-    (vdiff-sync-and-center)))
+    (recenter)))
 
 (defun vdiff-previous-fold (arg)
   "Jump to previous fold in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-hunk count t))
-    (vdiff-sync-and-center)))
+    (recenter)))
 
 ;; * Session
 
@@ -1669,7 +1657,7 @@ function for ON-QUIT to do something useful with the result."
         (vdiff-mode -1)
         (vdiff-3way-mode -1)
         (vdiff-mode 1)))
-    (vdiff-refresh #'vdiff-sync-and-center)))
+    (vdiff-refresh #'vdiff--scroll-function)))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
   "Function to layout windows in 3way diffs"
@@ -1725,7 +1713,7 @@ function for ON-QUIT to do something useful with the result."
         (vdiff-mode -1)
         (vdiff-3way-mode -1)
         (vdiff-3way-mode 1)))
-    (vdiff-refresh #'vdiff-sync-and-center)))
+    (vdiff-refresh #'vdiff--scroll-function)))
 
 ;;;###autoload
 (defun vdiff-files3 (file-a file-b file-c &optional on-quit)
@@ -1782,16 +1770,9 @@ you will be asked to select two files."
     (setq vdiff--session nil)
     (message "vdiff exited")))
 
-(defvar vdiff-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map "\C-l"  'vdiff-sync-and-center)
-    map))
+(defvar vdiff-mode-map (make-sparse-keymap))
 
-(defvar vdiff-3way-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map vdiff-mode-map)
-    (define-key map "\C-l"  'vdiff-sync-and-center)
-    map))
+(defvar vdiff-3way-mode-map (make-sparse-keymap))
 
 (defvar vdiff-mode-prefix-map
   (let ((map (make-sparse-keymap)))

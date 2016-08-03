@@ -22,8 +22,8 @@ buffer to the other. The main features are
 vdiff has not been extensively tested yet, so please report any issues you
 find. Contributions and suggestions are very welcome.
 
-** Recent Changes
-  - [2016-07-25] Added three-way diff support. See =vdiff-buffers3= and =vdiff-files3=.
+** Recent (Significant) Changes
+   - [2016-07-25] Added three-way diff support. See =vdiff-buffers3= and =vdiff-files3=.
    
 ** Screenshot
 
@@ -58,7 +58,6 @@ the commands would be
 | =C-c n= | =vdiff-next-hunk=       | Move to next hunk in buffer        |
 | =C-c p= | =vdiff-previous-hunk=   | Move to previous hunk in buffer    |
 | =C-c h= | =vdiff-hydra/body=      | Enter vdiff-hydra                  |
-| =C-l=   | =vdiff-sync-and-center= | Recenter both buffers at this line |
 
 *** Viewing and Transmitting Changes Between Buffers
 
