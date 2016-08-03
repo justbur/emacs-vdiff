@@ -211,8 +211,10 @@ because those are handled differently.")
     ("Ignore blank lines (-B)" . "-B")))
 
 ;; Sessions
-(defvar vdiff--temp-session nil)
-(defvar-local vdiff--session nil)
+(defvar vdiff--temp-session nil
+  "Temporarily stores new vdiff session globally.")
+(defvar-local vdiff--session nil
+  "Holds reference to local vdiff session in each vdiff buffer.")
 (cl-defstruct vdiff-session
   ;; buffers
   buffers
@@ -237,12 +239,14 @@ because those are handled differently.")
 ;; * Utilities
 
 (defun vdiff--maybe-int (str)
+  "Return an int>=0 from STR."
   (let ((num (and str (string-to-number str))))
     (when (and (numberp num)
                (>= num 0))
       num)))
 
 (defun vdiff--non-nil-list (&rest args)
+  "Make ARGS into list and remove nils."
   (delq nil (apply #'list args)))
 
 (defun vdiff--buffer-a-p ()
@@ -267,6 +271,7 @@ because those are handled differently.")
     (current-buffer)))
 
 (defun vdiff--buffer-p ()
+  "Non-nil if in any vdiff buffer"
   (cond ((vdiff--buffer-a-p) 'a)
         ((vdiff--buffer-b-p) 'b)
         ((vdiff--buffer-c-p) 'c)))
@@ -313,6 +318,8 @@ because those are handled differently.")
                 (length (vdiff--overlay-marker ovr)))))
 
 (defun vdiff--read-3way-target (ovr &optional just-one)
+  "Read a target overlay when sending or receiving a hunk from
+one buffer to another. Only applies in 3-way diffs."
   (when vdiff-3way-mode
     (let* ((all-ovrs (vdiff--all-overlays ovr))
            (other-ovrs (remq ovr all-ovrs))
@@ -358,6 +365,8 @@ because those are handled differently.")
   (forward-line (1- n)))
 
 (defun vdiff--overlay-at-pos (&optional pos)
+  "Return first vdiff overlay found at POS which defaults to
+point."
   (let ((pos (or pos (point))))
     (catch 'yes
       (dolist (ovr (overlays-at pos))
@@ -365,18 +374,21 @@ because those are handled differently.")
           (throw 'yes ovr))))))
 
 (defun vdiff--hunk-at-point-p ()
+  "Return first vdiff hunk overlay found at point."
   (let ((ovr (vdiff--overlay-at-pos)))
     (and (overlayp ovr)
          (overlay-get ovr 'vdiff-type)
          (not (eq (overlay-get ovr 'vdiff-type) 'fold)))))
 
 (defun vdiff--fold-at-point-p ()
+  "Return first vdiff fold overlay found at point."
   (let ((ovr (vdiff--overlay-at-pos)))
     (and (overlayp ovr)
          (overlay-get ovr 'vdiff-type)
          (eq (overlay-get ovr 'vdiff-type) 'fold))))
 
 (defun vdiff--overlays-in-region (beg end)
+  "Return any vdiff overlays found within BEG and END."
   (let (ovrs)
     (dolist (ovr (overlays-in beg end))
       (when (overlay-get ovr 'vdiff-type)
@@ -384,6 +396,8 @@ because those are handled differently.")
     (nreverse ovrs)))
 
 (defun vdiff--maybe-exit-overlay (&optional up no-fold)
+  "Move point out of any vdiff overlays. Move down unless UP is
+non-nil. Ignore folds if NO-FOLD is non-nil."
   (let* ((ovr (vdiff--overlay-at-pos))
          (type (when ovr (overlay-get ovr 'vdiff-type))))
     (when (and type
@@ -481,6 +495,8 @@ because those are handled differently.")
       (set-process-sentinel proc #'vdiff--diff-refresh-1))))
 
 (defun vdiff--encode-range (insert beg &optional end)
+  "Normalize BEG and END of range. INSERT indicates that this is
+an addition when compared to other vdiff buffers."
   (let* ((beg (vdiff--maybe-int beg))
          (end (vdiff--maybe-int end)))
     (cond ((and end insert)
@@ -491,6 +507,7 @@ because those are handled differently.")
            (cons beg (or end beg))))))
 
 (defun vdiff--parse-diff (buf)
+  "Parse diff output in BUF and return list of hunks."
   (let (res)
     (with-current-buffer buf
       (goto-char (point-min))
@@ -515,6 +532,7 @@ because those are handled differently.")
     (nreverse res)))
 
 (defun vdiff--parse-diff3 (buf)
+  "Parse diff3 output in BUF and return list of hunks."
   (catch 'final-res
     (let (res)
       (with-current-buffer buf
@@ -726,6 +744,7 @@ SYNTAX-CODE."
   (vdiff-refine-this-hunk "w" ovr))
 
 (defun vdiff-remove-refinements-in-hunk (ovr)
+  "Remove any refinement overlays in the hunk overlay OVR."
   (interactive (list (vdiff--overlay-at-pos)))
   (dolist (chg-ovr (vdiff--all-overlays ovr))
     (with-current-buffer (overlay-buffer chg-ovr)
@@ -804,6 +823,7 @@ of a \"word\"."
 ;; * Add overlays
 
 (defun vdiff--make-subtraction-string (n-lines)
+  "Make string to fill in space for lines missing in a buffer."
   (let* ((width (1- (window-text-width (get-buffer-window (current-buffer)))))
          (win-height (window-height (get-buffer-window (current-buffer))))
          (max-lines (floor (* 0.7 win-height)))
