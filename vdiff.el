@@ -1662,6 +1662,7 @@ function for ON-QUIT to do something useful with the result."
         (vdiff-mode -1)
         (vdiff-3way-mode -1)
         (vdiff-mode 1)))
+    (setq vdiff--temp-session nil)
     (vdiff-refresh #'vdiff--scroll-function)))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
@@ -1718,6 +1719,7 @@ function for ON-QUIT to do something useful with the result."
         (vdiff-mode -1)
         (vdiff-3way-mode -1)
         (vdiff-3way-mode 1)))
+    (setq vdiff--temp-session nil)
     (vdiff-refresh #'vdiff--scroll-function)))
 
 ;;;###autoload
