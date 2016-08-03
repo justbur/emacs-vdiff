@@ -170,9 +170,14 @@ indicate the subtraction location in the fringe."
   "Face for subtraction fringe indicators"
   :group 'vdiff)
 
-(defface vdiff-word-changed-face
-  '((t :inherit highlight))
-  "Face for word changes within a hunk"
+(defface vdiff-refine-changed
+  '((t :inherit diff-refine-changed))
+  "Face for word changes within a change hunk"
+  :group 'vdiff)
+
+(defface vdiff-refine-added
+  '((t :inherit diff-refine-added))
+  "Face for word changes within an addition hunk"
   :group 'vdiff)
 
 (defface vdiff-target-face
@@ -693,6 +698,10 @@ SYNTAX-CODE."
          (word-syn (or syntax-code
                        vdiff-default-refinement-syntax-code))
          (not-word-syn (concat "^" word-syn))
+         (type (overlay-get ovr 'vdiff-type))
+         (face (if (eq type 'addition)
+                   'vdiff-refine-added
+                 'vdiff-refine-changed))
          instructions ovr-ins)
     (when (and ovr
                target-ovr
@@ -723,7 +732,7 @@ SYNTAX-CODE."
                            (point)))))
                   (cl-incf current-word-n (length words))
                   (overlay-put word-ovr 'vdiff t)
-                  (overlay-put word-ovr 'face 'vdiff-word-changed-face)
+                  (overlay-put word-ovr 'face face)
                   (overlay-put word-ovr 'vdiff-refinement t)
                   (skip-syntax-forward not-word-syn))))))))))
 
