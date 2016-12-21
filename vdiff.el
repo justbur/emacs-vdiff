@@ -795,6 +795,12 @@ of a \"word\"."
 
 ;; * Bitmaps
 
+;; emacs-nox users don't have this function. There's probably a better solution
+;; here, but this seems to work.
+(unless (fboundp 'define-fringe-bitmap)
+  (defun define-fringe-bitmap (&rest _)
+    nil))
+
 (define-fringe-bitmap
   'vdiff--vertical-bar
   (make-vector (frame-char-height) #b00100000)
