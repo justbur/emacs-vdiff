@@ -833,7 +833,7 @@ of a \"word\"."
 
 (defun vdiff--make-subtraction-string (n-lines)
   "Make string to fill in space for lines missing in a buffer."
-  (let* ((width (1- (window-text-width (get-buffer-window (current-buffer)))))
+  (let* ((width (- (window-text-width (get-buffer-window (current-buffer))) 2))
          (win-height (window-height (get-buffer-window (current-buffer))))
          (max-lines (floor (* 0.7 win-height)))
          (truncate (> n-lines max-lines))
