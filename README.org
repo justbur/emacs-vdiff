@@ -1,3 +1,5 @@
+[[https://melpa.org/#/vdiff][file:https://melpa.org/packages/vdiff-badge.svg]]
+
 * vdiff
 
 A tool like vimdiff for Emacs 
