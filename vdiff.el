@@ -41,7 +41,7 @@
 ;;      text in the buffer (unless you are transmit changes of course)
 ;;   6. Unlike ediff, remain in buffers instead of having to use a third "control
 ;;      buffer"
-;;   7. Cool hydra (see below)
+;;   7. Cool hydra
 
 ;; Contributions and suggestions are very welcome.
 
