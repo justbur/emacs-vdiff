@@ -450,8 +450,10 @@ non-nil. Ignore folds if NO-FOLD is non-nil."
 
 ;; * Main overlay refresh routine
 
-(defun vdiff-refresh (&optional post-refresh-hook)
-  "Asynchronously refresh diff information."
+(defun vdiff-refresh (&optional post-refresh-function)
+  "Asynchronously refresh diff information.
+
+POST-REFRESH-FUNCTION is called when the process finishes."
   (interactive)
   (when (vdiff--buffer-p)
     (let* ((tmp-a (make-temp-file "vdiff-a-"))
@@ -494,7 +496,7 @@ non-nil. Ignore folds if NO-FOLD is non-nil."
       (process-put proc 'vdiff-session ses)
       (process-put proc 'vdiff-tmp-a tmp-a)
       (process-put proc 'vdiff-tmp-b tmp-b)
-      (process-put proc 'vdiff-post-refresh-hook post-refresh-hook)
+      (process-put proc 'vdiff-post-refresh-function post-refresh-function)
       (when tmp-c
         (process-put proc 'vdiff-tmp-c tmp-c))
       (set-process-sentinel proc #'vdiff--diff-refresh-1))))
@@ -576,6 +578,7 @@ parsing the diff output and triggering the overlay updates."
                           'vdiff--parse-diff3
                         'vdiff--parse-diff))
           (ses (process-get proc 'vdiff-session))
+          (post-function (process-get proc 'vdiff-post-refresh-function))
           finished)
       (cond
        ;; Was getting different exit code conventions depending on the
@@ -595,7 +598,8 @@ parsing the diff output and triggering the overlay updates."
         (let ((vdiff--session ses))
           (when vdiff-auto-refine
             (vdiff-refine-all-hunks))
-          (run-hooks (process-get proc 'vdiff-post-refresh-hook)))
+          (when post-function
+            (funcall post-function)))
         (delete-file (process-get proc 'vdiff-tmp-a))
         (delete-file (process-get proc 'vdiff-tmp-b))
         (when (process-get proc 'vdiff-tmp-c)
