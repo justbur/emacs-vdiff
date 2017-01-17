@@ -234,24 +234,26 @@ FILE has to be relative to the top directory of the repository."
          (setq buffer-read-only nil)
          (current-buffer))
        fileBufC
-       `(lambda (buf-a buf-b buf-c)
-          (when (and (buffer-live-p buf-a)
-                     (buffer-modified-p buf-a))
-            (kill-buffer buf-a))
-          (when (and (buffer-live-p buf-b)
-                     (buffer-modified-p buf-b))
-            (with-current-buffer buf-b
-              (magit-update-index))
-            (kill-buffer buf-b))
-          (when (and (buffer-live-p buf-c)
-                     (buffer-modified-p buf-c))
-            (with-current-buffer buf-c
-              (when (y-or-n-p
-                     (format "Save file %s? " buffer-file-name))
-                (save-buffer)))
-            (kill-buffer buf-c))
-          (let ((magit-ediff-previous-winconf ,conf))
-            (run-hooks 'magit-ediff-quit-hook)))))))
+       (lambda (buf-a buf-b buf-c)
+         (when (and (buffer-live-p buf-a)
+                    (buffer-modified-p buf-a))
+           (kill-buffer buf-a))
+         (when (and (buffer-live-p buf-b)
+                    (buffer-modified-p buf-b))
+           (with-current-buffer buf-b
+             (magit-update-index))
+           (kill-buffer buf-b))
+         (when (and (buffer-live-p buf-c)
+                    (buffer-modified-p buf-c))
+           (with-current-buffer buf-c
+             (when (y-or-n-p
+                    (format "Save file %s? " buffer-file-name))
+               (save-buffer)))
+           (kill-buffer buf-c))
+         ;; (let ((magit-ediff-previous-winconf ,conf))
+         ;;   (run-hooks 'magit-ediff-quit-hook))
+         )
+       t t))))
 
 ;; ;;;###autoload
 ;; (defun magit-ediff-compare (revA revB fileA fileB)
@@ -328,75 +330,76 @@ FILE has to be relative to the top directory of the repository."
 ;;                      revA revB)))
 ;;         fileB))
 
-;; ;;;###autoload
-;; (defun magit-ediff-dwim ()
-;;   "Compare, stage, or resolve using Ediff.
-;; This command tries to guess what file, and what commit or range
-;; the user wants to compare, stage, or resolve using Ediff.  It
-;; might only be able to guess either the file, or range or commit,
-;; in which case the user is asked about the other.  It might not
-;; always guess right, in which case the appropriate `magit-ediff-*'
-;; command has to be used explicitly.  If it cannot read the user's
-;; mind at all, then it asks the user for a command to run."
-;;   (interactive)
-;;   (magit-section-case
-;;     (hunk (save-excursion
-;;             (goto-char (magit-section-start (magit-section-parent it)))
-;;             (magit-ediff-dwim)))
-;;     (t
-;;      (let ((range (magit-diff--dwim))
-;;            (file (magit-current-file))
-;;            command revA revB)
-;;        (pcase range
-;;          ((and (guard (not magit-ediff-dwim-show-on-hunks))
-;;                (or `unstaged `staged))
-;;           (setq command (if (magit-anything-unmerged-p)
-;;                             #'magit-ediff-resolve
-;;                           #'magit-ediff-stage)))
-;;          (`unstaged (setq command #'magit-ediff-show-unstaged))
-;;          (`staged (setq command #'magit-ediff-show-staged))
-;;          (`(commit . ,value)
-;;           (setq command #'magit-ediff-show-commit
-;;                 revB value))
-;;          (`(stash . ,value)
-;;           (setq command #'magit-ediff-show-stash
-;;                 revB value))
-;;          ((pred stringp)
-;;           (-let [(a b) (magit-ediff-compare--read-revisions range)]
-;;             (setq command #'magit-ediff-compare
-;;                   revA a
-;;                   revB b)))
-;;          (_
-;;           (when (derived-mode-p 'magit-diff-mode)
-;;             (pcase (magit-diff-type)
-;;               (`committed (-let [(a b) (magit-ediff-compare--read-revisions
-;;                                         (car magit-refresh-args))]
-;;                             (setq revA a revB b)))
-;;               ((guard (not magit-ediff-dwim-show-on-hunks))
-;;                (setq command #'magit-ediff-stage))
-;;               (`unstaged  (setq command #'magit-ediff-show-unstaged))
-;;               (`staged    (setq command #'magit-ediff-show-staged))
-;;               (`undefined (setq command nil))
-;;               (_          (setq command nil))))))
-;;        (cond ((not command)
-;;               (call-interactively
-;;                (magit-read-char-case
-;;                    "Failed to read your mind; do you want to " t
-;;                  (?c "[c]ommit"  'magit-ediff-show-commit)
-;;                  (?r "[r]ange"   'magit-ediff-compare)
-;;                  (?s "[s]tage"   'magit-ediff-stage)
-;;                  (?v "resol[v]e" 'magit-ediff-resolve))))
-;;              ((eq command 'magit-ediff-compare)
-;;               (apply 'magit-ediff-compare revA revB
-;;                      (magit-ediff-read-files revA revB file)))
-;;              ((eq command 'magit-ediff-show-commit)
-;;               (magit-ediff-show-commit revB))
-;;              ((eq command 'magit-ediff-show-stash)
-;;               (magit-ediff-show-stash revB))
-;;              (file
-;;               (funcall command file))
-;;              (t
-;;               (call-interactively command)))))))
+;;;###autoload
+(defun vdiff-magit-dwim ()
+  "Compare, stage, or resolve using vdiff with ediff fallback.
+
+This command tries to guess what file, and what commit or range
+the user wants to compare, stage, or resolve using Ediff.  It
+might only be able to guess either the file, or range or commit,
+in which case the user is asked about the other.  It might not
+always guess right, in which case the appropriate `magit-ediff-*'
+command has to be used explicitly.  If it cannot read the user's
+mind at all, then it asks the user for a command to run."
+  (interactive)
+  (magit-section-case
+    (hunk (save-excursion
+            (goto-char (magit-section-start (magit-section-parent it)))
+            (magit-ediff-dwim)))
+    (t
+     (let ((range (magit-diff--dwim))
+           (file (magit-current-file))
+           command revA revB)
+       (pcase range
+         ((and (guard (not magit-ediff-dwim-show-on-hunks))
+               (or `unstaged `staged))
+          (setq command (if (magit-anything-unmerged-p)
+                            #'magit-ediff-resolve
+                          #'vdiff-magit-stage)))
+         (`unstaged (setq command #'magit-ediff-show-unstaged))
+         (`staged (setq command #'magit-ediff-show-staged))
+         (`(commit . ,value)
+          (setq command #'magit-ediff-show-commit
+                revB value))
+         (`(stash . ,value)
+          (setq command #'magit-ediff-show-stash
+                revB value))
+         ((pred stringp)
+          (-let [(a b) (magit-ediff-compare--read-revisions range)]
+            (setq command #'magit-ediff-compare
+                  revA a
+                  revB b)))
+         (_
+          (when (derived-mode-p 'magit-diff-mode)
+            (pcase (magit-diff-type)
+              (`committed (-let [(a b) (magit-ediff-compare--read-revisions
+                                        (car magit-refresh-args))]
+                            (setq revA a revB b)))
+              ((guard (not magit-ediff-dwim-show-on-hunks))
+               (setq command #'vdiff-magit-stage))
+              (`unstaged  (setq command #'magit-ediff-show-unstaged))
+              (`staged    (setq command #'magit-ediff-show-staged))
+              (`undefined (setq command nil))
+              (_          (setq command nil))))))
+       (cond ((not command)
+              (call-interactively
+               (magit-read-char-case
+                   "Failed to read your mind; do you want to " t
+                 (?c "[c]ommit"  'magit-ediff-show-commit)
+                 (?r "[r]ange"   'magit-ediff-compare)
+                 (?s "[s]tage"   'vdiff-magit-stage)
+                 (?v "resol[v]e" 'magit-ediff-resolve))))
+             ((eq command 'magit-ediff-compare)
+              (apply 'magit-ediff-compare revA revB
+                     (magit-ediff-read-files revA revB file)))
+             ((eq command 'magit-ediff-show-commit)
+              (magit-ediff-show-commit revB))
+             ((eq command 'magit-ediff-show-stash)
+              (magit-ediff-show-stash revB))
+             (file
+              (funcall command file))
+             (t
+              (call-interactively command)))))))
 
 ;; ;;;###autoload
 ;; (defun magit-ediff-show-staged (file)
@@ -537,73 +540,6 @@ FILE has to be relative to the top directory of the repository."
 ;;   (ediff-kill-buffer-carefully ediff-msg-buffer)
 ;;   (ediff-kill-buffer-carefully ediff-debug-buffer))
 
-Falls back to ediff commands. This command tries to guess what
-file, and what commit or range the user wants to compare, stage,
-or resolve using Ediff.  It might only be able to guess either
-the file, or range or commit, in which case the user is asked
-about the other.  It might not always guess right, in which case
-the appropriate `magit-ediff-*' command has to be used
-explicitly.  If it cannot read the user's mind at all, then it
-asks the user for a command to run."
-  (interactive)
-  (magit-section-case
-    (hunk (save-excursion
-            (goto-char (magit-section-start (magit-section-parent it)))
-            (magit-ediff-dwim)))
-    (t
-     (let ((range (magit-diff--dwim))
-           (file (magit-current-file))
-           command revA revB)
-       (pcase range
-         ((and (guard (not magit-ediff-dwim-show-on-hunks))
-               (or `unstaged `staged))
-          (setq command (if (magit-anything-unmerged-p)
-                            #'magit-ediff-resolve
-                          #'vdiff-magit-stage)))
-         (`unstaged (setq command #'magit-ediff-show-unstaged))
-         (`staged (setq command #'magit-ediff-show-staged))
-         (`(commit . ,value)
-          (setq command #'magit-ediff-show-commit
-                revB value))
-         (`(stash . ,value)
-          (setq command #'magit-ediff-show-stash
-                revB value))
-         ((pred stringp)
-          (-let [(a b) (magit-ediff-compare--read-revisions range)]
-            (setq command #'magit-ediff-compare
-                  revA a
-                  revB b)))
-         (_
-          (when (derived-mode-p 'magit-diff-mode)
-            (pcase (magit-diff-type)
-              (`committed (-let [(a b) (magit-ediff-compare--read-revisions
-                                        (car magit-refresh-args))]
-                            (setq revA a revB b)))
-              ((guard (not magit-ediff-dwim-show-on-hunks))
-               (setq command #'vdiff-magit-stage))
-              (`unstaged  (setq command #'magit-ediff-show-unstaged))
-              (`staged    (setq command #'magit-ediff-show-staged))
-              (`undefined (setq command nil))
-              (_          (setq command nil))))))
-       (cond ((not command)
-              (call-interactively
-               (magit-read-char-case
-                   "Failed to read your mind; do you want to " t
-                 (?c "[c]ommit"  'magit-ediff-show-commit)
-                 (?r "[r]ange"   'magit-ediff-compare)
-                 (?s "[s]tage"   'vdiff-magit-stage)
-                 (?v "resol[v]e" 'magit-ediff-resolve))))
-             ((eq command 'magit-ediff-compare)
-              (apply 'magit-ediff-compare revA revB
-                     (magit-ediff-read-files revA revB file)))
-             ((eq command 'magit-ediff-show-commit)
-              (magit-ediff-show-commit revB))
-             ((eq command 'magit-ediff-show-stash)
-              (magit-ediff-show-stash revB))
-             (file
-              (funcall command file))
-             (t
-              (call-interactively command)))))))
 
 (provide 'vdiff-magit)
 ;;; vdiff-magit.el ends here
