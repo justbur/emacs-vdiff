@@ -62,37 +62,37 @@
 ;;   :group 'magit-ediff
 ;;   :type 'boolean)
 
-;; (defcustom magit-ediff-show-stash-with-index t
-;;   "Whether `magit-ediff-show-stash' shows the state of the index.
+(defcustom vdiff-magit-show-stash-with-index t
+  "Whether `vdiff-magit-show-stash' shows the state of the index.
 
-;; If non-nil, use a third Ediff buffer to distinguish which changes
-;; in the stash were staged.  In cases where the stash contains no
-;; staged changes, fall back to a two-buffer Ediff.
+If non-nil, use a third vdiff buffer to distinguish which changes
+in the stash were staged.  In cases where the stash contains no
+staged changes, fall back to a two-buffer vdiff.
 
-;; More specificaly, a stash is a merge commit, stash@{N}, with
-;; potentially three parents.
+More specificaly, a stash is a merge commit, stash@{N}, with
+potentially three parents.
 
-;; * stash@{N}^1 represents the HEAD commit at the time the stash
-;;   was created.
+* stash@{N}^1 represents the HEAD commit at the time the stash
+  was created.
 
-;; * stash@{N}^2 records any changes that were staged when the stash
-;;   was made.
+* stash@{N}^2 records any changes that were staged when the stash
+  was made.
 
-;; * stash@{N}^3, if it exists, contains files that were untracked
-;;   when stashing.
+* stash@{N}^3, if it exists, contains files that were untracked
+  when stashing.
 
-;; If this option is non-nil, `magit-ediff-show-stash' will run
-;; Ediff on a file using three buffers: one for stash@{N}, another
-;; for stash@{N}^1, and a third for stash@{N}^2.
+If this option is non-nil, `vdiff-magit-show-stash' will run
+vdiff on a file using three buffers: one for stash@{N}, another
+for stash@{N}^1, and a third for stash@{N}^2.
 
-;; Otherwise, Ediff uses two buffers, comparing
-;; stash@{N}^1..stash@{N}.  Along with any unstaged changes, changes
-;; in the index commit, stash@{N}^2, will be shown in this
-;; comparison unless they conflicted with changes in the working
-;; tree at the time of stashing."
-;;   :package-version '(magit . "2.6.0")
-;;   :group 'magit-ediff
-;;   :type 'boolean)
+Otherwise, vdiff uses two buffers, comparing
+stash@{N}^1..stash@{N}.  Along with any unstaged changes, changes
+in the index commit, stash@{N}^2, will be shown in this
+comparison unless they conflicted with changes in the working
+tree at the time of stashing."
+  :package-version '(magit . "2.6.0")
+  :group 'vdiff-magit
+  :type 'boolean)
 
 ;; (defvar magit-ediff-previous-winconf nil)
 
@@ -429,41 +429,29 @@ FILE must be relative to the top directory of the repository."
            (magit-ediff-read-files revA revB (magit-current-file)))))
 
 ;; ;;;###autoload
-;; (defun magit-ediff-show-stash (stash)
-;;   "Show changes introduced by STASH using Ediff.
-;; `magit-ediff-show-stash-with-index' controls whether a
-;; three-buffer Ediff is used in order to distinguish changes in the
-;; stash that were staged."
-;;   (interactive (list (magit-read-stash "Stash")))
-;;   (-let* ((revA (concat stash "^1"))
-;;           (revB (concat stash "^2"))
-;;           (revC stash)
-;;           ((fileA fileC) (magit-ediff-read-files revA revC))
-;;           (fileB fileC))
-;;     (if (and magit-ediff-show-stash-with-index
-;;              (member fileA (magit-changed-files revB revA)))
-;;         (let ((conf (current-window-configuration))
-;;               (bufA (magit-get-revision-buffer revA fileA))
-;;               (bufB (magit-get-revision-buffer revB fileB))
-;;               (bufC (magit-get-revision-buffer revC fileC)))
-;;           (ediff-buffers3
-;;            (or bufA (magit-find-file-noselect revA fileA))
-;;            (or bufB (magit-find-file-noselect revB fileB))
-;;            (or bufC (magit-find-file-noselect revC fileC))
-;;            `((lambda ()
-;;                (setq-local
-;;                 ediff-quit-hook
-;;                 (lambda ()
-;;                   ,@(unless bufA
-;;                       '((ediff-kill-buffer-carefully ediff-buffer-A)))
-;;                   ,@(unless bufB
-;;                       '((ediff-kill-buffer-carefully ediff-buffer-B)))
-;;                   ,@(unless bufC
-;;                       '((ediff-kill-buffer-carefully ediff-buffer-C)))
-;;                   (let ((magit-ediff-previous-winconf ,conf))
-;;                     (run-hooks 'magit-ediff-quit-hook))))))
-;;            'ediff-buffers3))
-;;       (vdiff-magit-compare revA revC fileA fileC))))
+(defun vdiff-magit-show-stash (stash)
+  "Show changes introduced by STASH using Ediff.
+`vdiff-magit-show-stash-with-index' controls whether a
+three-buffer Ediff is used in order to distinguish changes in the
+stash that were staged."
+  (interactive (list (magit-read-stash "Stash")))
+  (-let* ((revA (concat stash "^1"))
+          (revB (concat stash "^2"))
+          (revC stash)
+          ((fileA fileC) (magit-ediff-read-files revA revC))
+          (fileB fileC))
+    (if (and vdiff-magit-show-stash-with-index
+             (member fileA (magit-changed-files revB revA)))
+        (let ((conf (current-window-configuration))
+              (bufA (magit-get-revision-buffer revA fileA))
+              (bufB (magit-get-revision-buffer revB fileB))
+              (bufC (magit-get-revision-buffer revC fileC)))
+          (vdiff-buffers3
+           (or bufA (magit-find-file-noselect revA fileA))
+           (or bufB (magit-find-file-noselect revB fileB))
+           (or bufC (magit-find-file-noselect revC fileC))
+           nil t t))
+      (vdiff-magit-compare revA revC fileA fileC))))
 
 ;; Don't think this is necessary
 ;; (defun magit-vdiff-cleanup-auxiliary-buffers ()
