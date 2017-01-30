@@ -29,7 +29,7 @@
 
 (require 'vdiff)
 (require 'magit)
-(require 'vdiff)
+(require 'magit-ediff)
 
 ;; (defgroup magit-ediff nil
 ;;   "Ediff support for Magit."
@@ -107,7 +107,7 @@
 ;;              ;; (?i "Show staged"   magit-ediff-show-staged)
 ;;              ;; (?m "Resolve"       magit-ediff-resolve)
 ;;              ;; (?w "Show worktree" magit-ediff-show-working-tree)
-;;              ;; (?r "Diff range"    magit-ediff-compare)
+;;              ;; (?r "Diff range"    vdiff-magit-compare)
 ;;              ;; (?c "Show commit"   magit-ediff-show-commit) nil
 ;;              ;; (?z "Show stash"    magit-ediff-show-stash)
 ;;              )
@@ -253,79 +253,38 @@ FILE has to be relative to the top directory of the repository."
        t t))))
 
 ;; ;;;###autoload
-;; (defun magit-ediff-compare (revA revB fileA fileB)
-;;   "Compare REVA:FILEA with REVB:FILEB using Ediff.
+(defun vdiff-magit-compare (revA revB fileA fileB)
+  "Compare REVA:FILEA with REVB:FILEB using Ediff.
 
-;; FILEA and FILEB have to be relative to the top directory of the
-;; repository.  If REVA or REVB is nil then this stands for the
-;; working tree state.
+FILEA and FILEB have to be relative to the top directory of the
+repository.  If REVA or REVB is nil then this stands for the
+working tree state.
 
-;; If the region is active, use the revisions on the first and last
-;; line of the region.  With a prefix argument, instead of diffing
-;; the revisions, choose a revision to view changes along, starting
-;; at the common ancestor of both revisions (i.e., use a \"...\"
-;; range)."
-;;   (interactive (-let [(revA revB) (magit-ediff-compare--read-revisions
-;;                                    nil current-prefix-arg)]
-;;                  (nconc (list revA revB)
-;;                         (magit-ediff-read-files revA revB))))
-;;   (magit-with-toplevel
-;;     (let ((conf (current-window-configuration))
-;;           (bufA (if revA
-;;                     (magit-get-revision-buffer revA fileA)
-;;                   (get-file-buffer fileA)))
-;;           (bufB (if revB
-;;                     (magit-get-revision-buffer revB fileB)
-;;                   (get-file-buffer fileB))))
-;;       (ediff-buffers
-;;        (or bufA (if revA
-;;                     (magit-find-file-noselect revA fileA)
-;;                   (find-file-noselect fileA)))
-;;        (or bufB (if revB
-;;                     (magit-find-file-noselect revB fileB)
-;;                   (find-file-noselect fileB)))
-;;        `((lambda ()
-;;            (setq-local
-;;             ediff-quit-hook
-;;             (lambda ()
-;;               ,@(unless bufA '((ediff-kill-buffer-carefully ediff-buffer-A)))
-;;               ,@(unless bufB '((ediff-kill-buffer-carefully ediff-buffer-B)))
-;;               (let ((magit-ediff-previous-winconf ,conf))
-;;                 (run-hooks 'magit-ediff-quit-hook))))))
-;;        'ediff-revision))))
-
-;; (defun magit-ediff-compare--read-revisions (&optional arg mbase)
-;;   (let ((input (or arg (magit-diff-read-range-or-commit "Compare range or commit"
-;;                                                         nil mbase)))
-;;         revA revB)
-;;     (if (string-match magit-range-re input)
-;;         (progn (setq revA (or (match-string 1 input) "HEAD")
-;;                      revB (or (match-string 3 input) "HEAD"))
-;;                (when (string= (match-string 2 input) "...")
-;;                  (setq revA (magit-git-string "merge-base" revA revB))))
-;;       (setq revA input))
-;;     (list revA revB)))
-
-;; (defun magit-ediff-read-files (revA revB &optional fileB)
-;;   "Read file in REVB, return it and the corresponding file in REVA.
-;; When FILEB is non-nil, use this as REVB's file instead of
-;; prompting for it."
-;;   (unless fileB
-;;     (setq fileB (magit-read-file-choice
-;;                  (format "File to compare between %s and %s"
-;;                          revA (or revB "the working tree"))
-;;                  (magit-changed-files revA revB)
-;;                  (format "No changed files between %s and %s"
-;;                          revA (or revB "the working tree")))))
-;;   (list (or (car (member fileB (magit-revision-files revA)))
-;;             (cdr (assoc fileB (magit-renamed-files revB revA)))
-;;             (magit-read-file-choice
-;;              (format "File in %s to compare with %s in %s"
-;;                      revA fileB (or revB "the working tree"))
-;;              (magit-changed-files revB revA)
-;;              (format "No files have changed between %s and %s"
-;;                      revA revB)))
-;;         fileB))
+If the region is active, use the revisions on the first and last
+line of the region.  With a prefix argument, instead of diffing
+the revisions, choose a revision to view changes along, starting
+at the common ancestor of both revisions (i.e., use a \"...\"
+range)."
+  (interactive (-let [(revA revB) (magit-ediff-compare--read-revisions
+                                   nil current-prefix-arg)]
+                 (nconc (list revA revB)
+                        (magit-ediff-read-files revA revB))))
+  (magit-with-toplevel
+    (let ((conf (current-window-configuration))
+          (bufA (if revA
+                    (magit-get-revision-buffer revA fileA)
+                  (get-file-buffer fileA)))
+          (bufB (if revB
+                    (magit-get-revision-buffer revB fileB)
+                  (get-file-buffer fileB))))
+      (vdiff-buffers
+       (or bufA (if revA
+                    (magit-find-file-noselect revA fileA)
+                  (find-file-noselect fileA)))
+       (or bufB (if revB
+                    (magit-find-file-noselect revB fileB)
+                  (find-file-noselect fileB)))
+       nil t t))))
 
 ;;;###autoload
 (defun vdiff-magit-dwim ()
@@ -342,7 +301,7 @@ mind at all, then it asks the user for a command to run."
   (magit-section-case
     (hunk (save-excursion
             (goto-char (magit-section-start (magit-section-parent it)))
-            (magit-ediff-dwim)))
+            (vdiff-magit-dwim)))
     (t
      (let ((range (magit-diff--dwim))
            (file (magit-current-file))
@@ -363,7 +322,7 @@ mind at all, then it asks the user for a command to run."
                 revB value))
          ((pred stringp)
           (-let [(a b) (magit-ediff-compare--read-revisions range)]
-            (setq command #'magit-ediff-compare
+            (setq command #'vdiff-magit-compare
                   revA a
                   revB b)))
          (_
@@ -383,11 +342,11 @@ mind at all, then it asks the user for a command to run."
                (magit-read-char-case
                    "Failed to read your mind; do you want to " t
                  (?c "[c]ommit"  'magit-ediff-show-commit)
-                 (?r "[r]ange"   'magit-ediff-compare)
+                 (?r "[r]ange"   'vdiff-magit-compare)
                  (?s "[s]tage"   'vdiff-magit-stage)
-                 (?v "resol[v]e" 'magit-ediff-resolve))))
-             ((eq command 'magit-ediff-compare)
-              (apply 'magit-ediff-compare revA revB
+                 (?v "resol[v]e" 'vdiff-magit-resolve))))
+             ((eq command 'vdiff-magit-compare)
+              (apply 'vdiff-magit-compare revA revB
                      (magit-ediff-read-files revA revB file)))
              ((eq command 'magit-ediff-show-commit)
               (magit-ediff-show-commit revB))
@@ -465,14 +424,14 @@ FILE must be relative to the top directory of the repository."
 ;;        'ediff-buffers))))
 
 ;; ;;;###autoload
-;; (defun magit-ediff-show-commit (commit)
-;;   "Show changes introduced by COMMIT using Ediff."
-;;   (interactive (list (magit-read-branch-or-commit "Revision")))
-;;   (let ((revA (concat commit "^"))
-;;         (revB commit))
-;;     (apply #'magit-ediff-compare
-;;            revA revB
-;;            (magit-ediff-read-files revA revB (magit-current-file)))))
+(defun vdiff-magit-show-commit (commit)
+  "Show changes introduced by COMMIT using Ediff."
+  (interactive (list (magit-read-branch-or-commit "Revision")))
+  (let ((revA (concat commit "^"))
+        (revB commit))
+    (apply #'vdiff-magit-compare
+           revA revB
+           (magit-ediff-read-files revA revB (magit-current-file)))))
 
 ;; ;;;###autoload
 ;; (defun magit-ediff-show-stash (stash)
@@ -509,7 +468,7 @@ FILE must be relative to the top directory of the repository."
 ;;                   (let ((magit-ediff-previous-winconf ,conf))
 ;;                     (run-hooks 'magit-ediff-quit-hook))))))
 ;;            'ediff-buffers3))
-;;       (magit-ediff-compare revA revC fileA fileC))))
+;;       (vdiff-magit-compare revA revC fileA fileC))))
 
 ;; Don't think this is necessary
 ;; (defun magit-vdiff-cleanup-auxiliary-buffers ()
