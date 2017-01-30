@@ -239,9 +239,11 @@ FILE has to be relative to the top directory of the repository."
            (with-current-buffer buf-c
              (when (y-or-n-p
                     (format "Save file %s? " buffer-file-name))
-               (save-buffer)))
+               (save-buffer))))
+         (when (y-or-n-p
+                (format "Kill buffer %s?" (buffer-file-name buf-c)))
            (kill-buffer buf-c)))
-       t t))))
+       t nil))))
 
 ;; ;;;###autoload
 (defun vdiff-magit-compare (revA revB fileA fileB)
