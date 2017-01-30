@@ -52,15 +52,15 @@
 ;;   :options '(magit-ediff-cleanup-auxiliary-buffers
 ;;              magit-ediff-restore-previous-winconf))
 
-;; (defcustom magit-ediff-dwim-show-on-hunks nil
-;;   "Whether `magit-ediff-dwim' runs show variants on hunks.
-;; If non-nil, `magit-ediff-show-staged' or
-;; `vdiff-magit-show-unstaged' are called based on what section the
-;; hunk is in.  Otherwise, `magit-ediff-dwim' runs
-;; `magit-ediff-stage' when point is on an uncommitted hunk."
-;;   :package-version '(magit . "2.2.0")
-;;   :group 'magit-ediff
-;;   :type 'boolean)
+(defcustom vdiff-magit-dwim-show-on-hunks nil
+  "Whether `vdiff-magit-dwim' runs show variants on hunks.
+If non-nil, `vdiff-magit-show-staged' or
+`vdiff-magit-show-unstaged' are called based on what section the
+hunk is in.  Otherwise, `vdiff-magit-dwim' runs
+`vdiff-magit-stage' when point is on an uncommitted hunk."
+  ;; :package-version '(magit . "2.2.0")
+  :group 'vdiff-magit
+  :type 'boolean)
 
 (defcustom vdiff-magit-show-stash-with-index t
   "Whether `vdiff-magit-show-stash' shows the state of the index.
@@ -90,7 +90,7 @@ stash@{N}^1..stash@{N}.  Along with any unstaged changes, changes
 in the index commit, stash@{N}^2, will be shown in this
 comparison unless they conflicted with changes in the working
 tree at the time of stashing."
-  :package-version '(magit . "2.6.0")
+  ;; :package-version '(magit . "2.6.0")
   :group 'vdiff-magit
   :type 'boolean)
 
@@ -302,7 +302,7 @@ mind at all, then it asks the user for a command to run."
            (file (magit-current-file))
            command revA revB)
        (pcase range
-         ((and (guard (not magit-ediff-dwim-show-on-hunks))
+         ((and (guard (not vdiff-magit-dwim-show-on-hunks))
                (or `unstaged `staged))
           (setq command (if (magit-anything-unmerged-p)
                             #'vdiff-magit-resolve
@@ -326,7 +326,7 @@ mind at all, then it asks the user for a command to run."
               (`committed (-let [(a b) (magit-ediff-compare--read-revisions
                                         (car magit-refresh-args))]
                             (setq revA a revB b)))
-              ((guard (not magit-ediff-dwim-show-on-hunks))
+              ((guard (not vdiff-magit-dwim-show-on-hunks))
                (setq command #'vdiff-magit-stage))
               (`unstaged  (setq command #'vdiff-magit-show-unstaged))
               (`staged    (setq command #'vdiff-magit-show-staged))
