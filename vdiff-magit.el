@@ -226,16 +226,21 @@ FILE has to be relative to the top directory of the repository."
          (current-buffer))
        fileBufC
        (lambda (buf-a buf-b buf-c)
+         (when (and (buffer-live-p buf-a)
+                    (buffer-modified-p buf-a))
+           (kill-buffer buf-a))
          (when (and (buffer-live-p buf-b)
                     (buffer-modified-p buf-b))
            (with-current-buffer buf-b
-             (magit-update-index)))
+             (magit-update-index))
+           (kill-buffer buf-b))
          (when (and (buffer-live-p buf-c)
                     (buffer-modified-p buf-c))
            (with-current-buffer buf-c
              (when (y-or-n-p
                     (format "Save file %s? " buffer-file-name))
-               (save-buffer)))))
+               (save-buffer)))
+           (kill-buffer buf-c)))
        t t))))
 
 ;; ;;;###autoload
