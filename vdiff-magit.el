@@ -103,7 +103,7 @@ tree at the time of stashing."
              (?u "Show unstaged" vdiff-magit-show-unstaged)
              (?s "Stage (vdiff)" vdiff-magit-stage)
              (?i "Show staged"   vdiff-magit-show-staged)
-             (?m "Resolve"       vdiff-magit-resolve)
+             (?m "Resolve"       magit-ediff-resolve)
              (?w "Show worktree" vdiff-magit-show-working-tree)
              (?r "Diff range"    vdiff-magit-compare)
              (?c "Show commit"   vdiff-magit-show-commit) nil
@@ -300,7 +300,7 @@ mind at all, then it asks the user for a command to run."
          ((and (guard (not vdiff-magit-dwim-show-on-hunks))
                (or `unstaged `staged))
           (setq command (if (magit-anything-unmerged-p)
-                            #'vdiff-magit-resolve
+                            #'magit-ediff-resolve
                           #'vdiff-magit-stage)))
          (`unstaged (setq command #'vdiff-magit-show-unstaged))
          (`staged (setq command #'vdiff-magit-show-staged))
@@ -334,7 +334,7 @@ mind at all, then it asks the user for a command to run."
                  (?c "[c]ommit"  'vdiff-magit-show-commit)
                  (?r "[r]ange"   'vdiff-magit-compare)
                  (?s "[s]tage"   'vdiff-magit-stage)
-                 (?v "resol[v]e" 'vdiff-magit-resolve))))
+                 (?v "resol[v]e" 'magit-ediff-resolve))))
              ((eq command 'vdiff-magit-compare)
               (apply 'vdiff-magit-compare revA revB
                      (magit-ediff-read-files revA revB file)))
