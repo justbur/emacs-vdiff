@@ -105,7 +105,7 @@
 ;;              ;; (?u "Show unstaged" vdiff-magit-show-unstaged)
 ;;              (?s "Stage (vdiff)" vdiff-magit-stage)
 ;;              ;; (?i "Show staged"   magit-ediff-show-staged)
-;;              ;; (?m "Resolve"       magit-ediff-resolve)
+;;              ;; (?m "Resolve"       vdiff-magit-resolve)
 ;;              ;; (?w "Show worktree" magit-ediff-show-working-tree)
 ;;              ;; (?r "Diff range"    vdiff-magit-compare)
 ;;              ;; (?c "Show commit"   magit-ediff-show-commit) nil
@@ -190,26 +190,21 @@ conflicts, including those already resolved by Git, use
             (funcall mode)))
 
         ;; the rest of the code is inspired from vc.el
-        ;; Fire up ediff.
+        ;; Fire up vdiff.
         (vdiff-buffers3
          mine other base
          `(lambda (mine other base)
-            (let ((orig-buf ,buf))
-              (with-current-buffer orig-buf
-                (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
-                                           buffer-file-name))
-                  (erase-buffer)
-                  (insert-buffer-substring base)
-                  (save-buffer))))
-            (when (buffer-live-p mine) (kill-buffer mine))
-            (when (buffer-live-p other) (kill-buffer other))
-            (when (buffer-live-p base) (kill-buffer base))
-            ;; (when (buffer-live-p ediff-ancestor-buffer)
-            ;;   (kill-buffer ediff-ancestor-buffer))
-            (set-window-configuration ,config)
-            ;; (let ((magit-ediff-previous-winconf smerge-ediff-windows))
-            ;;   (run-hooks 'magit-ediff-quit-hook))
-            ))))))
+           (let ((orig-buf ,buf))
+             (with-current-buffer orig-buf
+               (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
+                                          buffer-file-name))
+                 (erase-buffer)
+                 (insert-buffer-substring base)
+                 (save-buffer))))
+           (when (buffer-live-p mine) (kill-buffer mine))
+           (when (buffer-live-p other) (kill-buffer other))
+           (when (buffer-live-p base) (kill-buffer base))
+           (set-window-configuration ,config)))))))
 
 ;;;###autoload
 (defun vdiff-magit-stage (file)
@@ -310,7 +305,7 @@ mind at all, then it asks the user for a command to run."
          ((and (guard (not magit-ediff-dwim-show-on-hunks))
                (or `unstaged `staged))
           (setq command (if (magit-anything-unmerged-p)
-                            #'magit-ediff-resolve
+                            #'vdiff-magit-resolve
                           #'vdiff-magit-stage)))
          (`unstaged (setq command #'vdiff-magit-show-unstaged))
          (`staged (setq command #'vdiff-magit-show-staged))
