@@ -1774,12 +1774,13 @@ you will be asked to select two files."
           (kill-process (get-buffer-process buf)))
         (when (buffer-live-p buf) (kill-buffer buf)))
       (dolist (buf (vdiff-session-buffers ses))
-        (with-current-buffer buf
-          (if vdiff-3way-mode
-              (vdiff-3way-mode -1)
-            (vdiff-mode -1)))
-        (when (vdiff-session-kill-buffers-on-quit ses)
-          (kill-buffer buf)))
+        (when (buffer-live-p buf)
+          (with-current-buffer buf
+            (if vdiff-3way-mode
+                (vdiff-3way-mode -1)
+              (vdiff-mode -1)))
+          (when (vdiff-session-kill-buffers-on-quit ses)
+            (kill-buffer buf))))
       ;; (run-hooks 'vdiff-quit-hook)
       (when (vdiff-session-prior-window-config ses)
         (set-window-configuration
