@@ -103,7 +103,7 @@ tree at the time of stashing."
              (?u "Show unstaged" vdiff-magit-show-unstaged)
              (?s "Stage (vdiff)" vdiff-magit-stage)
              (?i "Show staged"   vdiff-magit-show-staged)
-             (?m "Resolve"       magit-ediff-resolve)
+             (?m "Resolve"       vdiff-magit-resolve)
              (?w "Show worktree" vdiff-magit-show-working-tree)
              (?r "Diff range"    vdiff-magit-compare)
              (?c "Show commit"   vdiff-magit-show-commit) nil
@@ -132,7 +132,7 @@ conflicts, including those already resolved by Git, use
     (with-current-buffer (find-file-noselect file)
       ;; taken from `smerge-ediff'
       (require 'smerge-mode)
-      (let* ((buf (current-buffer))
+      (let* ((smerge-buffer (current-buffer))
              (mode major-mode)
              ;;(ediff-default-variant 'default-B)
              (config (current-window-configuration))
@@ -148,10 +148,18 @@ conflicts, including those already resolved by Git, use
              base)
         (with-current-buffer mine
           (buffer-disable-undo)
-          (insert-buffer-substring buf)
+          (insert-buffer-substring smerge-buffer)
           (goto-char (point-min))
           (while (smerge-find-conflict)
-            (when (match-beginning 2) (setq base t))
+            (when (match-beginning 2)
+              ;; This is not supported yet, so we abort here
+              ;; (setq base t)
+              (when (buffer-live-p mine)
+                (kill-buffer mine))
+              (when (buffer-live-p other)
+                (kill-buffer other))
+              (set-window-configuration config)
+              (user-error "Sorry vdiff-magit does not support three-way merges yet."))
             (smerge-keep-n 1))
           (buffer-enable-undo)
           (set-buffer-modified-p nil)
@@ -159,7 +167,7 @@ conflicts, including those already resolved by Git, use
 
         (with-current-buffer other
           (buffer-disable-undo)
-          (insert-buffer-substring buf)
+          (insert-buffer-substring smerge-buffer)
           (goto-char (point-min))
           (while (smerge-find-conflict)
             (smerge-keep-n 3))
@@ -167,37 +175,35 @@ conflicts, including those already resolved by Git, use
           (set-buffer-modified-p nil)
           (funcall mode))
 
-        (when base
-          (setq base (generate-new-buffer
-                      (or name-base
-                          (concat "*" filename " "
-                                  (smerge--get-marker smerge-base-re "BASE")
-                                  "*"))))
-          (with-current-buffer base
-            (buffer-disable-undo)
-            (insert-buffer-substring buf)
-            (goto-char (point-min))
-            (while (smerge-find-conflict)
-              (if (match-end 2)
-                  (smerge-keep-n 2)
-                (delete-region (match-beginning 0) (match-end 0))))
-            (buffer-enable-undo)
-            (set-buffer-modified-p nil)
-            (funcall mode)))
+        ;; (when base
+        ;;   (setq base (generate-new-buffer
+        ;;               (or name-base
+        ;;                   (concat "*" filename " "
+        ;;                           (smerge--get-marker smerge-base-re "BASE")
+        ;;                           "*"))))
+        ;;   (with-current-buffer base
+        ;;     (buffer-disable-undo)
+        ;;     (insert-buffer-substring smerge-buffer)
+        ;;     (goto-char (point-min))
+        ;;     (while (smerge-find-conflict)
+        ;;       (if (match-end 2)
+        ;;           (smerge-keep-n 2)
+        ;;         (delete-region (match-beginning 0) (match-end 0))))
+        ;;     (buffer-enable-undo)
+        ;;     (set-buffer-modified-p nil)
+        ;;     (funcall mode)))
 
-        ;; the rest of the code is inspired from vc.el
-        ;; Fire up vdiff.
         (vdiff-buffers3
-         mine other base
-         `(lambda (mine other base)
-            (let ((orig-buf ,buf))
-              (with-current-buffer orig-buf
-                (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
-                                           buffer-file-name))
-                  (erase-buffer)
-                  (insert-buffer-substring base)
-                  (save-buffer)))))
-         t t)))))
+         mine other smerge-buffer
+         (lambda (mine other smerge-buffer)
+           (with-current-buffer smerge-buffer
+             (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
+                                        buffer-file-name))
+               (save-buffer)))
+           (dolist (buf (list mine other))
+             (when (buffer-live-p buf)
+               (kill-buffer buf))))
+         t)))))
 
 ;;;###autoload
 (defun vdiff-magit-stage (file)
@@ -300,7 +306,7 @@ mind at all, then it asks the user for a command to run."
          ((and (guard (not vdiff-magit-dwim-show-on-hunks))
                (or `unstaged `staged))
           (setq command (if (magit-anything-unmerged-p)
-                            #'magit-ediff-resolve
+                            #'vdiff-magit-resolve
                           #'vdiff-magit-stage)))
          (`unstaged (setq command #'vdiff-magit-show-unstaged))
          (`staged (setq command #'vdiff-magit-show-staged))
@@ -334,7 +340,7 @@ mind at all, then it asks the user for a command to run."
                  (?c "[c]ommit"  'vdiff-magit-show-commit)
                  (?r "[r]ange"   'vdiff-magit-compare)
                  (?s "[s]tage"   'vdiff-magit-stage)
-                 (?v "resol[v]e" 'magit-ediff-resolve))))
+                 (?v "resol[v]e" 'vdiff-magit-resolve))))
              ((eq command 'vdiff-magit-compare)
               (apply 'vdiff-magit-compare revA revB
                      (magit-ediff-read-files revA revB file)))
