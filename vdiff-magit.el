@@ -96,30 +96,26 @@ tree at the time of stashing."
 
 ;; (defvar magit-ediff-previous-winconf nil)
 
-;; ###autoload (autoload 'magit-ediff-popup "magit-ediff" nil t)
-;; (magit-define-popup vdiff-magit-popup
-;;   "Popup console for vdiff/ediff commands."
-;;   'magit-diff nil nil
-;;   :actions '(
-;;              ;; (?E "Dwim"          magit-ediff-dwim)
-;;              ;; (?u "Show unstaged" vdiff-magit-show-unstaged)
-;;              (?s "Stage (vdiff)" vdiff-magit-stage)
-;;              ;; (?i "Show staged"   magit-ediff-show-staged)
-;;              ;; (?m "Resolve"       vdiff-magit-resolve)
-;;              ;; (?w "Show worktree" vdiff-magit-show-working-tree)
-;;              ;; (?r "Diff range"    vdiff-magit-compare)
-;;              ;; (?c "Show commit"   magit-ediff-show-commit) nil
-;;              ;; (?z "Show stash"    magit-ediff-show-stash)
-;;              )
-;;   :max-action-columns 2)
+;;;###autoload (autoload 'vdiff-magit-popup "vdiff-magit" nil t)
+(magit-define-popup vdiff-magit-popup
+  "Popup console for vdiff commands."
+  :actions '((?d "Dwim"          vdiff-magit-dwim)
+             (?u "Show unstaged" vdiff-magit-show-unstaged)
+             (?s "Stage (vdiff)" vdiff-magit-stage)
+             (?i "Show staged"   vdiff-magit-show-staged)
+             (?m "Resolve"       vdiff-magit-resolve)
+             (?w "Show worktree" vdiff-magit-show-working-tree)
+             (?r "Diff range"    vdiff-magit-compare)
+             (?c "Show commit"   vdiff-magit-show-commit) nil
+             (?z "Show stash"    vdiff-magit-show-stash))
+  :max-action-columns 2)
 
-;; (magit-define-popup-action magit-dispatch-popup ?| "vdiff" 'vdiff-magit-popup)
-
-;; (setq magit-ediff-popup vdiff-magit-popup)
+(define-key magit-mode-map "e" 'vdiff-magit-dwim)
+(define-key magit-mode-map "E" 'vdiff-magit-popup)
 
 ;;;###autoload
 (defun vdiff-magit-resolve (file)
-  "Resolve outstanding conflicts in FILE using Ediff.
+  "Resolve outstanding conflicts in FILE using vdiff.
 FILE has to be relative to the top directory of the repository.
 
 In the rare event that you want to manually resolve all
@@ -249,7 +245,7 @@ FILE has to be relative to the top directory of the repository."
 
 ;; ;;;###autoload
 (defun vdiff-magit-compare (revA revB fileA fileB)
-  "Compare REVA:FILEA with REVB:FILEB using Ediff.
+  "Compare REVA:FILEA with REVB:FILEB using vdiff.
 
 FILEA and FILEB have to be relative to the top directory of the
 repository.  If REVA or REVB is nil then this stands for the
@@ -283,13 +279,13 @@ range)."
 
 ;;;###autoload
 (defun vdiff-magit-dwim ()
-  "Compare, stage, or resolve using vdiff with ediff fallback.
+  "Compare, stage, or resolve using vdiff.
 
 This command tries to guess what file, and what commit or range
-the user wants to compare, stage, or resolve using Ediff.  It
+the user wants to compare, stage, or resolve using vdiff.  It
 might only be able to guess either the file, or range or commit,
 in which case the user is asked about the other.  It might not
-always guess right, in which case the appropriate `magit-ediff-*'
+always guess right, in which case the appropriate `vdiff-magit-*'
 command has to be used explicitly.  If it cannot read the user's
 mind at all, then it asks the user for a command to run."
   (interactive)
@@ -412,7 +408,7 @@ FILE must be relative to the top directory of the repository."
 
 ;; ;;;###autoload
 (defun vdiff-magit-show-commit (commit)
-  "Show changes introduced by COMMIT using Ediff."
+  "Show changes introduced by COMMIT using vdiff."
   (interactive (list (magit-read-branch-or-commit "Revision")))
   (let ((revA (concat commit "^"))
         (revB commit))
@@ -422,9 +418,9 @@ FILE must be relative to the top directory of the repository."
 
 ;; ;;;###autoload
 (defun vdiff-magit-show-stash (stash)
-  "Show changes introduced by STASH using Ediff.
+  "Show changes introduced by STASH using vdiff.
 `vdiff-magit-show-stash-with-index' controls whether a
-three-buffer Ediff is used in order to distinguish changes in the
+three-buffer vdiff is used in order to distinguish changes in the
 stash that were staged."
   (interactive (list (magit-read-stash "Stash")))
   (-let* ((revA (concat stash "^1"))
