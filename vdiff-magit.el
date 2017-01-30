@@ -55,7 +55,7 @@
 ;; (defcustom magit-ediff-dwim-show-on-hunks nil
 ;;   "Whether `magit-ediff-dwim' runs show variants on hunks.
 ;; If non-nil, `magit-ediff-show-staged' or
-;; `magit-ediff-show-unstaged' are called based on what section the
+;; `vdiff-magit-show-unstaged' are called based on what section the
 ;; hunk is in.  Otherwise, `magit-ediff-dwim' runs
 ;; `magit-ediff-stage' when point is on an uncommitted hunk."
 ;;   :package-version '(magit . "2.2.0")
@@ -96,26 +96,26 @@
 
 ;; (defvar magit-ediff-previous-winconf nil)
 
-;;;###autoload (autoload 'magit-ediff-popup "magit-ediff" nil t)
-(magit-define-popup vdiff-magit-popup
-  "Popup console for vdiff/ediff commands."
-  'magit-diff nil nil
-  :actions '(
-             ;; (?E "Dwim"          magit-ediff-dwim)
-             ;; (?u "Show unstaged" magit-ediff-show-unstaged)
-             (?s "Stage (vdiff)" vdiff-magit-stage)
-             ;; (?i "Show staged"   magit-ediff-show-staged)
-             ;; (?m "Resolve"       magit-ediff-resolve)
-             ;; (?w "Show worktree" magit-ediff-show-working-tree)
-             ;; (?r "Diff range"    magit-ediff-compare)
-             ;; (?c "Show commit"   magit-ediff-show-commit) nil
-             ;; (?z "Show stash"    magit-ediff-show-stash)
-             )
-  :max-action-columns 2)
+;; ###autoload (autoload 'magit-ediff-popup "magit-ediff" nil t)
+;; (magit-define-popup vdiff-magit-popup
+;;   "Popup console for vdiff/ediff commands."
+;;   'magit-diff nil nil
+;;   :actions '(
+;;              ;; (?E "Dwim"          magit-ediff-dwim)
+;;              ;; (?u "Show unstaged" vdiff-magit-show-unstaged)
+;;              (?s "Stage (vdiff)" vdiff-magit-stage)
+;;              ;; (?i "Show staged"   magit-ediff-show-staged)
+;;              ;; (?m "Resolve"       magit-ediff-resolve)
+;;              ;; (?w "Show worktree" magit-ediff-show-working-tree)
+;;              ;; (?r "Diff range"    magit-ediff-compare)
+;;              ;; (?c "Show commit"   magit-ediff-show-commit) nil
+;;              ;; (?z "Show stash"    magit-ediff-show-stash)
+;;              )
+;;   :max-action-columns 2)
 
-(magit-define-popup-action magit-dispatch-popup ?| "vdiff" 'vdiff-magit-popup)
+;; (magit-define-popup-action magit-dispatch-popup ?| "vdiff" 'vdiff-magit-popup)
 
-(setq magit-ediff-popup vdiff-magit-popup)
+;; (setq magit-ediff-popup vdiff-magit-popup)
 
 ;;;###autoload
 (defun vdiff-magit-resolve (file)
@@ -249,10 +249,7 @@ FILE has to be relative to the top directory of the repository."
              (when (y-or-n-p
                     (format "Save file %s? " buffer-file-name))
                (save-buffer)))
-           (kill-buffer buf-c))
-         ;; (let ((magit-ediff-previous-winconf ,conf))
-         ;;   (run-hooks 'magit-ediff-quit-hook))
-         )
+           (kill-buffer buf-c)))
        t t))))
 
 ;; ;;;###autoload
@@ -356,8 +353,8 @@ mind at all, then it asks the user for a command to run."
           (setq command (if (magit-anything-unmerged-p)
                             #'magit-ediff-resolve
                           #'vdiff-magit-stage)))
-         (`unstaged (setq command #'magit-ediff-show-unstaged))
-         (`staged (setq command #'magit-ediff-show-staged))
+         (`unstaged (setq command #'vdiff-magit-show-unstaged))
+         (`staged (setq command #'vdiff-magit-show-staged))
          (`(commit . ,value)
           (setq command #'magit-ediff-show-commit
                 revB value))
@@ -377,8 +374,8 @@ mind at all, then it asks the user for a command to run."
                             (setq revA a revB b)))
               ((guard (not magit-ediff-dwim-show-on-hunks))
                (setq command #'vdiff-magit-stage))
-              (`unstaged  (setq command #'magit-ediff-show-unstaged))
-              (`staged    (setq command #'magit-ediff-show-staged))
+              (`unstaged  (setq command #'vdiff-magit-show-unstaged))
+              (`staged    (setq command #'vdiff-magit-show-staged))
               (`undefined (setq command nil))
               (_          (setq command nil))))))
        (cond ((not command)
@@ -402,61 +399,45 @@ mind at all, then it asks the user for a command to run."
               (call-interactively command)))))))
 
 ;; ;;;###autoload
-;; (defun magit-ediff-show-staged (file)
-;;   "Show staged changes using Ediff.
+(defun vdiff-magit-show-staged (file)
+  "Show staged changes using vdiff.
 
-;; This only allows looking at the changes; to stage, unstage,
-;; and discard changes using Ediff, use `magit-ediff-stage'.
+This only allows looking at the changes; to stage, unstage,
+and discard changes using vdiff, use `vdiff-magit-stage'.
 
-;; FILE must be relative to the top directory of the repository."
-;;   (interactive
-;;    (list (magit-read-file-choice "Show staged changes for file"
-;;                                  (magit-staged-files)
-;;                                  "No staged files")))
-;;   (let ((conf (current-window-configuration))
-;;         (bufA (magit-get-revision-buffer "HEAD" file))
-;;         (bufB (get-buffer (concat file ".~{index}~"))))
-;;     (ediff-buffers
-;;      (or bufA (magit-find-file-noselect "HEAD" file))
-;;      (or bufB (magit-find-file-index-noselect file t))
-;;      `((lambda ()
-;;          (setq-local
-;;           ediff-quit-hook
-;;           (lambda ()
-;;             ,@(unless bufA '((ediff-kill-buffer-carefully ediff-buffer-A)))
-;;             ,@(unless bufB '((ediff-kill-buffer-carefully ediff-buffer-B)))
-;;             (let ((magit-ediff-previous-winconf ,conf))
-;;               (run-hooks 'magit-ediff-quit-hook))))))
-;;      'ediff-buffers)))
+FILE must be relative to the top directory of the repository."
+  (interactive
+   (list (magit-read-file-choice "Show staged changes for file"
+                                 (magit-staged-files)
+                                 "No staged files")))
+  (let ((conf (current-window-configuration))
+        (bufA (magit-get-revision-buffer "HEAD" file))
+        (bufB (get-buffer (concat file ".~{index}~"))))
+    (vdiff-buffers
+     (or bufA (magit-find-file-noselect "HEAD" file))
+     (or bufB (magit-find-file-index-noselect file t))
+     nil t t)))
 
-;; ;;;###autoload
-;; (defun magit-ediff-show-unstaged (file)
-;;   "Show unstaged changes using Ediff.
+;;;###autoload
+(defun vdiff-magit-show-unstaged (file)
+  "Show unstaged changes using vdiff.
 
-;; This only allows looking at the changes; to stage, unstage,
-;; and discard changes using Ediff, use `magit-ediff-stage'.
+This only allows looking at the changes; to stage, unstage,
+and discard changes using vdiff, use `vdiff-magit-stage'.
 
-;; FILE must be relative to the top directory of the repository."
-;;   (interactive
-;;    (list (magit-read-file-choice "Show unstaged changes for file"
-;;                                  (magit-modified-files)
-;;                                  "No unstaged files")))
-;;   (magit-with-toplevel
-;;     (let ((conf (current-window-configuration))
-;;           (bufA (get-buffer (concat file ".~{index}~")))
-;;           (bufB (get-file-buffer file)))
-;;       (ediff-buffers
-;;        (or bufA (magit-find-file-index-noselect file t))
-;;        (or bufB (find-file-noselect file))
-;;        `((lambda ()
-;;            (setq-local
-;;             ediff-quit-hook
-;;             (lambda ()
-;;               ,@(unless bufA '((ediff-kill-buffer-carefully ediff-buffer-A)))
-;;               ,@(unless bufB '((ediff-kill-buffer-carefully ediff-buffer-B)))
-;;               (let ((magit-ediff-previous-winconf ,conf))
-;;                 (run-hooks 'magit-ediff-quit-hook))))))
-;;        'ediff-buffers))))
+FILE must be relative to the top directory of the repository."
+  (interactive
+   (list (magit-read-file-choice "Show unstaged changes for file"
+                                 (magit-modified-files)
+                                 "No unstaged files")))
+  (magit-with-toplevel
+    (let ((conf (current-window-configuration))
+          (bufA (get-buffer (concat file ".~{index}~")))
+          (bufB (get-file-buffer file)))
+      (vdiff-buffers
+       (or bufA (magit-find-file-index-noselect file t))
+       (or bufB (find-file-noselect file))
+       nil t t))))
 
 ;; ;;;###autoload
 ;; (defun magit-ediff-show-working-tree (file)
