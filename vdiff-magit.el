@@ -310,10 +310,10 @@ mind at all, then it asks the user for a command to run."
          (`unstaged (setq command #'vdiff-magit-show-unstaged))
          (`staged (setq command #'vdiff-magit-show-staged))
          (`(commit . ,value)
-          (setq command #'magit-ediff-show-commit
+          (setq command #'vdiff-magit-show-commit
                 revB value))
          (`(stash . ,value)
-          (setq command #'magit-ediff-show-stash
+          (setq command #'vdiff-magit-show-stash
                 revB value))
          ((pred stringp)
           (-let [(a b) (magit-ediff-compare--read-revisions range)]
@@ -336,17 +336,17 @@ mind at all, then it asks the user for a command to run."
               (call-interactively
                (magit-read-char-case
                    "Failed to read your mind; do you want to " t
-                 (?c "[c]ommit"  'magit-ediff-show-commit)
+                 (?c "[c]ommit"  'vdiff-magit-show-commit)
                  (?r "[r]ange"   'vdiff-magit-compare)
                  (?s "[s]tage"   'vdiff-magit-stage)
                  (?v "resol[v]e" 'vdiff-magit-resolve))))
              ((eq command 'vdiff-magit-compare)
               (apply 'vdiff-magit-compare revA revB
                      (magit-ediff-read-files revA revB file)))
-             ((eq command 'magit-ediff-show-commit)
+             ((eq command 'vdiff-magit-show-commit)
               (magit-ediff-show-commit revB))
-             ((eq command 'magit-ediff-show-stash)
-              (magit-ediff-show-stash revB))
+             ((eq command 'vdiff-magit-show-stash)
+              (vdiff-magit-show-stash revB))
              (file
               (funcall command file))
              (t
