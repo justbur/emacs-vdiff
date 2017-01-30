@@ -106,7 +106,7 @@ tree at the time of stashing."
 ;;              (?s "Stage (vdiff)" vdiff-magit-stage)
 ;;              ;; (?i "Show staged"   magit-ediff-show-staged)
 ;;              ;; (?m "Resolve"       vdiff-magit-resolve)
-;;              ;; (?w "Show worktree" magit-ediff-show-working-tree)
+;;              ;; (?w "Show worktree" vdiff-magit-show-working-tree)
 ;;              ;; (?r "Diff range"    vdiff-magit-compare)
 ;;              ;; (?c "Show commit"   magit-ediff-show-commit) nil
 ;;              ;; (?z "Show stash"    magit-ediff-show-stash)
@@ -394,29 +394,21 @@ FILE must be relative to the top directory of the repository."
        nil t t))))
 
 ;; ;;;###autoload
-;; (defun magit-ediff-show-working-tree (file)
-;;   "Show changes between HEAD and working tree using Ediff.
-;; FILE must be relative to the top directory of the repository."
-;;   (interactive
-;;    (list (magit-read-file-choice "Show changes in file"
-;;                                  (magit-changed-files "HEAD")
-;;                                  "No changed files")))
-;;   (magit-with-toplevel
-;;     (let ((conf (current-window-configuration))
-;;           (bufA (magit-get-revision-buffer "HEAD" file))
-;;           (bufB (get-file-buffer file)))
-;;       (ediff-buffers
-;;        (or bufA (magit-find-file-noselect "HEAD" file))
-;;        (or bufB (find-file-noselect file))
-;;        `((lambda ()
-;;            (setq-local
-;;             ediff-quit-hook
-;;             (lambda ()
-;;               ,@(unless bufA '((ediff-kill-buffer-carefully ediff-buffer-A)))
-;;               ,@(unless bufB '((ediff-kill-buffer-carefully ediff-buffer-B)))
-;;               (let ((magit-ediff-previous-winconf ,conf))
-;;                 (run-hooks 'magit-ediff-quit-hook))))))
-;;        'ediff-buffers))))
+(defun vdiff-magit-show-working-tree (file)
+  "Show changes between HEAD and working tree using vdiff.
+FILE must be relative to the top directory of the repository."
+  (interactive
+   (list (magit-read-file-choice "Show changes in file"
+                                 (magit-changed-files "HEAD")
+                                 "No changed files")))
+  (magit-with-toplevel
+    (let ((conf (current-window-configuration))
+          (bufA (magit-get-revision-buffer "HEAD" file))
+          (bufB (get-file-buffer file)))
+      (vdiff-buffers
+       (or bufA (magit-find-file-noselect "HEAD" file))
+       (or bufB (find-file-noselect file))
+       nil t t))))
 
 ;; ;;;###autoload
 (defun vdiff-magit-show-commit (commit)
