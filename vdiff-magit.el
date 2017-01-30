@@ -190,17 +190,14 @@ conflicts, including those already resolved by Git, use
         (vdiff-buffers3
          mine other base
          `(lambda (mine other base)
-           (let ((orig-buf ,buf))
-             (with-current-buffer orig-buf
-               (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
-                                          buffer-file-name))
-                 (erase-buffer)
-                 (insert-buffer-substring base)
-                 (save-buffer))))
-           (when (buffer-live-p mine) (kill-buffer mine))
-           (when (buffer-live-p other) (kill-buffer other))
-           (when (buffer-live-p base) (kill-buffer base))
-           (set-window-configuration ,config)))))))
+            (let ((orig-buf ,buf))
+              (with-current-buffer orig-buf
+                (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
+                                           buffer-file-name))
+                  (erase-buffer)
+                  (insert-buffer-substring base)
+                  (save-buffer)))))
+         t t)))))
 
 ;;;###autoload
 (defun vdiff-magit-stage (file)
