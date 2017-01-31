@@ -345,7 +345,7 @@ mind at all, then it asks the user for a command to run."
               (apply 'vdiff-magit-compare revA revB
                      (magit-ediff-read-files revA revB file)))
              ((eq command 'vdiff-magit-show-commit)
-              (magit-ediff-show-commit revB))
+              (vdiff-magit-show-commit revB))
              ((eq command 'vdiff-magit-show-stash)
               (vdiff-magit-show-stash revB))
              (file
