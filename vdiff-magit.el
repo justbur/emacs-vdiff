@@ -110,9 +110,6 @@ tree at the time of stashing."
              (?z "Show stash"    vdiff-magit-show-stash))
   :max-action-columns 2)
 
-(define-key magit-mode-map "e" 'vdiff-magit-dwim)
-(define-key magit-mode-map "E" 'vdiff-magit-popup)
-
 ;;;###autoload
 (defun vdiff-magit-resolve (file)
   "Resolve outstanding conflicts in FILE using vdiff.

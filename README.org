@@ -4,6 +4,16 @@
 
 A tool like vimdiff for Emacs 
 
+** Table of Contents                                                    :TOC:
+ - [[#vdiff][vdiff]]
+   - [[#introduction][Introduction]]
+   - [[#recent-significant-changes][Recent (Significant) Changes]]
+   - [[#screenshot][Screenshot]]
+   - [[#installation-and-usage][Installation and Usage]]
+   - [[#hydra][Hydra]]
+   - [[#magit-integration][Magit integration]]
+   - [[#further-customization][Further customization]]
+
 ** Introduction
 
 vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning diff
@@ -122,6 +132,22 @@ made in the buffer. By default it lives on the =h= command in the prefix
 map. Bind =vdiff-hydra/body= directly to customize this key binding.
 
 [[file:img/hydra.png]]
+
+** Magit integration
+
+Loading =vdiff-magit= will pull in functions that will allow vdiff to be used
+with [[https://github.com/magit/magit][magit]]. In order to use these functions you need to call the vdiff functions
+instead of the magit-ediff ones. Here is a very basic setup which replaces the
+basic ediff key bindings in magit. 
+
+Please note that this is a new feature and probably contains some bugs, so use
+it with caution and please report oddities. 
+
+#+BEGIN_SRC emacs-lisp
+(require 'vdiff-magit)
+(define-key magit-mode-map "e" 'vdiff-magit-dwim)
+(define-key magit-mode-map "E" 'vdiff-magit-popup)
+#+END_SRC
 
 ** Further customization
    
