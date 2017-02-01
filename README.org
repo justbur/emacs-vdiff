@@ -144,9 +144,13 @@ Please note that this is a new feature and probably contains some bugs, so use
 it with caution and please report oddities. 
 
 #+BEGIN_SRC emacs-lisp
-(require 'vdiff-magit)
-(define-key magit-mode-map "e" 'vdiff-magit-dwim)
-(define-key magit-mode-map "E" 'vdiff-magit-popup)
+  (require 'vdiff-magit)
+  (define-key magit-mode-map "e" 'vdiff-magit-dwim)
+  (define-key magit-mode-map "E" 'vdiff-magit-popup)
+  ;; This flag will default to using ediff for merges. vdiff-magit does not yet
+  ;; support 3-way merges. Please see the docstring of this variable for more
+  ;; information
+  ;; (setq vdiff-magit-use-ediff-for-merges nil)
 #+END_SRC
 
 ** Further customization

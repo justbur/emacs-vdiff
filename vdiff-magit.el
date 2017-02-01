@@ -90,6 +90,18 @@ tree at the time of stashing."
   :group 'vdiff-magit
   :type 'boolean)
 
+(defcustom vdiff-magit-use-ediff-for-merges nil
+  "If non-nil prefer using `magit-ediff-resolve' over `vdiff-magit-resolve'.
+
+The vdiff-magit version only supports 2-way merges right now and
+not 3-way ones. If you use `vdiff-magit-resolve' in a situation
+requiring a 3-way merge it will abort and forward to
+`magit-ediff-resolve' instead. The purpose of this flag is to
+make the merge experience consistent across all types of
+merges."
+  :group 'vdiff-magit
+  :type 'boolean)
+
 ;; (defvar magit-ediff-previous-winconf nil)
 
 ;;;###autoload (autoload 'vdiff-magit-popup "vdiff-magit" nil t)
@@ -121,89 +133,91 @@ conflicts, including those already resolved by Git, use
        (user-error "There are no unresolved conflicts"))
      (list (magit-completing-read "Resolve file" unmerged nil t nil nil
                                   (car (member current unmerged))))))
-  (let ((switch-to-ediff
-         (catch 'switch-to-ediff
-           (magit-with-toplevel
-             (with-current-buffer (find-file-noselect file)
-               ;; taken from `smerge-ediff'
-               (require 'smerge-mode)
-               (let* ((smerge-buffer (current-buffer))
-                      (mode major-mode)
-                      ;;(ediff-default-variant 'default-B)
-                      (config (current-window-configuration))
-                      (filename (file-name-nondirectory (or buffer-file-name "-")))
-                      (mine (generate-new-buffer
-                             (concat "*" filename " "
-                                     (smerge--get-marker smerge-begin-re "MINE")
-                                     "*")))
-                      (other (generate-new-buffer
-                              (concat "*" filename " "
-                                      (smerge--get-marker smerge-end-re "OTHER")
-                                      "*")))
-                      base)
-                 (with-current-buffer mine
-                   (buffer-disable-undo)
-                   (insert-buffer-substring smerge-buffer)
-                   (goto-char (point-min))
-                   (while (smerge-find-conflict)
-                     (when (match-beginning 2)
-                       ;; This is not supported yet, so we abort here
-                       ;; (setq base t)
-                       (when (buffer-live-p mine)
-                         (kill-buffer mine))
-                       (when (buffer-live-p other)
-                         (kill-buffer other))
-                       (set-window-configuration config)
-                       (message "Switching to ediff. vdiff-magit does not support three-way merges.")
-                       (throw 'switch-to-ediff t))
-                     (smerge-keep-n 1))
-                   (buffer-enable-undo)
-                   (set-buffer-modified-p nil)
-                   (funcall mode))
+  (if vdiff-magit-use-ediff-for-merges
+      (magit-ediff-resolve file)
+    (let ((switch-to-ediff
+           (catch 'switch-to-ediff
+             (magit-with-toplevel
+               (with-current-buffer (find-file-noselect file)
+                 ;; taken from `smerge-ediff'
+                 (require 'smerge-mode)
+                 (let* ((smerge-buffer (current-buffer))
+                        (mode major-mode)
+                        ;;(ediff-default-variant 'default-B)
+                        (config (current-window-configuration))
+                        (filename (file-name-nondirectory (or buffer-file-name "-")))
+                        (mine (generate-new-buffer
+                               (concat "*" filename " "
+                                       (smerge--get-marker smerge-begin-re "MINE")
+                                       "*")))
+                        (other (generate-new-buffer
+                                (concat "*" filename " "
+                                        (smerge--get-marker smerge-end-re "OTHER")
+                                        "*")))
+                        base)
+                   (with-current-buffer mine
+                     (buffer-disable-undo)
+                     (insert-buffer-substring smerge-buffer)
+                     (goto-char (point-min))
+                     (while (smerge-find-conflict)
+                       (when (match-beginning 2)
+                         ;; This is not supported yet, so we abort here
+                         ;; (setq base t)
+                         (when (buffer-live-p mine)
+                           (kill-buffer mine))
+                         (when (buffer-live-p other)
+                           (kill-buffer other))
+                         (set-window-configuration config)
+                         (message "Switching to ediff. vdiff-magit does not support three-way merges.")
+                         (throw 'switch-to-ediff t))
+                       (smerge-keep-n 1))
+                     (buffer-enable-undo)
+                     (set-buffer-modified-p nil)
+                     (funcall mode))
 
-                 (with-current-buffer other
-                   (buffer-disable-undo)
-                   (insert-buffer-substring smerge-buffer)
-                   (goto-char (point-min))
-                   (while (smerge-find-conflict)
-                     (smerge-keep-n 3))
-                   (buffer-enable-undo)
-                   (set-buffer-modified-p nil)
-                   (funcall mode))
+                   (with-current-buffer other
+                     (buffer-disable-undo)
+                     (insert-buffer-substring smerge-buffer)
+                     (goto-char (point-min))
+                     (while (smerge-find-conflict)
+                       (smerge-keep-n 3))
+                     (buffer-enable-undo)
+                     (set-buffer-modified-p nil)
+                     (funcall mode))
 
-                 ;; (when base
-                 ;;   (setq base (generate-new-buffer
-                 ;;               (or name-base
-                 ;;                   (concat "*" filename " "
-                 ;;                           (smerge--get-marker smerge-base-re "BASE")
-                 ;;                           "*"))))
-                 ;;   (with-current-buffer base
-                 ;;     (buffer-disable-undo)
-                 ;;     (insert-buffer-substring smerge-buffer)
-                 ;;     (goto-char (point-min))
-                 ;;     (while (smerge-find-conflict)
-                 ;;       (if (match-end 2)
-                 ;;           (smerge-keep-n 2)
-                 ;;         (delete-region (match-beginning 0) (match-end 0))))
-                 ;;     (buffer-enable-undo)
-                 ;;     (set-buffer-modified-p nil)
-                 ;;     (funcall mode)))
+                   ;; (when base
+                   ;;   (setq base (generate-new-buffer
+                   ;;               (or name-base
+                   ;;                   (concat "*" filename " "
+                   ;;                           (smerge--get-marker smerge-base-re "BASE")
+                   ;;                           "*"))))
+                   ;;   (with-current-buffer base
+                   ;;     (buffer-disable-undo)
+                   ;;     (insert-buffer-substring smerge-buffer)
+                   ;;     (goto-char (point-min))
+                   ;;     (while (smerge-find-conflict)
+                   ;;       (if (match-end 2)
+                   ;;           (smerge-keep-n 2)
+                   ;;         (delete-region (match-beginning 0) (match-end 0))))
+                   ;;     (buffer-enable-undo)
+                   ;;     (set-buffer-modified-p nil)
+                   ;;     (funcall mode)))
 
-                 (vdiff-buffers3
-                  mine other smerge-buffer
-                  (lambda (mine other smerge-buffer)
-                    (with-current-buffer smerge-buffer
-                      (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
-                                                 buffer-file-name))
-                        (save-buffer)))
-                    (dolist (buf (list mine other))
-                      (when (buffer-live-p buf)
-                        (kill-buffer buf))))
-                  t)
-                 ;; return nil for the catch statement
-                 nil))))))
-    (when (eq t switch-to-ediff)
-      (magit-ediff-resolve file))))
+                   (vdiff-buffers3
+                    mine other smerge-buffer
+                    (lambda (mine other smerge-buffer)
+                      (with-current-buffer smerge-buffer
+                        (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
+                                                   buffer-file-name))
+                          (save-buffer)))
+                      (dolist (buf (list mine other))
+                        (when (buffer-live-p buf)
+                          (kill-buffer buf))))
+                    t)
+                   ;; return nil for the catch statement
+                   nil))))))
+      (when (eq t switch-to-ediff)
+        (magit-ediff-resolve file)))))
 
 ;;;###autoload
 (defun vdiff-magit-stage (file)
