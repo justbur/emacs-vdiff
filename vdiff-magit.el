@@ -31,23 +31,6 @@
   "vdiff support for Magit."
   :group 'magit-extensions)
 
-;; (unless (find-lisp-object-file-name 'magit-ediff-quit-hook 'defvar)
-;;   (add-hook 'magit-ediff-quit-hook 'magit-ediff-restore-previous-winconf)
-;;   (add-hook 'magit-ediff-quit-hook 'magit-ediff-cleanup-auxiliary-buffers))
-;; (defcustom magit-ediff-quit-hook
-;;   '(magit-ediff-cleanup-auxiliary-buffers
-;;     magit-ediff-restore-previous-winconf)
-;;   "Hooks to run after finishing Ediff, when that was invoked using Magit.
-;; The hooks are run in the Ediff control buffer.  This is similar
-;; to `ediff-quit-hook' but takes the needs of Magit into account.
-;; The `ediff-quit-hook' is ignored by Ediff sessions which were
-;; invoked using Magit."
-;;   :package-version '(magit . "2.2.0")
-;;   :group 'magit-ediff
-;;   :type 'hook
-;;   :options '(magit-ediff-cleanup-auxiliary-buffers
-;;              magit-ediff-restore-previous-winconf))
-
 (defcustom vdiff-magit-dwim-show-on-hunks nil
   "Whether `vdiff-magit-dwim' runs show variants on hunks.
 If non-nil, `vdiff-magit-show-staged' or
@@ -458,17 +441,6 @@ stash that were staged."
            (or bufC (magit-find-file-noselect revC fileC))
            nil t t))
       (vdiff-magit-compare revA revC fileA fileC))))
-
-;; Don't think this is necessary
-;; (defun magit-vdiff-cleanup-auxiliary-buffers ()
-;;   (ediff-kill-buffer-carefully ediff-diff-buffer)
-;;   (ediff-kill-buffer-carefully ediff-custom-diff-buffer)
-;;   (ediff-kill-buffer-carefully ediff-fine-diff-buffer)
-;;   (ediff-kill-buffer-carefully ediff-tmp-buffer)
-;;   (ediff-kill-buffer-carefully ediff-error-buffer)
-;;   (ediff-kill-buffer-carefully ediff-msg-buffer)
-;;   (ediff-kill-buffer-carefully ediff-debug-buffer))
-
 
 (provide 'vdiff-magit)
 ;;; vdiff-magit.el ends here
