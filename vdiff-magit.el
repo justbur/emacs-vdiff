@@ -137,7 +137,8 @@ conflicts, including those already resolved by Git, use
                                 (concat "*" filename " "
                                         (smerge--get-marker smerge-end-re "OTHER")
                                         "*")))
-                        base)
+                        ;; base
+                        )
                    (with-current-buffer mine
                      (buffer-disable-undo)
                      (insert-buffer-substring smerge-buffer)
@@ -211,16 +212,13 @@ FILE has to be relative to the top directory of the repository."
                                 (magit-tracked-files) nil nil nil
                                 (magit-current-file))))
   (magit-with-toplevel
-    (let* ((conf (current-window-configuration))
-           (bufA (magit-get-revision-buffer "HEAD" file))
-           (bufB (get-buffer (concat file ".~{index}~")))
-           (bufBrw (and bufB (with-current-buffer bufB (not buffer-read-only))))
-           (bufC (get-file-buffer file))
+    (let* ((bufC (get-file-buffer file))
            (fileBufC (or bufC (find-file-noselect file)))
            (coding-system-for-read
             (with-current-buffer fileBufC buffer-file-coding-system)))
       (vdiff-buffers3
-       (or bufA (magit-find-file-noselect "HEAD" file))
+       (or (magit-get-revision-buffer "HEAD" file)
+           (magit-find-file-noselect "HEAD" file))
        (with-current-buffer (magit-find-file-index-noselect file t)
          (setq buffer-read-only nil)
          (current-buffer))
@@ -261,21 +259,18 @@ range)."
                  (nconc (list revA revB)
                         (magit-ediff-read-files revA revB))))
   (magit-with-toplevel
-    (let ((conf (current-window-configuration))
-          (bufA (if revA
-                    (magit-get-revision-buffer revA fileA)
-                  (get-file-buffer fileA)))
-          (bufB (if revB
-                    (magit-get-revision-buffer revB fileB)
-                  (get-file-buffer fileB))))
-      (vdiff-buffers
-       (or bufA (if revA
-                    (magit-find-file-noselect revA fileA)
-                  (find-file-noselect fileA)))
-       (or bufB (if revB
-                    (magit-find-file-noselect revB fileB)
-                  (find-file-noselect fileB)))
-       nil t t))))
+    (vdiff-buffers
+     (if revA
+         (or (magit-get-revision-buffer revA fileA)
+             (magit-find-file-noselect revA fileA))
+       (or (get-file-buffer fileA)
+           (find-file-noselect fileA)))
+     (if revB
+         (or (magit-get-revision-buffer revB fileB)
+             (magit-find-file-noselect revB fileB))
+       (or (get-file-buffer fileB)
+           (find-file-noselect fileB)))
+     nil t t)))
 
 ;;;###autoload
 (defun vdiff-magit-dwim ()
@@ -360,13 +355,12 @@ FILE must be relative to the top directory of the repository."
    (list (magit-read-file-choice "Show staged changes for file"
                                  (magit-staged-files)
                                  "No staged files")))
-  (let ((conf (current-window-configuration))
-        (bufA (magit-get-revision-buffer "HEAD" file))
-        (bufB (get-buffer (concat file ".~{index}~"))))
-    (vdiff-buffers
-     (or bufA (magit-find-file-noselect "HEAD" file))
-     (or bufB (magit-find-file-index-noselect file t))
-     nil t t)))
+  (vdiff-buffers
+   (or (magit-get-revision-buffer "HEAD" file)
+       (magit-find-file-noselect "HEAD" file))
+   (or (get-buffer (concat file ".~{index}~"))
+       (magit-find-file-index-noselect file t))
+   nil t t))
 
 ;;;###autoload
 (defun vdiff-magit-show-unstaged (file)
@@ -381,13 +375,12 @@ FILE must be relative to the top directory of the repository."
                                  (magit-modified-files)
                                  "No unstaged files")))
   (magit-with-toplevel
-    (let ((conf (current-window-configuration))
-          (bufA (get-buffer (concat file ".~{index}~")))
-          (bufB (get-file-buffer file)))
-      (vdiff-buffers
-       (or bufA (magit-find-file-index-noselect file t))
-       (or bufB (find-file-noselect file))
-       nil t t))))
+    (vdiff-buffers
+     (or (get-buffer (concat file ".~{index}~"))
+         (magit-find-file-index-noselect file t))
+     (or (get-file-buffer file)
+         (find-file-noselect file))
+     nil t t)))
 
 ;; ;;;###autoload
 (defun vdiff-magit-show-working-tree (file)
@@ -398,13 +391,11 @@ FILE must be relative to the top directory of the repository."
                                  (magit-changed-files "HEAD")
                                  "No changed files")))
   (magit-with-toplevel
-    (let ((conf (current-window-configuration))
-          (bufA (magit-get-revision-buffer "HEAD" file))
-          (bufB (get-file-buffer file)))
-      (vdiff-buffers
-       (or bufA (magit-find-file-noselect "HEAD" file))
-       (or bufB (find-file-noselect file))
-       nil t t))))
+    (vdiff-buffers
+     (or (magit-get-revision-buffer "HEAD" file)
+         (magit-find-file-noselect "HEAD" file))
+     (or (get-file-buffer file) (find-file-noselect file))
+     nil t t)))
 
 ;; ;;;###autoload
 (defun vdiff-magit-show-commit (commit)
@@ -413,7 +404,7 @@ FILE must be relative to the top directory of the repository."
   (let ((revA (concat commit "^"))
         (revB commit))
     (apply #'vdiff-magit-compare
-           revA revB
+           (concat commit "^") commit
            (magit-ediff-read-files revA revB (magit-current-file)))))
 
 ;; ;;;###autoload
@@ -430,8 +421,7 @@ stash that were staged."
           (fileB fileC))
     (if (and vdiff-magit-show-stash-with-index
              (member fileA (magit-changed-files revB revA)))
-        (let ((conf (current-window-configuration))
-              (bufA (magit-get-revision-buffer revA fileA))
+        (let ((bufA (magit-get-revision-buffer revA fileA))
               (bufB (magit-get-revision-buffer revB fileB))
               (bufC (magit-get-revision-buffer revC fileC)))
           (vdiff-buffers3
