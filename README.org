@@ -174,7 +174,7 @@ The current customization options and there defaults are
   ;; Minimum number of lines to fold
   (setq vdiff-min-fold-size 4)
 
-  ;; If non-nil, avoid closing new folds around point.
+  ;; If non-nil, allow closing new folds around point after updates.
   (setq vdiff-may-close-fold-on-point t)
 
   ;; Function that returns the string printed for a closed fold. The arguments
@@ -182,11 +182,11 @@ The current customization options and there defaults are
   ;; width of the buffer.
   (setq vdiff-fold-string-function 'vdiff-fold-string-default)
 
-  ;; Default syntax table class code to use for identifying \"words\" in
-  ;; \`vdiff-refine-this-change'. Some useful options are
+  ;; Default syntax table class code to use for identifying "words" in
+  ;; `vdiff-refine-this-change'. Some useful options are
   ;; 
-  ;; \"w\"   (default) words
-  ;; \"w_\"  symbols \(really words plus symbol constituents\)
+  ;; "w"   (default) words
+  ;; "w_"  symbols (words plus symbol constituents)
   ;; 
   ;; For more information see
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html

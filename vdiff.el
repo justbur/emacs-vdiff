@@ -95,7 +95,7 @@ break vdiff. It is empty by default."
   :type 'integer)
 
 (defcustom vdiff-may-close-fold-on-point t
-  "If non-nil, avoid closing new folds around point."
+  "If non-nil, allow closing new folds around point after updates."
   :group 'vdiff
   :type 'boolean)
 
@@ -111,7 +111,7 @@ text on the first line, and the width of the buffer."
 \"words\" in \`vdiff-refine-this-hunk'. Some useful options are
 
 \"w\"   (default) words
-\"w_\"  symbols \(really words plus symbol constituents\)
+\"w_\"  symbols \(words plus symbol constituents\)
 
 For more information see
 https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html"
