@@ -225,23 +225,22 @@ FILE has to be relative to the top directory of the repository."
          (setq buffer-read-only nil)
          (current-buffer))
        fileBufC
-       (lambda (buf-a buf-b buf-c)
-         (when (and (buffer-live-p buf-b)
-                    (buffer-modified-p buf-b))
-           (with-current-buffer buf-b
-             (magit-update-index))
-           (kill-buffer buf-b))
-         (when (and (buffer-live-p buf-c)
-                    (buffer-modified-p buf-c))
-           (with-current-buffer buf-c
-             (when (y-or-n-p
-                    (format "Save file %s? " buffer-file-name))
-               (save-buffer))))
-         (when (y-or-n-p
-                (format "Kill buffer %s?" (buffer-file-name buf-c)))
-           (kill-buffer buf-c))
-         (when (buffer-live-p buf-a)
-           (kill-buffer buf-a)))
+       `(lambda (buf-a buf-b buf-c)
+          (when (and (buffer-live-p buf-b)
+                     (buffer-modified-p buf-b))
+            (with-current-buffer buf-b
+              (magit-update-index))
+            (kill-buffer buf-b))
+          (when (and (buffer-live-p buf-c)
+                     (buffer-modified-p buf-c))
+            (with-current-buffer buf-c
+              (when (y-or-n-p
+                     (format "Save file %s? " buffer-file-name))
+                (save-buffer))))
+          ;; kill buf-c if it wasn't open originally
+          (unless ,bufC (kill-buffer buf-c))
+          (when (buffer-live-p buf-a)
+            (kill-buffer buf-a)))
        t nil))))
 
 ;; ;;;###autoload
