@@ -226,9 +226,6 @@ FILE has to be relative to the top directory of the repository."
          (current-buffer))
        fileBufC
        (lambda (buf-a buf-b buf-c)
-         (when (and (buffer-live-p buf-a)
-                    (buffer-modified-p buf-a))
-           (kill-buffer buf-a))
          (when (and (buffer-live-p buf-b)
                     (buffer-modified-p buf-b))
            (with-current-buffer buf-b
@@ -242,7 +239,9 @@ FILE has to be relative to the top directory of the repository."
                (save-buffer))))
          (when (y-or-n-p
                 (format "Kill buffer %s?" (buffer-file-name buf-c)))
-           (kill-buffer buf-c)))
+           (kill-buffer buf-c))
+         (when (buffer-live-p buf-a)
+           (kill-buffer buf-a)))
        t nil))))
 
 ;; ;;;###autoload
