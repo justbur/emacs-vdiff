@@ -1755,6 +1755,49 @@ you will be asked to select two files."
                   (find-file-noselect file-c)
                   on-quit))
 
+;;;###autoload
+(defun vdiff-current-file ()
+  "Start vdiff between current buffer and its file on disk.
+This command can be used instead of `revert-buffer'.  If there is
+nothing to revert then this command fails."
+  (interactive)
+  ;; Taken from `ediff-current-file'
+  (unless (or (not (eq revert-buffer-function 'revert-buffer--default))
+              (not (eq revert-buffer-insert-file-contents-function
+               'revert-buffer-insert-file-contents--default-function))
+              (and buffer-file-number
+                   (or (buffer-modified-p)
+                       (not (verify-visited-file-modtime
+                             (current-buffer))))))
+    (error "Nothing to revert"))
+  (let* ((auto-save-p (and (recent-auto-save-p)
+                           buffer-auto-save-file-name
+                           (file-readable-p buffer-auto-save-file-name)
+                           (y-or-n-p
+                            "Buffer has been auto-saved recently.  Compare with auto-save file? ")))
+         (file-name (if auto-save-p
+                        buffer-auto-save-file-name
+                      buffer-file-name))
+         (revert-buf-name (concat "FILE=" file-name))
+         (revert-buf (get-buffer revert-buf-name))
+         (current-major major-mode))
+    (unless file-name
+      (error "Buffer does not seem to be associated with any file"))
+    (when revert-buf
+      (kill-buffer revert-buf)
+      (setq revert-buf nil))
+    (setq revert-buf (get-buffer-create revert-buf-name))
+    (with-current-buffer revert-buf
+      (insert-file-contents file-name)
+      ;; Assume same modes:
+      (funcall current-major))
+    (vdiff-buffers revert-buf (current-buffer)
+                   nil
+                   (lambda (rbuf cbuf)
+                     (when (buffer-live-p rbuf)
+                       (kill-buffer rbuf)))
+                   t)))
+
 ;; (defvar vdiff-quit-hook nil)
 
 (defun vdiff-quit ()
