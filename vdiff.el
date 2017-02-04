@@ -1754,6 +1754,10 @@ The base or ancestor file is currently ignored."
            (other (generate-new-buffer
                    (concat "*" filename " "
                            (smerge--get-marker smerge-end-re "OTHER")
+                           "*")))
+           (base (generate-new-buffer
+                  (concat "*" filename " "
+                          (smerge--get-marker smerge-end-re "BASE")
                            "*"))))
       (with-current-buffer mine
         (buffer-disable-undo)
@@ -1761,6 +1765,17 @@ The base or ancestor file is currently ignored."
         (goto-char (point-min))
         (while (smerge-find-conflict)
           (smerge-keep-n 1))
+        (buffer-enable-undo)
+        (set-buffer-modified-p nil)
+        (funcall mode))
+
+      (with-current-buffer base
+        (buffer-disable-undo)
+        (insert-buffer-substring smerge-buffer)
+        (goto-char (point-min))
+        (while (smerge-find-conflict)
+          (when (match-beginning 2)
+            (smerge-keep-n 2)))
         (buffer-enable-undo)
         (set-buffer-modified-p nil)
         (funcall mode))
@@ -1777,13 +1792,14 @@ The base or ancestor file is currently ignored."
 
       (vdiff-buffers3
        mine other smerge-buffer
-       (lambda (mine other smerge-buffer)
-         (with-current-buffer smerge-buffer
-           (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
-                                      buffer-file-name))
-             (save-buffer)))
-         (when (buffer-live-p mine) (kill-buffer mine))
-         (when (buffer-live-p other) (kill-buffer other)))
+       `(lambda (mine other smerge-buffer)
+          (with-current-buffer smerge-buffer
+            (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
+                                       buffer-file-name))
+              (save-buffer)))
+          (when (buffer-live-p mine) (kill-buffer mine))
+          (when (buffer-live-p ,base) (kill-buffer ,base))
+          (when (buffer-live-p other) (kill-buffer other)))
        t))))
 
 ;;;###autoload
