@@ -1835,8 +1835,7 @@ you will be asked to select two files."
   (remove-hook 'after-save-hook #'vdiff-refresh t)
   (remove-hook 'after-change-functions #'vdiff--after-change-function t)
   (remove-hook 'pre-command-hook #'vdiff--flag-new-command t)
-  (when vdiff-scroll-lock-mode
-    (vdiff-scroll-lock-mode -1)))
+  (remove-hook 'window-scroll-functions #'vdiff--scroll-function t))
 
 (define-minor-mode vdiff-mode
   "Minor mode active in a vdiff session involving two
@@ -1848,7 +1847,7 @@ automatically after calling commands like `vdiff-files' or
   (cond (vdiff-mode
          (vdiff--buffer-init)
          (when vdiff-lock-scrolling
-           (vdiff-scroll-lock-mode 1)))
+          (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)))
         (t
          (vdiff--buffer-cleanup))))
 
@@ -1862,7 +1861,7 @@ automatically after calling commands like `vdiff-files3' or
   (cond (vdiff-3way-mode
          (vdiff--buffer-init)
          (when vdiff-lock-scrolling
-           (vdiff-scroll-lock-mode 1)))
+           (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)))
         (t
          (vdiff--buffer-cleanup))))
 
