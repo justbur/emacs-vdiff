@@ -140,6 +140,15 @@ indicate the subtraction location in the fringe."
   :group 'vdiff
   :type 'integer)
 
+(defcustom vdiff-use-ancestor-as-merge-buffer nil
+  "When in a merge conflict file and text from the ancestor file
+is included, `vdiff-merge-conflict' will use the ancestor file as
+the merge buffer (or target buffer) that will be saved when the
+merge is finished. The default is to show the original file with
+conflicts as the merge buffer."
+  :group 'vdiff
+  :type 'boolean)
+
 (defface vdiff-addition-face
   '((t :inherit diff-added))
   "Face for additions"
@@ -1738,9 +1747,7 @@ function for ON-QUIT to do something useful with the result."
 
 ;;;###autoload
 (defun vdiff-merge-conflict (file &optional on-quit restore-windows-on-quit)
-  "Start vdiff session using merge conflicts marked in FILE.
-
-The base or ancestor file is currently ignored."
+  "Start vdiff session using merge conflicts marked in FILE."
   (interactive (list buffer-file-name))
   (with-current-buffer (find-file-noselect file)
     (require 'smerge-mode)
@@ -1755,10 +1762,11 @@ The base or ancestor file is currently ignored."
                    (concat "*" filename " "
                            (smerge--get-marker smerge-end-re "OTHER")
                            "*")))
-           (base (generate-new-buffer
+           (ancestor (generate-new-buffer
                   (concat "*" filename " "
-                          (smerge--get-marker smerge-end-re "BASE")
-                           "*"))))
+                          (smerge--get-marker smerge-end-re "ANCESTOR")
+                          "*")))
+           ancestor-used merge-buffer)
       (with-current-buffer mine
         (buffer-disable-undo)
         (insert-buffer-substring smerge-buffer)
@@ -1769,12 +1777,13 @@ The base or ancestor file is currently ignored."
         (set-buffer-modified-p nil)
         (funcall mode))
 
-      (with-current-buffer base
+      (with-current-buffer ancestor
         (buffer-disable-undo)
         (insert-buffer-substring smerge-buffer)
         (goto-char (point-min))
         (while (smerge-find-conflict)
           (when (match-beginning 2)
+            (setq ancestor-used t)
             (smerge-keep-n 2)))
         (buffer-enable-undo)
         (set-buffer-modified-p nil)
@@ -1790,15 +1799,23 @@ The base or ancestor file is currently ignored."
         (set-buffer-modified-p nil)
         (funcall mode))
 
+      (setq merge-buffer
+            (if (and ancestor-used vdiff-use-ancestor-as-merge-buffer)
+                ancestor
+              smerge-buffer))
+
       (vdiff-buffers3
-       mine other smerge-buffer
-       `(lambda (mine other smerge-buffer)
-          (with-current-buffer smerge-buffer
+       mine other merge-buffer
+       `(lambda (mine other merge-buffer)
+          (with-current-buffer ,smerge-buffer
             (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
                                        buffer-file-name))
+              (when ,(and ancestor-used vdiff-use-ancestor-as-merge-buffer)
+                (erase-buffer)
+                (insert-buffer-substring merge-buffer))
               (save-buffer)))
           (when (buffer-live-p mine) (kill-buffer mine))
-          (when (buffer-live-p ,base) (kill-buffer ,base))
+          (when (buffer-live-p ,ancestor) (kill-buffer ,ancestor))
           (when (buffer-live-p other) (kill-buffer other)))
        t))))
 
