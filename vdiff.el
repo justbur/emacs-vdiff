@@ -282,8 +282,10 @@ because those are handled differently.")
         ((vdiff--buffer-c-p) 'c)))
 
 (defun vdiff--unselected-buffers ()
-  (remq (current-buffer)
-        (vdiff-session-buffers vdiff--session)))
+  (cl-remove-if
+   (lambda (buf) (or (eq buf (current-buffer))
+                     (not (buffer-live-p buf))))
+   (vdiff-session-buffers vdiff--session)))
 
 (defun vdiff--unselected-windows ()
   (mapcar #'get-buffer-window
