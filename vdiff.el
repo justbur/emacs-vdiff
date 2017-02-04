@@ -1735,6 +1735,56 @@ function for ON-QUIT to do something useful with the result."
     (vdiff-refresh #'vdiff--scroll-function)))
 
 ;;;###autoload
+(defun vdiff-merge-conflict (file &optional on-quit restore-windows-on-quit)
+  "Start vdiff session using merge conflicts marked in FILE.
+
+The base or ancestor file is currently ignored."
+  (interactive (list buffer-file-name))
+  (with-current-buffer (find-file-noselect file)
+    (require 'smerge-mode)
+    (let* ((smerge-buffer (current-buffer))
+           (mode major-mode)
+           (filename (file-name-directory (or buffer-file-name "-")))
+           (mine (generate-new-buffer
+                  (concat "*" filename " "
+                          (smerge--get-marker smerge-begin-re "MINE")
+                          "*")))
+           (other (generate-new-buffer
+                   (concat "*" filename " "
+                           (smerge--get-marker smerge-end-re "OTHER")
+                           "*"))))
+      (with-current-buffer mine
+        (buffer-disable-undo)
+        (insert-buffer-substring smerge-buffer)
+        (goto-char (point-min))
+        (while (smerge-find-conflict)
+          (smerge-keep-n 1))
+        (buffer-enable-undo)
+        (set-buffer-modified-p nil)
+        (funcall mode))
+
+      (with-current-buffer other
+        (buffer-disable-undo)
+        (insert-buffer-substring smerge-buffer)
+        (goto-char (point-min))
+        (while (smerge-find-conflict)
+          (smerge-keep-n 3))
+        (buffer-enable-undo)
+        (set-buffer-modified-p nil)
+        (funcall mode))
+
+      (vdiff-buffers3
+       mine other smerge-buffer
+       (lambda (mine other smerge-buffer)
+         (with-current-buffer smerge-buffer
+           (when (yes-or-no-p (format "Conflict resolution finished; save %s?"
+                                      buffer-file-name))
+             (save-buffer)))
+         (when (buffer-live-p mine) (kill-buffer mine))
+         (when (buffer-live-p other) (kill-buffer other)))
+       t))))
+
+;;;###autoload
 (defun vdiff-files3 (file-a file-b file-c &optional on-quit)
   "Start a vdiff session with 3 files. If called interactively,
 you will be asked to select two files."
