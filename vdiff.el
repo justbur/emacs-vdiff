@@ -1357,10 +1357,12 @@ buffer)."
    (lambda ()
      (unless vdiff--setting-vscroll
        (let ((vdiff--setting-vscroll t))
-         (when (and vscroll
-                    (eq vdiff-subtraction-style 'full))
-           (set-window-vscroll window vscroll))
-         (force-window-update window))))))
+         (when (and (windowp window)
+                    (window-live-p window))
+           (when (and vscroll
+                      (eq vdiff-subtraction-style 'full))
+             (set-window-vscroll window vscroll))
+           (force-window-update window)))))))
 
 (defun vdiff--flag-new-command ()
   (setq vdiff--new-command t))
