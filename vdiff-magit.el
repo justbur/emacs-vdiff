@@ -118,7 +118,7 @@ conflicts, including those already resolved by Git, use
                                   (car (member current unmerged))))))
   (if vdiff-magit-use-ediff-for-merges
       (magit-ediff-resolve file)
-    (vdiff-merge-conflict file))))
+    (vdiff-merge-conflict file)))
 
 ;;;###autoload
 (defun vdiff-magit-stage (file)
