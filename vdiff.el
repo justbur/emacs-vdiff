@@ -1746,7 +1746,7 @@ function for ON-QUIT to do something useful with the result."
     (vdiff-refresh #'vdiff--scroll-function)))
 
 ;;;###autoload
-(defun vdiff-merge-conflict (file &optional on-quit restore-windows-on-quit)
+(defun vdiff-merge-conflict (file &optional restore-windows-on-quit)
   "Start vdiff session using merge conflicts marked in FILE."
   (interactive (list buffer-file-name))
   (with-current-buffer (find-file-noselect file)
@@ -1817,7 +1817,7 @@ function for ON-QUIT to do something useful with the result."
           (when (buffer-live-p mine) (kill-buffer mine))
           (when (buffer-live-p ,ancestor) (kill-buffer ,ancestor))
           (when (buffer-live-p other) (kill-buffer other)))
-       t))))
+       restore-windows-on-quit))))
 
 ;;;###autoload
 (defun vdiff-files3 (file-a file-b file-c &optional on-quit)
@@ -1880,7 +1880,7 @@ nothing to revert then this command fails."
       (funcall current-major))
     (vdiff-buffers revert-buf (current-buffer)
                    nil
-                   (lambda (rbuf cbuf)
+                   (lambda (rbuf _)
                      (when (buffer-live-p rbuf)
                        (kill-buffer rbuf)))
                    t)))
