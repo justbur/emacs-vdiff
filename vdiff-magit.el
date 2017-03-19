@@ -85,6 +85,12 @@ merges."
   :group 'vdiff-magit
   :type 'boolean)
 
+(defcustom vdiff-magit-stage-is-2way nil
+  "If non-nil `vdiff-magit-stage' will only show two buffers, the
+file and the index with the HEAD omitted."
+  :group 'vdiff-magit
+  :type 'boolean)
+
 ;; (defvar magit-ediff-previous-winconf nil)
 
 ;;;###autoload (autoload 'vdiff-magit-popup "vdiff-magit" nil t)
@@ -129,34 +135,52 @@ FILE has to be relative to the top directory of the repository."
                                 (magit-tracked-files) nil nil nil
                                 (magit-current-file))))
   (magit-with-toplevel
-    (let* ((bufC (get-file-buffer file))
-           (fileBufC (or bufC (find-file-noselect file)))
+    (let* ((buf-a (or (magit-get-revision-buffer "HEAD" file)
+                      (magit-find-file-noselect "HEAD" file)))
+           (buf-b (with-current-buffer (magit-find-file-index-noselect file t)
+                    (setq buffer-read-only nil)
+                    (current-buffer)))
+           (buf-c (get-file-buffer file))
+           (file-buf-c (or buf-c (find-file-noselect file)))
            (coding-system-for-read
-            (with-current-buffer fileBufC buffer-file-coding-system)))
-      (vdiff-buffers3
-       (or (magit-get-revision-buffer "HEAD" file)
-           (magit-find-file-noselect "HEAD" file))
-       (with-current-buffer (magit-find-file-index-noselect file t)
-         (setq buffer-read-only nil)
-         (current-buffer))
-       fileBufC
-       `(lambda (buf-a buf-b buf-c)
-          (when (and (buffer-live-p buf-b)
-                     (buffer-modified-p buf-b))
-            (with-current-buffer buf-b
-              (magit-update-index))
-            (kill-buffer buf-b))
-          (when (and (buffer-live-p buf-c)
-                     (buffer-modified-p buf-c))
-            (with-current-buffer buf-c
-              (when (y-or-n-p
-                     (format "Save file %s? " buffer-file-name))
-                (save-buffer))))
-          ;; kill buf-c if it wasn't open originally
-          (unless ,bufC (kill-buffer buf-c))
-          (when (buffer-live-p buf-a)
-            (kill-buffer buf-a)))
-       t nil))))
+            (with-current-buffer file-buf-c buffer-file-coding-system)))
+      (if vdiff-magit-stage-is-2way
+          (vdiff-buffers
+           buf-b file-buf-c nil
+           `(lambda (buf-b buf-c)
+              (when (and (buffer-live-p buf-b)
+                         (buffer-modified-p buf-b))
+                (with-current-buffer buf-b
+                  (magit-update-index))
+                (kill-buffer buf-b))
+              (when (and (buffer-live-p buf-c)
+                         (buffer-modified-p buf-c))
+                (with-current-buffer buf-c
+                  (when (y-or-n-p
+                         (format "Save file %s? " buffer-file-name))
+                    (save-buffer))))
+              ;; kill buf-c if it wasn't open originally
+              (unless ,buf-c (kill-buffer buf-c)))
+           t nil)
+        (vdiff-buffers3
+         buf-a buf-b file-buf-c
+         `(lambda (buf-a buf-b buf-c)
+            (when (and (buffer-live-p buf-b)
+                       (buffer-modified-p buf-b))
+              (with-current-buffer buf-b
+                (magit-update-index))
+              (kill-buffer buf-b))
+            (when (and (buffer-live-p buf-c)
+                       (buffer-modified-p buf-c))
+              (with-current-buffer buf-c
+                (when (y-or-n-p
+                       (format "Save file %s? " buffer-file-name))
+                  (save-buffer))))
+            ;; kill buf-c if it wasn't open originally
+            (unless ,buf-c (kill-buffer buf-c))
+            (when (buffer-live-p buf-a)
+              (kill-buffer buf-a)))
+         t nil)))))
 
 ;; ;;;###autoload
 (defun vdiff-magit-compare (revA revB fileA fileB)
