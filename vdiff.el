@@ -1671,11 +1671,11 @@ function for ON-QUIT to do something useful with the result."
         (buffer-b (get-buffer buffer-b)))
     (delete-other-windows)
     (switch-to-buffer buffer-a)
-    (save-selected-window
-      (if horizontal
-          (split-window-vertically)
-        (split-window-horizontally))
-      (switch-to-buffer-other-window buffer-b))
+    (set-window-buffer
+       (if horizontal
+           (split-window-vertically)
+         (split-window-horizontally))
+       buffer-b)
     (setq vdiff--temp-session
           (vdiff--init-session
            buffer-a buffer-b nil
