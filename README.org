@@ -11,33 +11,33 @@ A tool like vimdiff for Emacs
    - [[#screenshot][Screenshot]]
    - [[#installation-and-usage][Installation and Usage]]
    - [[#hydra][Hydra]]
-   - [[#magit-integration][Magit integration]]
    - [[#further-customization][Further customization]]
 
 ** Introduction
 
-vdiff compares two or three buffers on the basis of the output from the diff
-tool. The buffers are kept synchronized so that as you move through one of the
-buffers the top of the active buffer aligns with the corresponding top of the
-other buffer(s). This is similar to how ediff works, but in ediff you use a
-third "control buffer" to move through the diffed buffers. The key difference is
-that in vdiff you are meant to actively edit one of the buffers and the display
-will update automatically for the other buffer. Similar to ediff, vdiff provides
-commands to "send" and "receive" hunks from one buffer to the other as well as
-commands to traverse the diff hunks, which are useful if you are trying to merge
-changes. In contrast to ediff, vdiff also provides folding capabilities to fold
-sections of the buffers that don't contain changes. This folding occurs
-automatically. Finally, you are encouraged to bind a key to `vdiff-hydra/body',
-which will use hydra.el (in ELPA) to create a convenient transient keymap
-containing most of the useful vdiff commands.
+   vdiff compares two or three buffers on the basis of the output from the diff
+   tool. The buffers are kept synchronized so that as you move through one of
+   the buffers the top of the active buffer aligns with the corresponding top of
+   the other buffer(s). This is similar to how ediff works, but in ediff you use
+   a third "control buffer" to move through the diffed buffers. The key
+   difference is that in vdiff you are meant to actively edit one of the buffers
+   and the display will update automatically for the other buffer. Similar to
+   ediff, vdiff provides commands to "send" and "receive" hunks from one buffer
+   to the other as well as commands to traverse the diff hunks, which are useful
+   if you are trying to merge changes. In contrast to ediff, vdiff also provides
+   folding capabilities to fold sections of the buffers that don't contain
+   changes. This folding occurs automatically. Finally, you are encouraged to
+   bind a key to `vdiff-hydra/body', which will use hydra.el (in ELPA) to create
+   a convenient transient keymap containing most of the useful vdiff commands.
 
-This functionality is all inspired by (but not equivalent to) the vimdiff tool
-from vim.
+   This functionality is all inspired by (but not equivalent to) the vimdiff
+   tool from vim.
 
-Contributions and suggestions are very welcome.
+   Contributions and suggestions are very welcome.
 
 ** Recent (Significant) Changes
-   - [2017-02-01] Added magit integration functions in =vdiff-magit.el=. See [[#magit-integration][Magit integration]].
+   - [2017-05-17] Split =vdiff-magit.el= into [[https://github.com/justbur/emacs-vdiff-magit][separate repository]]. 
+   - [2017-02-01] Added magit integration functions in =vdiff-magit.el=.
    - [2016-07-25] Added three-way diff support. See =vdiff-buffers3= and =vdiff-files3=.
    
 ** Screenshot
@@ -159,42 +159,6 @@ map. Bind =vdiff-hydra/body= directly to customize this key binding.
 
 [[file:img/hydra.png]]
 
-** Magit integration
-   #+NAME: #magit-integration
-
-Loading =vdiff-magit= will pull in functions that will allow vdiff to be used
-with [[https://github.com/magit/magit][magit]]. In order to use these functions you need to call the vdiff functions
-instead of the magit-ediff ones. Here is a very basic setup which replaces the
-basic ediff key bindings in magit.
-
-#+BEGIN_SRC emacs-lisp
-  (require 'vdiff-magit)
-  (define-key magit-mode-map "e" 'vdiff-magit-dwim)
-  (define-key magit-mode-map "E" 'vdiff-magit-popup)
-  (setcdr (assoc ?e (plist-get magit-dispatch-popup :actions))
-          '("vdiff dwim" 'vdiff-magit-dwim))
-  (setcdr (assoc ?E (plist-get magit-dispatch-popup :actions))
-          '("vdiff popup" 'vdiff-magit-popup))
-  ;; This flag will default to using ediff for merges. vdiff-magit does not yet
-  ;; support 3-way merges. Please see the docstring of this variable for more
-  ;; information
-  ;; (setq vdiff-magit-use-ediff-for-merges nil)
-
-  ;; Whether vdiff-magit-dwim runs show variants on hunks.  If non-nil,
-  ;; vdiff-magit-show-staged or vdiff-magit-show-unstaged are called based on what
-  ;; section the hunk is in.  Otherwise, vdiff-magit-dwim runs vdiff-magit-stage
-  ;; when point is on an uncommitted hunk.
-  ;; (setq vdiff-magit-dwim-show-on-hunks nil)
-
-  ;; Whether vdiff-magit-show-stash shows the state of the index.
-  ;; (setq vdiff-magit-show-stash-with-index t)
-
-  ;; Only use two buffers (working file and index) for vdiff-magit-stage
-  ;; (setq vdiff-magit-stage-is-2way nil)
-#+END_SRC
-
-Please note that this is a new feature and probably contains some bugs, so use
-it with caution and please report oddities.
 
 ** Further customization
    
