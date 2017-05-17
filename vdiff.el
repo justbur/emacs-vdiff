@@ -1,10 +1,11 @@
 ;;; vdiff.el --- A diff tool similar to  vimdiff -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2016 Justin Burkett
+;; Copyright (C) 2016-2017 Justin Burkett
 
 ;; Author: Justin Burkett <justin@burkett.cc>
+;; Maintainer: Justin Burkett <justin@burkett.cc>
 ;; URL: https://github.com/justbur/emacs-vdiff
-;; Version: 0.1
+;; Version: 0.2
 ;; Keywords: diff
 ;; Package-Requires: ((emacs "24.4") (hydra "0.13.0"))
 
@@ -20,6 +21,11 @@
 
 ;; You should have received a copy of the GNU General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; News:
+
+;; Version 0.2
+;;   * First ELPA Release
 
 ;;; Commentary:
 
