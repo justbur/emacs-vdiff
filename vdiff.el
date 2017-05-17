@@ -306,7 +306,7 @@ because those are handled differently.")
 
 (defun vdiff--all-windows ()
   (remq nil
-        (mapcar #'get-buffer-window
+        (mapcar (lambda (buf) (get-buffer-window buf 0))
                 (vdiff-session-buffers vdiff--session))))
 
 (defun vdiff--all-overlays (ovr)
@@ -590,8 +590,8 @@ an addition when compared to other vdiff buffers."
 parsing the diff output and triggering the overlay updates."
   (unless vdiff--inhibit-diff-update
     (let ((parse-func (if (process-get proc 'vdiff-3way)
-                          'vdiff--parse-diff3
-                        'vdiff--parse-diff))
+                          #'vdiff--parse-diff3
+                        #'vdiff--parse-diff))
           (ses (process-get proc 'vdiff-session))
           (post-function (process-get proc 'vdiff-post-refresh-function))
           finished)
@@ -1667,7 +1667,7 @@ function for ON-QUIT to do something useful with the result."
       (get-buffer
        (read-buffer
         (format "[Buffer 1 %s] Buffer 2: " buffer-a)
-        (window-buffer (next-window (selected-window)))))
+        (window-buffer (next-window (selected-window) nil 0))))
       current-prefix-arg)))
   (let ((prior-window-config (when restore-windows-on-quit
                                (current-window-configuration)))
