@@ -31,25 +31,23 @@
 
 ;; A tool like vimdiff for Emacs
 
-;; * Introduction
+;; vdiff compares two or three buffers on the basis of the output from the diff
+;; tool. The buffers are kept synchronized so that as you move through one of
+;; the buffers the top of the active buffer aligns with the corresponding top of
+;; the other buffer(s). This is similar to how ediff works, but in ediff you use
+;; a third "control buffer" to move through the diffed buffers. The key
+;; difference is that in vdiff you are meant to actively edit one of the buffers
+;; and the display will update automatically for the other buffer. Similar to
+;; ediff, vdiff provides commands to "send" and "receive" hunks from one buffer
+;; to the other as well as commands to traverse the diff hunks, which are useful
+;; if you are trying to merge changes. In contrast to ediff, vdiff also provides
+;; folding capabilities to fold sections of the buffers that don't contain
+;; changes. This folding occurs automatically. Finally, you are encouraged to
+;; bind a key to `vdiff-hydra/body', which will use hydra.el (in ELPA) to create
+;; a convenient transient keymap containing most of the useful vdiff commands.
 
-;; vdiff is a diff tool for Emacs that is made to behave like vimdiff, meaning
-;; diff information is displayed in buffers as you edit them. There are commands
-;; for cycling through the hunks detected by =diff= and applying changes from
-;; one buffer to the other. The main features are
-
-;;   1. Synchronized scrolling of the buffers with lines matching between the
-;;      two
-;;   2. Commands to transmit (send/receive) changes between buffers
-;;   3. Automatic folding of lines that are unchanged in both buffers
-;;   4. Commands to jump easily between hunks
-;;   5. Everything done through overlays, meaning vdiff doesn't alter the actual
-;;      text in the buffer (unless you are transmit changes of course)
-;;   6. Unlike ediff, remain in buffers instead of having to use a third "control
-;;      buffer"
-;;   7. Cool hydra
-
-;; Contributions and suggestions are very welcome.
+;; This functionality is all inspired by (but not equivalent to) the vimdiff
+;; tool from vim.
 
 ;; See https://github.com/justbur/emacs-vdiff for more information
 
