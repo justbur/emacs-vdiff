@@ -54,7 +54,7 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'subr-x)
+(eval-when-compile (require 'subr-x))
 (require 'diff-mode)
 (require 'hydra)
 
@@ -69,62 +69,41 @@
 (defcustom vdiff-lock-scrolling t
   "Whether to lock scrolling by default when starting
 `vdiff-mode'."
-  :group 'vdiff
   :type 'boolean)
 
 (defcustom vdiff-diff-program "diff"
   "diff program to use."
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-diff3-program "diff3"
   "diff3 program to use."
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-diff-extra-args ""
   "Extra arguments to pass to diff. If this is set wrong, you may
 break vdiff. It is empty by default."
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-fold-padding 6
   "Unchanged lines to leave unfolded around a fold"
-  :group 'vdiff
   :type 'integer)
 
 (defcustom vdiff-min-fold-size 4
   "Minimum number of lines to fold"
-  :group 'vdiff
   :type 'integer)
 
 (defcustom vdiff-may-close-fold-on-point t
   "If non-nil, allow closing new folds around point after updates."
-  :group 'vdiff
   :type 'boolean)
 
-(defcustom vdiff-fold-string-function 'vdiff-fold-string-default
+(defcustom vdiff-fold-string-function #'vdiff-fold-string-default
   "Function that returns the string printed for a closed
 fold. The arguments passed are the number of lines folded, the
 text on the first line, and the width of the buffer."
-  :group 'vdiff
   :type 'function)
-
-(defcustom vdiff-default-refinement-syntax-code "w"
-  "Default syntax table class code to use for identifying
-\"words\" in \`vdiff-refine-this-hunk'. Some useful options are
-
-\"w\"   (default) words
-\"w_\"  symbols \(words plus symbol constituents\)
-
-For more information see
-https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html"
-  :group 'vdiff
-  :type 'string)
 
 (defcustom vdiff-auto-refine nil
   "If non-nil, automatically refine all hunks."
-  :group 'vdiff
   :type 'boolean)
 
 (defcustom vdiff-subtraction-style 'full
@@ -133,7 +112,6 @@ default is full which means add the same number of (fake) lines
 as those that were removed. The choice single means add only one
 fake line. The choice fringe means don't add lines but do
 indicate the subtraction location in the fringe."
-  :group 'vdiff
   :type '(radio (const :tag "Add same number of fake lines" full)
                 (const :tag "Add single line" single)
                 (const :tag "Add no lines but use fringe" fringe)))
@@ -141,7 +119,6 @@ indicate the subtraction location in the fringe."
 (defcustom vdiff-subtraction-fill-char ?-
   "Character to use for filling subtraction lines. See also
 `vdiff-subtraction-style'."
-  :group 'vdiff
   :type 'integer)
 
 (defcustom vdiff-use-ancestor-as-merge-buffer nil
@@ -150,53 +127,43 @@ is included, `vdiff-merge-conflict' will use the ancestor file as
 the merge buffer (or target buffer) that will be saved when the
 merge is finished. The default is to show the original file with
 conflicts as the merge buffer."
-  :group 'vdiff
   :type 'boolean)
 
 (defface vdiff-addition-face
   '((t :inherit diff-added))
-  "Face for additions"
-  :group 'vdiff)
+  "Face for additions")
 
 (defface vdiff-change-face
   '((t :inherit diff-changed))
-  "Face for changes"
-  :group 'vdiff)
+  "Face for changes")
 
 (defface vdiff-closed-fold-face
   '((t :inherit region))
-  "Face for closed folds"
-  :group 'vdiff)
+  "Face for closed folds")
 
 (defface vdiff-open-fold-face
   '((t))
-  "Face for open folds"
-  :group 'vdiff)
+  "Face for open folds")
 
 (defface vdiff-subtraction-face
   '((t :inherit diff-removed))
-  "Face for subtractions"
-  :group 'vdiff)
+  "Face for subtractions")
 
 (defface vdiff-subtraction-fringe-face
   '((t :inherit vdiff-subtraction-face))
-  "Face for subtraction fringe indicators"
-  :group 'vdiff)
+  "Face for subtraction fringe indicators")
 
 (defface vdiff-refine-changed
   '((t :inherit diff-refine-changed))
-  "Face for word changes within a change hunk"
-  :group 'vdiff)
+  "Face for word changes within a change hunk")
 
 (defface vdiff-refine-added
   '((t :inherit diff-refine-added))
-  "Face for word changes within an addition hunk"
-  :group 'vdiff)
+  "Face for word changes within an addition hunk")
 
 (defface vdiff-target-face
   '((t :inverse-video t :inherit warning))
-  "Face for selecting hunk targets."
-  :group 'vdiff)
+  "Face for selecting hunk targets.")
 
 (defvar vdiff--force-sync-commands '(next-line
                                      previous-line
@@ -634,142 +601,26 @@ parsing the diff output and triggering the overlay updates."
 
 ;; * Word diffs
 
-(defun vdiff--overlay-to-words (&optional ovr syntax-code)
-  "Convert OVR to string of \"words\", one per line."
-  (let* ((ovr (or ovr (vdiff--overlay-at-pos)))
-         (word-syn (or syntax-code
-                       vdiff-default-refinement-syntax-code))
-         (not-word-syn (concat "^" word-syn))
-         last-word-end buf-syntax ovr-text)
-    (with-current-buffer (overlay-buffer ovr)
-      (setq buf-syntax (syntax-table))
-      (setq ovr-text (buffer-substring-no-properties
-                      (overlay-start ovr)
-                      (overlay-end ovr))))
-    (with-temp-buffer
-      (set-syntax-table buf-syntax)
-      (insert ovr-text)
-      (goto-char (point-min))
-      (skip-syntax-forward not-word-syn)
-      (delete-region (point-min) (point))
-      (while (not (eobp))
-        (skip-syntax-forward word-syn)
-        (insert "\n")
-        (setq last-word-end (point))
-        (skip-syntax-forward not-word-syn)
-        (delete-region last-word-end (point)))
-      (buffer-string))))
-
-(defun vdiff--diff-words (this-ovr other-ovr &optional syntax-code)
-  "Diff \"words\" between THIS-OVR and OTHER-OVR"
-  (when (and (eq (overlay-get this-ovr 'vdiff-type) 'change)
-             (overlayp other-ovr))
-    (let* ((a-words (vdiff--overlay-to-words this-ovr syntax-code))
-           (b-words (vdiff--overlay-to-words other-ovr syntax-code))
-           (tmp-file-a (make-temp-file "vdiff-word-a-"))
-           (tmp-file-b (make-temp-file "vdiff-word-b-"))
-           (out-buffer (get-buffer-create
-                        (vdiff-session-word-diff-output-buffer
-                         vdiff--session)))
-           (a-result '())
-           (b-result '()))
-      (write-region a-words nil tmp-file-a nil 'quietly)
-      (write-region b-words nil tmp-file-b nil 'quietly)
-      (with-current-buffer out-buffer (erase-buffer))
-      (let ((exit-code (call-process
-                        vdiff-diff-program nil out-buffer nil tmp-file-a tmp-file-b)))
-        (delete-file tmp-file-a)
-        (delete-file tmp-file-b)
-        (when (= exit-code 1)
-          (with-current-buffer out-buffer
-            (goto-char (point-min))
-            (while (re-search-forward vdiff--diff-code-regexp nil t)
-              (let ((a-change (list (string-to-number (match-string 1))))
-                    (b-change (list (string-to-number (match-string 4)))))
-                (forward-line 1)
-                (while (and (not (eobp))
-                            (not (looking-at-p vdiff--diff-code-regexp)))
-                  (cond ((looking-at-p "^<")
-                         (push (buffer-substring-no-properties
-                                (+ 2 (point)) (line-end-position))
-                               a-change))
-                        ((looking-at-p "^>")
-                         (push (buffer-substring-no-properties
-                                (+ 2 (point)) (line-end-position))
-                               b-change)))
-                  (forward-line 1))
-                (when (cdr a-change)
-                  (push (nreverse a-change) a-result))
-                (when (cdr b-change)
-                  (push (nreverse b-change) b-result))))
-            (cons (nreverse a-result) (nreverse b-result))))))))
-
-(defun vdiff-refine-this-hunk (&optional syntax-code ovr)
-  "Highlight word differences in current hunk.
-
-This uses `vdiff-default-refinement-syntax-code' for the
-definition of a \"word\", unless one is provided using
-SYNTAX-CODE."
-  (interactive (list vdiff-default-refinement-syntax-code
-                     (vdiff--overlay-at-pos)))
+(defun vdiff-refine-this-hunk (&optional ovr)
+  "Highlight word differences in current hunk."
+  (interactive)
   (let* ((ovr (or ovr (vdiff--overlay-at-pos)))
          (target-ovr (car (vdiff--target-overlays ovr)))
-         (word-syn (or syntax-code
-                       vdiff-default-refinement-syntax-code))
-         (not-word-syn (concat "^" word-syn))
          (type (overlay-get ovr 'vdiff-type))
          (face (if (eq type 'addition)
                    'vdiff-refine-added
-                 'vdiff-refine-changed))
-         instructions ovr-ins)
-    (when (and ovr
-               target-ovr
-               (consp (setq instructions
-                            (vdiff--diff-words ovr target-ovr))))
-      (dolist (curr-ovr (vdiff--all-overlays ovr))
-        (setq ovr-ins (if (eq curr-ovr ovr)
-                          (car instructions)
-                        (cdr instructions)))
-        (with-current-buffer (overlay-buffer curr-ovr)
-          (save-excursion
-            (let ((current-word-n 1))
-              (goto-char (overlay-start curr-ovr))
-              (skip-syntax-forward not-word-syn)
-              (dolist (ins ovr-ins)
-                (dotimes (_ (- (car ins) current-word-n))
-                  (skip-syntax-forward word-syn)
-                  (skip-syntax-forward not-word-syn))
-                (setq current-word-n (car ins))
-                (let* ((words (cdr ins))
-                       (word-ovr
-                        (make-overlay
-                         (point)
-                         (progn
-                           (dotimes (_ (length words))
-                             (skip-syntax-forward not-word-syn)
-                             (skip-syntax-forward word-syn))
-                           (point)))))
-                  (cl-incf current-word-n (length words))
-                  (overlay-put word-ovr 'vdiff t)
-                  (overlay-put word-ovr 'face face)
-                  (overlay-put word-ovr 'vdiff-refinement t)
-                  (skip-syntax-forward not-word-syn))))))))))
-
-;; Not working yet
-;; (defun vdiff-refine-this-hunk-whitespace (ovr)
-;;   "Highlight whitespace differences in current hunk."
-;;   (interactive (list (vdiff--overlay-at-pos)))
-;;   (vdiff-refine-this-hunk "-" ovr))
-
-(defun vdiff-refine-this-hunk-symbol (ovr)
-  "Highlight symbol differences in current hunk."
-  (interactive (list (vdiff--overlay-at-pos)))
-  (vdiff-refine-this-hunk "w_" ovr))
-
-(defun vdiff-refine-this-hunk-word (ovr)
-  "Highlight word differences in current hunk."
-  (interactive (list (vdiff--overlay-at-pos)))
-  (vdiff-refine-this-hunk "w" ovr))
+                 'vdiff-refine-changed)))
+    (when (and ovr target-ovr)
+      (smerge-refine-regions
+       (with-current-buffer (overlay-buffer ovr)
+         (copy-marker (overlay-start ovr)))
+       (overlay-end ovr)
+       (with-current-buffer (overlay-buffer target-ovr)
+         (copy-marker (overlay-start target-ovr)))
+       (overlay-end target-ovr)
+       `((face . ,face)
+         (vdiff . t)
+         (vdiff-refinement . t))))))
 
 (defun vdiff-remove-refinements-in-hunk (ovr)
   "Remove any refinement overlays in the hunk overlay OVR."
@@ -782,7 +633,7 @@ SYNTAX-CODE."
         (when (overlay-get sub-ovr 'vdiff-refinement)
           (delete-overlay sub-ovr))))))
 
-(defun vdiff-refine-all-hunks (&optional syntax-code)
+(defun vdiff-refine-all-hunks ()
   "Highlight word differences in all hunks.
 
 This uses `vdiff-default-refinement-syntax-code' for the
@@ -794,23 +645,7 @@ of a \"word\"."
   ;; Doesn't work for diff3 yet
   (when (vdiff--buffer-p)
     (dolist (ovr (overlays-in (point-min) (point-max)))
-      (vdiff-refine-this-hunk syntax-code ovr))))
-
-;; Not working yet
-;; (defun vdiff-refine-all-hunks-whitespace ()
-;;   "Highlight whitespace differences in all hunks."
-;;   (interactive)
-;;   (vdiff-refine-all-hunks "-"))
-
-(defun vdiff-refine-all-hunks-symbol ()
-  "Highlight symbol differences in all hunks."
-  (interactive)
-  (vdiff-refine-all-hunks "w_"))
-
-(defun vdiff-refine-all-hunks-word ()
-  "Highlight word differences in all hunks."
-  (interactive)
-  (vdiff-refine-all-hunks "w"))
+      (vdiff-refine-this-hunk ovr))))
 
 ;; * Bitmaps
 
@@ -1695,9 +1530,8 @@ function for ON-QUIT to do something useful with the result."
     (setq vdiff--temp-session nil)
     (vdiff-refresh #'vdiff--scroll-function)))
 
-(defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
+(defcustom vdiff-3way-layout-function #'vdiff-3way-layout-function-default
   "Function to layout windows in 3way diffs"
-  :group 'vdiff
   :type 'function)
 
 (defun vdiff-3way-layout-function-default (buffer-a buffer-b buffer-c)
@@ -1856,9 +1690,9 @@ This command can be used instead of `revert-buffer'.  If there is
 nothing to revert then this command fails."
   (interactive)
   ;; Taken from `ediff-current-file'
-  (unless (or (not (eq revert-buffer-function 'revert-buffer--default))
+  (unless (or (not (eq revert-buffer-function #'revert-buffer--default))
               (not (eq revert-buffer-insert-file-contents-function
-               'revert-buffer-insert-file-contents--default-function))
+               #'revert-buffer-insert-file-contents--default-function))
               (and buffer-file-number
                    (or (buffer-modified-p)
                        (not (verify-visited-file-modtime
