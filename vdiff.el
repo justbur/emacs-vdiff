@@ -1169,6 +1169,12 @@ use the hunk under point or on the immediately preceding line."
     (unless dont-refresh
       (vdiff-refresh #'vdiff--scroll-function))))
 
+(defun vdiff-send-changes-and-step ()
+  "Use `vdiff-send-changes' then `vdiff-next-hunk'."
+  (interactive)
+  (call-interactively 'vdiff-send-changes)
+  (call-interactively 'vdiff-next-hunk))
+
 (defun vdiff-receive-changes (beg end)
   "Receive the changes corresponding to this position from
 another vdiff buffer. This is equivalent to jumping to the
@@ -1179,6 +1185,12 @@ immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
   (vdiff-send-changes beg end t nil t)
   (vdiff-refresh #'vdiff--scroll-function))
+
+(defun vdiff-receive-changes-and-step ()
+  "Use `vdiff-receive-changes' then `vdiff-next-hunk'."
+  (interactive)
+  (call-interactively 'vdiff-receive-changes)
+  (call-interactively 'vdiff-next-hunk))
 
 (defun vdiff--transmit-change (ovr &optional targets)
   "Send text in OVR to corresponding overlay in other buffer."
@@ -1960,7 +1972,9 @@ nothing to revert then this command fails."
     (define-key map "P" 'vdiff-previous-fold)
     (define-key map "q" 'vdiff-quit)
     (define-key map "r" 'vdiff-receive-changes)
+    (define-key map "R" 'vdiff-receive-changes-and-step)
     (define-key map "s" 'vdiff-send-changes)
+    (define-key map "S" 'vdiff-send-changes-and-step)
     (define-key map "x" 'vdiff-remove-refinements-in-hunk)
     (define-key map "t" 'vdiff-close-other-folds)
     (define-key map "u" 'vdiff-refresh)
@@ -2059,13 +2073,13 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
 (defhydra vdiff-hydra (nil nil :hint nil :foreign-keys run)
   (concat (propertize
            "\
- Navigation^^^^          Refine^^   Transmit^^   Folds^^^^            Other^^^^                 "
+ Navigation^^^^          Refine^^   Transmit^^^^             Folds^^^^            Other^^^^                 "
            'face 'header-line)
           "
- _n_/_N_ next hunk/fold  _f_ this   _s_ send     _o_/_O_ open (all)   _i_ ^ ^ toggles
- _p_/_P_ prev hunk/fold  _F_ all    _r_ receive  _c_/_C_ close (all)  _u_ ^ ^ update diff
- _g_^ ^  switch buffers  _x_ clear  ^ ^          _t_ ^ ^ close other  _w_ ^ ^ save buffers
- ^ ^^ ^                  ^ ^        ^ ^          ^ ^ ^ ^              _q_/_Q_ quit hydra/vdiff
+ _n_/_N_ next hunk/fold  _f_ this   _s_/_S_ send (+step)     _o_/_O_ open (all)   _i_ ^ ^ toggles
+ _p_/_P_ prev hunk/fold  _F_ all    _r_/_R_ receive (+step)  _c_/_C_ close (all)  _u_ ^ ^ update diff
+ _g_^ ^  switch buffers  _x_ clear  ^ ^ ^ ^                  _t_ ^ ^ close other  _w_ ^ ^ save buffers
+ ^ ^^ ^                  ^ ^        ^ ^ ^ ^                  ^ ^ ^ ^              _q_/_Q_ quit hydra/vdiff
  ignore case: %s(vdiff--current-case) | ignore whitespace: %s(vdiff--current-whitespace)")
   ("n" vdiff-next-hunk)
   ("p" vdiff-previous-hunk)
@@ -2073,7 +2087,9 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
   ("P" vdiff-previous-fold)
   ("g" vdiff-switch-buffer)
   ("s" vdiff-send-changes)
+  ("S" vdiff-send-changes-and-step)
   ("r" vdiff-receive-changes)
+  ("R" vdiff-receive-changes-and-step)
   ("o" vdiff-open-fold)
   ("O" vdiff-open-all-folds)
   ("c" vdiff-close-fold)
