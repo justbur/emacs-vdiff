@@ -54,9 +54,10 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'subr-x)
+(eval-when-compile (require 'subr-x))
 (require 'diff-mode)
 (require 'hydra)
+(require 'smerge-mode)
 
 (defvar vdiff-mode)
 (defvar vdiff-3way-mode)
@@ -96,7 +97,7 @@ break vdiff. It is empty by default."
   "If non-nil, allow closing new folds around point after updates."
   :type 'boolean)
 
-(defcustom vdiff-fold-string-function 'vdiff-fold-string-default
+(defcustom vdiff-fold-string-function #'vdiff-fold-string-default
   "Function that returns the string printed for a closed
 fold. The arguments passed are the number of lines folded, the
 text on the first line, and the width of the buffer."
@@ -700,38 +701,50 @@ SYNTAX-CODE."
                    'vdiff-refine-added
                  'vdiff-refine-changed))
          instructions ovr-ins)
-    (when (and ovr
-               target-ovr
-               (consp (setq instructions
-                            (vdiff--diff-words ovr target-ovr))))
-      (dolist (curr-ovr (vdiff--all-overlays ovr))
-        (setq ovr-ins (if (eq curr-ovr ovr)
-                          (car instructions)
-                        (cdr instructions)))
-        (with-current-buffer (overlay-buffer curr-ovr)
-          (save-excursion
-            (let ((current-word-n 1))
-              (goto-char (overlay-start curr-ovr))
-              (skip-syntax-forward not-word-syn)
-              (dolist (ins ovr-ins)
-                (dotimes (_ (- (car ins) current-word-n))
-                  (skip-syntax-forward word-syn)
-                  (skip-syntax-forward not-word-syn))
-                (setq current-word-n (car ins))
-                (let* ((words (cdr ins))
-                       (word-ovr
-                        (make-overlay
-                         (point)
-                         (progn
-                           (dotimes (_ (length words))
-                             (skip-syntax-forward not-word-syn)
-                             (skip-syntax-forward word-syn))
-                           (point)))))
-                  (cl-incf current-word-n (length words))
-                  (overlay-put word-ovr 'vdiff t)
-                  (overlay-put word-ovr 'face face)
-                  (overlay-put word-ovr 'vdiff-refinement t)
-                  (skip-syntax-forward not-word-syn))))))))))
+    (if (fboundp 'smerge-refine-regions)
+        (when (and ovr target-ovr)
+          (smerge-refine-regions
+           (with-current-buffer (overlay-buffer ovr)
+             (copy-marker (overlay-start ovr)))
+           (overlay-end ovr)
+           (with-current-buffer (overlay-buffer target-ovr)
+             (copy-marker (overlay-start target-ovr)))
+           (overlay-end target-ovr)
+           `((face . ,face)
+             (vdiff . t)
+             (vdiff-refinement . t))))
+      (when (and ovr
+                 target-ovr
+                 (consp (setq instructions
+                              (vdiff--diff-words ovr target-ovr))))
+        (dolist (curr-ovr (vdiff--all-overlays ovr))
+          (setq ovr-ins (if (eq curr-ovr ovr)
+                            (car instructions)
+                          (cdr instructions)))
+          (with-current-buffer (overlay-buffer curr-ovr)
+            (save-excursion
+              (let ((current-word-n 1))
+                (goto-char (overlay-start curr-ovr))
+                (skip-syntax-forward not-word-syn)
+                (dolist (ins ovr-ins)
+                  (dotimes (_ (- (car ins) current-word-n))
+                    (skip-syntax-forward word-syn)
+                    (skip-syntax-forward not-word-syn))
+                  (setq current-word-n (car ins))
+                  (let* ((words (cdr ins))
+                         (word-ovr
+                          (make-overlay
+                           (point)
+                           (progn
+                             (dotimes (_ (length words))
+                               (skip-syntax-forward not-word-syn)
+                               (skip-syntax-forward word-syn))
+                             (point)))))
+                    (cl-incf current-word-n (length words))
+                    (overlay-put word-ovr 'vdiff t)
+                    (overlay-put word-ovr 'face face)
+                    (overlay-put word-ovr 'vdiff-refinement t)
+                    (skip-syntax-forward not-word-syn)))))))))))
 
 ;; Not working yet
 ;; (defun vdiff-refine-this-hunk-whitespace (ovr)
@@ -1856,9 +1869,9 @@ This command can be used instead of `revert-buffer'.  If there is
 nothing to revert then this command fails."
   (interactive)
   ;; Taken from `ediff-current-file'
-  (unless (or (not (eq revert-buffer-function 'revert-buffer--default))
+  (unless (or (not (eq revert-buffer-function #'revert-buffer--default))
               (not (eq revert-buffer-insert-file-contents-function
-               'revert-buffer-insert-file-contents--default-function))
+               #'revert-buffer-insert-file-contents--default-function))
               (and buffer-file-number
                    (or (buffer-modified-p)
                        (not (verify-visited-file-modtime
