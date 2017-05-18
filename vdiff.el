@@ -1650,7 +1650,7 @@ arguments."
                  rotate on-quit))
 
 (defcustom vdiff-2way-layout-function 'vdiff-2way-layout-function-default
-  "Function to layout windows in 3way diffs.
+  "Function to layout windows in 2way diffs.
 
 Should take the arguments (BUFFER-A BUFFER-B &optional ROTATE),
 where rotate switches from vertical to rotate (or vice
