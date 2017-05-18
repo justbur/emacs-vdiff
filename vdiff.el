@@ -69,45 +69,37 @@
 (defcustom vdiff-lock-scrolling t
   "Whether to lock scrolling by default when starting
 `vdiff-mode'."
-  :group 'vdiff
   :type 'boolean)
 
 (defcustom vdiff-diff-program "diff"
   "diff program to use."
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-diff3-program "diff3"
   "diff3 program to use."
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-diff-extra-args ""
   "Extra arguments to pass to diff. If this is set wrong, you may
 break vdiff. It is empty by default."
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-fold-padding 6
   "Unchanged lines to leave unfolded around a fold"
-  :group 'vdiff
   :type 'integer)
 
 (defcustom vdiff-min-fold-size 4
   "Minimum number of lines to fold"
-  :group 'vdiff
   :type 'integer)
 
 (defcustom vdiff-may-close-fold-on-point t
   "If non-nil, allow closing new folds around point after updates."
-  :group 'vdiff
   :type 'boolean)
 
 (defcustom vdiff-fold-string-function 'vdiff-fold-string-default
   "Function that returns the string printed for a closed
 fold. The arguments passed are the number of lines folded, the
 text on the first line, and the width of the buffer."
-  :group 'vdiff
   :type 'function)
 
 (defcustom vdiff-default-refinement-syntax-code "w"
@@ -119,12 +111,10 @@ text on the first line, and the width of the buffer."
 
 For more information see
 https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.html"
-  :group 'vdiff
   :type 'string)
 
 (defcustom vdiff-auto-refine nil
   "If non-nil, automatically refine all hunks."
-  :group 'vdiff
   :type 'boolean)
 
 (defcustom vdiff-subtraction-style 'full
@@ -133,7 +123,6 @@ default is full which means add the same number of (fake) lines
 as those that were removed. The choice single means add only one
 fake line. The choice fringe means don't add lines but do
 indicate the subtraction location in the fringe."
-  :group 'vdiff
   :type '(radio (const :tag "Add same number of fake lines" full)
                 (const :tag "Add single line" single)
                 (const :tag "Add no lines but use fringe" fringe)))
@@ -141,7 +130,6 @@ indicate the subtraction location in the fringe."
 (defcustom vdiff-subtraction-fill-char ?-
   "Character to use for filling subtraction lines. See also
 `vdiff-subtraction-style'."
-  :group 'vdiff
   :type 'integer)
 
 (defcustom vdiff-use-ancestor-as-merge-buffer nil
@@ -150,53 +138,43 @@ is included, `vdiff-merge-conflict' will use the ancestor file as
 the merge buffer (or target buffer) that will be saved when the
 merge is finished. The default is to show the original file with
 conflicts as the merge buffer."
-  :group 'vdiff
   :type 'boolean)
 
 (defface vdiff-addition-face
   '((t :inherit diff-added))
-  "Face for additions"
-  :group 'vdiff)
+  "Face for additions")
 
 (defface vdiff-change-face
   '((t :inherit diff-changed))
-  "Face for changes"
-  :group 'vdiff)
+  "Face for changes")
 
 (defface vdiff-closed-fold-face
   '((t :inherit region))
-  "Face for closed folds"
-  :group 'vdiff)
+  "Face for closed folds")
 
 (defface vdiff-open-fold-face
   '((t))
-  "Face for open folds"
-  :group 'vdiff)
+  "Face for open folds")
 
 (defface vdiff-subtraction-face
   '((t :inherit diff-removed))
-  "Face for subtractions"
-  :group 'vdiff)
+  "Face for subtractions")
 
 (defface vdiff-subtraction-fringe-face
   '((t :inherit vdiff-subtraction-face))
-  "Face for subtraction fringe indicators"
-  :group 'vdiff)
+  "Face for subtraction fringe indicators")
 
 (defface vdiff-refine-changed
   '((t :inherit diff-refine-changed))
-  "Face for word changes within a change hunk"
-  :group 'vdiff)
+  "Face for word changes within a change hunk")
 
 (defface vdiff-refine-added
   '((t :inherit diff-refine-added))
-  "Face for word changes within an addition hunk"
-  :group 'vdiff)
+  "Face for word changes within an addition hunk")
 
 (defface vdiff-target-face
   '((t :inverse-video t :inherit warning))
-  "Face for selecting hunk targets."
-  :group 'vdiff)
+  "Face for selecting hunk targets.")
 
 (defvar vdiff--force-sync-commands '(next-line
                                      previous-line
