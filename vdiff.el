@@ -1603,9 +1603,9 @@ with non-nil USE-FOLDS."
 ;; * Entry points
 
 ;;;###autoload
-(defun vdiff-files (file-a file-b &optional horizontal on-quit)
+(defun vdiff-files (file-a file-b &optional rotate on-quit)
   "Start a vdiff session. If called interactively, you will be
-asked to select two files. HORIZONTAL adjusts the buffer's
+asked to select two files. ROTATE adjusts the buffer's
 initial layout. A prefix argument can be used to set this
 variable interactively. ON-QUIT is a function to run on exiting
 the vdiff session. It is called with the two vdiff buffers as
@@ -1622,14 +1622,32 @@ arguments."
       current-prefix-arg)))
   (vdiff-buffers (find-file-noselect file-a)
                  (find-file-noselect file-b)
-                 horizontal on-quit))
+                 rotate on-quit))
+
+(defcustom vdiff-2way-layout-function 'vdiff-2way-layout-function-default
+  "Function to layout windows in 3way diffs.
+
+Should take the arguments (BUFFER-A BUFFER-B &optional ROTATE),
+where rotate switches from vertical to rotate (or vice
+versa)."
+  :group 'vdiff
+  :type 'function)
+
+(defun vdiff-2way-layout-function-default (buffer-a buffer-b &optional rotate)
+  (delete-other-windows)
+  (switch-to-buffer buffer-a)
+  (set-window-buffer
+   (if rotate
+       (split-window-vertically)
+     (split-window-horizontally))
+   buffer-b))
 
 ;;;###autoload
 (defun vdiff-buffers
     (buffer-a buffer-b
-     &optional horizontal on-quit restore-windows-on-quit kill-buffers-on-quit)
+     &optional rotate on-quit restore-windows-on-quit kill-buffers-on-quit)
   "Start a vdiff session. If called interactively, you will be
-asked to select two buffers. HORIZONTAL adjusts the buffer's
+asked to select two buffers. ROTATE adjusts the buffer's
 initial layout. A prefix argument can be used to set this
 variable interactively. ON-QUIT is a function to run on exiting
 the vdiff session. It is called with the two vdiff buffers as
@@ -1654,13 +1672,15 @@ function for ON-QUIT to do something useful with the result."
                                (current-window-configuration)))
         (buffer-a (get-buffer buffer-a))
         (buffer-b (get-buffer buffer-b)))
-    (delete-other-windows)
-    (switch-to-buffer buffer-a)
-    (set-window-buffer
-       (if horizontal
+    (if (functionp vdiff-2way-layout-function)
+        (funcall vdiff-2way-layout-function buffer-a buffer-b rotate)
+      (delete-other-windows)
+      (switch-to-buffer buffer-a)
+      (set-window-buffer
+       (if rotate
            (split-window-vertically)
          (split-window-horizontally))
-       buffer-b)
+       buffer-b))
     (setq vdiff--temp-session
           (vdiff--init-session
            buffer-a buffer-b nil
@@ -1674,7 +1694,9 @@ function for ON-QUIT to do something useful with the result."
     (vdiff-refresh #'vdiff--scroll-function)))
 
 (defcustom vdiff-3way-layout-function 'vdiff-3way-layout-function-default
-  "Function to layout windows in 3way diffs"
+  "Function to layout windows in 3way diffs.
+
+Should take the arguments (BUFFER-A BUFFER-B BUFFER-C)."
   :group 'vdiff
   :type 'function)
 
