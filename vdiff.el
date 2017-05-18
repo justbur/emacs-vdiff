@@ -301,7 +301,7 @@ because those are handled differently.")
    (vdiff-session-buffers vdiff--session)))
 
 (defun vdiff--unselected-windows ()
-  (mapcar #'get-buffer-window
+  (mapcar (lambda (buf) (get-buffer-window buf 0))
           (vdiff--unselected-buffers)))
 
 (defun vdiff--all-windows ()
@@ -858,8 +858,10 @@ of a \"word\"."
 
 (defun vdiff--make-subtraction-string (n-lines)
   "Make string to fill in space for lines missing in a buffer."
-  (let* ((width (- (window-text-width (get-buffer-window (current-buffer))) 2))
-         (win-height (window-height (get-buffer-window (current-buffer))))
+  (let* ((width (- (window-text-width
+                    (get-buffer-window (current-buffer) 0)) 2))
+         (win-height (window-height
+                      (get-buffer-window (current-buffer) 0)))
          (max-lines (floor (* 0.7 win-height)))
          (truncate (> n-lines max-lines))
          (trunc-n-lines
@@ -949,7 +951,7 @@ of a \"word\"."
                                  (- end-line beg-line)
                                  first-line-text
                                  (window-width
-                                  (get-buffer-window buffer)))
+                                  (get-buffer-window buffer 0)))
                         'face 'vdiff-closed-fold-face)))
       (overlay-put ovr 'face 'vdiff-open-fold-face)
       (overlay-put ovr 'vdiff-fold-text text)
@@ -1423,6 +1425,7 @@ buffer)."
              (2-scroll (nth 3 2-scroll-data))
              ;; 1 is short for this; 2 is the first other and 3 is the second
              (vdiff--in-scroll-hook t))
+        (message "%s" 2-scroll-data)
         (when (and 2-pos 2-start-pos)
           (set-window-point 2-win 2-pos)
           ;; For some reason without this unless the vscroll gets eff'd
