@@ -5,13 +5,13 @@
 A tool like vimdiff for Emacs 
 
 ** Table of Contents                                                    :TOC:
- - [[#vdiff][vdiff]]
-   - [[#introduction][Introduction]]
-   - [[#recent-significant-changes][Recent (Significant) Changes]]
-   - [[#screenshot][Screenshot]]
-   - [[#installation-and-usage][Installation and Usage]]
-   - [[#hydra][Hydra]]
-   - [[#further-customization][Further customization]]
+- [[#vdiff][vdiff]]
+  - [[#introduction][Introduction]]
+  - [[#recent-significant-changes][Recent (Significant) Changes]]
+  - [[#screenshot][Screenshot]]
+  - [[#installation-and-usage][Installation and Usage]]
+  - [[#hydra][Hydra]]
+  - [[#further-customization][Further customization]]
 
 ** Introduction
 
@@ -89,7 +89,9 @@ the commands would be
 | Key     | Command                            | Description                         |
 |---------+------------------------------------+-------------------------------------|
 | =C-c r= | =vdiff-receive-changes=            | Receive change from other buffer    |
+| =C-c R= | =vdiff-receive-changes-and-step=   | Same as =C-c r= then =C-c n=        |
 | =C-c s= | =vdiff-send-changes=               | Send this change(s) to other buffer |
+| =C-c S= | =vdiff-send-changes-and-step=      | Same as =C-c s= then =C-c n=        |
 | =C-c f= | =vdiff-refine-this-hunk=           | Highlight changed words in hunk     |
 | =C-c x= | =vdiff-remove-refinements-in-hunk= | Remove refinement highlighting      |
 | (none)  | =vdiff-refine-this-hunk-symbol=    | Refine based on symbols             |
