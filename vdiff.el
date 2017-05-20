@@ -373,18 +373,24 @@ point."
           (throw 'yes ovr))))))
 
 (defun vdiff--hunk-at-point-p ()
-  "Return first vdiff hunk overlay found at point."
+  "Non-nil if point is in hunk overlay.
+
+Returns overlay."
   (let ((ovr (vdiff--overlay-at-pos)))
     (and (overlayp ovr)
          (overlay-get ovr 'vdiff-type)
-         (not (eq (overlay-get ovr 'vdiff-type) 'fold)))))
+         (not (eq (overlay-get ovr 'vdiff-type) 'fold))
+         ovr)))
 
 (defun vdiff--fold-at-point-p ()
-  "Return first vdiff fold overlay found at point."
+  "Non-nil if point is in fold overlay.
+
+Returns overlay."
   (let ((ovr (vdiff--overlay-at-pos)))
     (and (overlayp ovr)
          (overlay-get ovr 'vdiff-type)
-         (eq (overlay-get ovr 'vdiff-type) 'fold))))
+         (eq (overlay-get ovr 'vdiff-type) 'fold)
+         ovr)))
 
 (defun vdiff--overlays-in-region (beg end)
   "Return any vdiff overlays found within BEG and END."
