@@ -1428,7 +1428,6 @@ buffer)."
              (2-scroll (nth 3 2-scroll-data))
              ;; 1 is short for this; 2 is the first other and 3 is the second
              (vdiff--in-scroll-hook t))
-        (message "%s" 2-scroll-data)
         (when (and 2-pos 2-start-pos)
           (set-window-point 2-win 2-pos)
           ;; For some reason without this unless the vscroll gets eff'd
