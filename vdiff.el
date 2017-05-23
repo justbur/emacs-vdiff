@@ -118,6 +118,10 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Syntax-Class-Table.htm
   "If non-nil, automatically refine all hunks."
   :type 'boolean)
 
+(defcustom vdiff-only-highlight-refinements nil
+  "If non-nil, apply faces to refined words but not hunks."
+  :type 'boolean)
+
 (defcustom vdiff-subtraction-style 'full
   "How to represent subtractions (i.e., deleted lines). The
 default is full which means add the same number of (fake) lines
@@ -750,7 +754,12 @@ SYNTAX-CODE."
                     (overlay-put word-ovr 'vdiff t)
                     (overlay-put word-ovr 'face face)
                     (overlay-put word-ovr 'vdiff-refinement t)
-                    (skip-syntax-forward not-word-syn)))))))))))
+                    (skip-syntax-forward not-word-syn)))))))))
+    (when vdiff-only-highlight-refinements
+      (when ovr
+        (overlay-put ovr 'face nil))
+      (when target-ovr
+        (overlay-put target-ovr 'face nil)))))
 
 ;; Not working yet
 ;; (defun vdiff-refine-this-hunk-whitespace (ovr)
@@ -777,7 +786,11 @@ SYNTAX-CODE."
                         (overlay-start chg-ovr)
                         (overlay-end chg-ovr)))
         (when (overlay-get sub-ovr 'vdiff-refinement)
-          (delete-overlay sub-ovr))))))
+          (delete-overlay sub-ovr))))
+    (when vdiff-only-highlight-refinements
+      (cl-case (overlay-get chg-ovr 'vdiff-type)
+        (addition (overlay-put chg-ovr 'face 'vdiff-addition-face))
+        (change (overlay-put chg-ovr 'face 'vdiff-change-face))))))
 
 (defun vdiff-refine-all-hunks (&optional syntax-code)
   "Highlight word differences in all hunks.
