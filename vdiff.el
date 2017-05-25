@@ -85,6 +85,10 @@
 break vdiff. It is empty by default."
   :type 'string)
 
+(defcustom vdiff-disable-folding nil
+  "If non-nil, disable folding in vdiff buffers."
+  :type 'boolean)
+
 (defcustom vdiff-fold-padding 6
   "Unchanged lines to leave unfolded around a fold"
   :type 'integer)
@@ -1142,7 +1146,8 @@ of a \"word\"."
                             (with-current-buffer c-buffer
                               (line-number-at-pos (point-max))))))
               folds))
-      (vdiff--add-folds a-buffer b-buffer c-buffer folds))))
+      (unless vdiff-disable-folding
+        (vdiff--add-folds a-buffer b-buffer c-buffer folds)))))
 
 ;; * Send/Receive changes
 
