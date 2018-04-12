@@ -80,7 +80,12 @@
   "diff3 program to use."
   :type 'string)
 
-(defcustom vdiff-diff-extra-args ""
+(defcustom vdiff-diff-extra-args "-u"
+  "Extra arguments to pass to diff. If this is set wrong, you may
+break vdiff. It is \"-u\" by default."
+  :type 'string)
+
+(defcustom vdiff-diff3-extra-args ""
   "Extra arguments to pass to diff. If this is set wrong, you may
 break vdiff. It is empty by default."
   :type 'string)
@@ -245,7 +250,8 @@ because those are handled differently.")
 
 (defun vdiff--maybe-int (str)
   "Return an int>=0 from STR."
-  (let ((num (and str (string-to-number str))))
+  (let ((num (or (and (numberp str) str)
+                 (and str (string-to-number str)))))
     (when (and (numberp num)
                (>= num 0))
       num)))
@@ -479,6 +485,9 @@ POST-REFRESH-FUNCTION is called when the process finishes."
            (prgm (if vdiff-3way-mode
                      vdiff-diff3-program
                    vdiff-diff-program))
+           (extra-args (if vdiff-3way-mode
+                     vdiff-diff3-extra-args
+                   vdiff-diff-extra-args))
            (ses vdiff--session)
            (cmd (mapconcat
                  #'identity
@@ -486,7 +495,7 @@ POST-REFRESH-FUNCTION is called when the process finishes."
                   prgm
                   (vdiff-session-whitespace-args ses)
                   (vdiff-session-case-args ses)
-                  vdiff-diff-extra-args
+                  extra-args
                   tmp-a tmp-b tmp-c)
                  " "))
            (buffers (vdiff-session-buffers ses))
@@ -554,6 +563,62 @@ an addition when compared to other vdiff buffers."
            res))))
     (nreverse res)))
 
+(defsubst vdiff--inc-lines (lines)
+  (forward-line)
+  (let ((a (car lines))
+        (b (cdr lines)))
+    (cond ((looking-at-p " ") (cons (1+ a) (1+ b)))
+          ((looking-at-p "+") (cons a (1+ b)))
+          ((looking-at-p "-") (cons (1+ a) b)))))
+
+(defun vdiff--parse-diff-u (buf)
+  "Parse diff -u output in BUF and return list of hunks."
+  (let ((header-regexp "^@@ -\\([0-9]+\\),[0-9]+ \\+\\([0-9]+\\),[0-9]+ @@")
+        res)
+    (with-current-buffer buf
+      (goto-char (point-min))
+      (while (re-search-forward header-regexp nil t)
+        (forward-line)
+        (let* ((start-line-a (string-to-number (match-string 1)))
+               (start-line-b (string-to-number (match-string 2)))
+               (lines (cons start-line-a start-line-b)))
+          (while (and (not (looking-at-p "@"))
+                      (not (eobp)))
+            (setq lines (vdiff--inc-lines lines))
+            (cond ((looking-at-p "+")
+                   ;; addition
+                   (let ((beg-a (car lines))
+                         (beg-b (cdr lines)))
+                     (while (looking-at-p "+")
+                       (setq lines (vdiff--inc-lines lines)))
+                     (cl-assert (looking-at-p " "))
+                     (push
+                      (list (vdiff--encode-range t beg-a)
+                            (vdiff--encode-range nil beg-b (1- (cdr lines))))
+                      res)))
+                  ((looking-at-p "-")
+                   ;; subtraction or change
+                   (let ((beg-a (car lines))
+                         (beg-b (cdr lines)))
+                     (while (looking-at-p "-")
+                       (setq lines (vdiff--inc-lines lines)))
+                     (if (looking-at-p " ")
+                         ;; subtraction
+                         (push
+                          (list (vdiff--encode-range nil beg-a (1- (car lines)))
+                                (vdiff--encode-range t beg-b))
+                          res)
+                       (cl-assert (looking-at-p "+"))
+                       (let ((beg-b (cdr lines)))
+                         (while (looking-at-p "+")
+                           (setq lines (vdiff--inc-lines lines)))
+                         (cl-assert (looking-at-p " "))
+                         (push
+                          (list (vdiff--encode-range nil beg-a (1- (car lines)))
+                                (vdiff--encode-range nil beg-b (1- (cdr lines))))
+                          res))))))))))
+    (nreverse res)))
+
 (defun vdiff--parse-diff3 (buf)
   "Parse diff3 output in BUF and return list of hunks."
   (catch 'final-res
@@ -592,7 +657,7 @@ parsing the diff output and triggering the overlay updates."
   (unless vdiff--inhibit-diff-update
     (let ((parse-func (if (process-get proc 'vdiff-3way)
                           #'vdiff--parse-diff3
-                        #'vdiff--parse-diff))
+                        #'vdiff--parse-diff-u))
           (ses (process-get proc 'vdiff-session))
           (post-function (process-get proc 'vdiff-post-refresh-function))
           finished)
