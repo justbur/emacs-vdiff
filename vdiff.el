@@ -567,9 +567,11 @@ an addition when compared to other vdiff buffers."
   (forward-line)
   (let ((a (car lines))
         (b (cdr lines)))
-    (cond ((looking-at-p " ") (cons (1+ a) (1+ b)))
-          ((looking-at-p "+") (cons a (1+ b)))
-          ((looking-at-p "-") (cons (1+ a) b)))))
+    (prog1
+        (cond ((or (looking-at-p " ") (eobp)) (cons (1+ a) (1+ b)))
+              ((looking-at-p "+") (cons a (1+ b)))
+              ((looking-at-p "-") (cons (1+ a) b)))
+      (message "a:%s b:%s l:%s" a b (buffer-substring (point) (line-end-position))))))
 
 (defun vdiff--parse-diff-u (buf)
   "Parse diff -u output in BUF and return list of hunks."
@@ -584,17 +586,17 @@ an addition when compared to other vdiff buffers."
                (lines (cons start-line-a start-line-b)))
           (while (and (not (looking-at-p "@"))
                       (not (eobp)))
-            (setq lines (vdiff--inc-lines lines))
             (cond ((looking-at-p "+")
                    ;; addition
                    (let ((beg-a (car lines))
                          (beg-b (cdr lines)))
                      (while (looking-at-p "+")
                        (setq lines (vdiff--inc-lines lines)))
-                     (cl-assert (looking-at-p " "))
+                     (cl-assert (or (looking-at-p " ") (eobp)))
                      (push
-                      (list (vdiff--encode-range t beg-a)
-                            (vdiff--encode-range nil beg-b (1- (cdr lines))))
+                      ;; there's no context lines at the beginning of the file
+                      (list (cons (if (= beg-a 1) 1 (1+ beg-a)) nil)
+                            (cons beg-b (1- (cdr lines))))
                       res)))
                   ((looking-at-p "-")
                    ;; subtraction or change
@@ -602,21 +604,22 @@ an addition when compared to other vdiff buffers."
                          (beg-b (cdr lines)))
                      (while (looking-at-p "-")
                        (setq lines (vdiff--inc-lines lines)))
-                     (if (looking-at-p " ")
+                     (if (or (looking-at-p " ") (eobp))
                          ;; subtraction
                          (push
-                          (list (vdiff--encode-range nil beg-a (1- (car lines)))
-                                (vdiff--encode-range t beg-b))
+                          (list (cons beg-a (if (= (car lines) 1) 1 (1- (car lines))))
+                                (cons nil beg-b))
                           res)
-                       (cl-assert (looking-at-p "+"))
+                       (cl-assert (or (looking-at-p "+") (eobp)))
                        (let ((beg-b (cdr lines)))
                          (while (looking-at-p "+")
                            (setq lines (vdiff--inc-lines lines)))
-                         (cl-assert (looking-at-p " "))
+                         (cl-assert (or (looking-at-p " ") (eobp)))
                          (push
-                          (list (vdiff--encode-range nil beg-a (1- (car lines)))
-                                (vdiff--encode-range nil beg-b (1- (cdr lines))))
-                          res))))))))))
+                          (list (cons beg-a (1- (car lines)))
+                                (cons beg-b (1- (cdr lines))))
+                          res))))))
+            (setq lines (vdiff--inc-lines lines))))))
     (nreverse res)))
 
 (defun vdiff--parse-diff3 (buf)
