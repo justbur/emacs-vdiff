@@ -567,11 +567,9 @@ an addition when compared to other vdiff buffers."
   (forward-line)
   (let ((a (car lines))
         (b (cdr lines)))
-    (prog1
-        (cond ((or (looking-at-p " ") (eobp)) (cons (1+ a) (1+ b)))
-              ((looking-at-p "+") (cons a (1+ b)))
-              ((looking-at-p "-") (cons (1+ a) b)))
-      (message "a:%s b:%s l:%s" a b (buffer-substring (point) (line-end-position))))))
+    (cond ((or (looking-at-p " ") (eobp)) (cons (1+ a) (1+ b)))
+          ((looking-at-p "+") (cons a (1+ b)))
+          ((looking-at-p "-") (cons (1+ a) b)))))
 
 (defun vdiff--parse-diff-u (buf)
   "Parse diff -u output in BUF and return list of hunks."
