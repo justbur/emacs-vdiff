@@ -606,7 +606,7 @@ an addition when compared to other vdiff buffers."
                          ;; subtraction
                          (push
                           (list (cons beg-a (if (= (car lines) 1) 1 (1- (car lines))))
-                                (cons nil beg-b))
+                                (cons (1+ beg-b) nil))
                           res)
                        (cl-assert (or (looking-at-p "+") (eobp)))
                        (let ((beg-b (cdr lines)))
