@@ -73,7 +73,8 @@
   :type 'boolean)
 
 (defcustom vdiff-diff-algorithms
-  '((diff-u . "diff -u")
+  '((diff . "diff -u")
+    (diff-minimal . "diff -u --minimal")
     (git-diff . "git --no-pager diff --no-index --no-color")
     (git-diff-myers . "git --no-pager diff --myers --no-index --no-color")
     (git-diff-minimal . "git --no-pager diff --minimal --no-index --no-color")
@@ -86,11 +87,12 @@ command, set `vidff-diff-algorithm' to `custom' and customize the
 `custom' key in this alist."
   :type '(alist :key-type symbol :value-type string))
 
-(defcustom vdiff-diff-algorithm 'diff-u
+(defcustom vdiff-diff-algorithm 'diff
   "Choice of algorithm for generating diffs. The choices are
-`diff-u', `git-diff',`git-diff-myers', `git-diff-minimal',
-`git-diff-patience', `git-diff-histogram' and `custom'. See
-`vdiff-diff-algorithms' for the associated commands."
+`diff', `diff-minimal', `git-diff',`git-diff-myers',
+`git-diff-minimal', `git-diff-patience', `git-diff-histogram' and
+`custom'. See `vdiff-diff-algorithms' for the associated
+commands."
   :type '(choice (const :tag "diff -u" diff-u)
                  (const :tag "git diff" git-diff)
                  (const :tag "git diff --myers" git-diff-myers)
@@ -509,7 +511,8 @@ POST-REFRESH-FUNCTION is called when the process finishes."
            (cmd (append
                  base-cmd
                  (vdiff-session-whitespace-args ses)
-                 (vdiff-session-case-args ses)
+                 (unless (string= (car base-cmd) "git")
+                   (vdiff-session-case-args ses))
                  (list "--" tmp-a tmp-b)
                  (when tmp-c
                    (list tmp-c))))
