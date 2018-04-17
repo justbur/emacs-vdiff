@@ -72,23 +72,37 @@
 `vdiff-mode'."
   :type 'boolean)
 
-(defcustom vdiff-diff-program "diff"
-  "diff program to use."
-  :type 'string)
+(defcustom vdiff-diff-algorithms
+  '((diff-u . "diff -u")
+    (git-diff . "git --no-pager diff --no-index --no-color")
+    (git-diff-myers . "git --no-pager diff --myers --no-index --no-color")
+    (git-diff-minimal . "git --no-pager diff --minimal --no-index --no-color")
+    (git-diff-patience . "git --no-pager diff --patience --no-index --no-color")
+    (git-diff-histogram . "git --no-pager diff --histogram --no-index --no-color")
+    (custom . "diff -u"))
+  "An alist containing choices of diff algorithms to be selected
+by setting `vdiff-diff-algorithm'. If you want to use a custom
+command, set `vidff-diff-algorithm' to `custom' and customize the
+`custom' key in this alist."
+  :type '(alist :key-type symbol :value-type string))
 
-(defcustom vdiff-diff3-program "diff3"
-  "diff3 program to use."
-  :type 'string)
+(defcustom vdiff-diff-algorithm 'diff-u
+  "Choice of algorithm for generating diffs. The choices are
+`diff-u', `git-diff',`git-diff-myers', `git-diff-minimal',
+`git-diff-patience', `git-diff-histogram' and `custom'. See
+`vdiff-diff-algorithms' for the associated commands."
+  :type '(choice (const :tag "diff -u" diff-u)
+                 (const :tag "git diff" git-diff)
+                 (const :tag "git diff --myers" git-diff-myers)
+                 (const :tag "git diff --minimal" git-diff-minimal)
+                 (const :tag "git diff --patience" git-diff-patience)
+                 (const :tag "git diff --histogram" git-diff-histogram)
+                 (const :tag "custom" custom)))
 
-(defcustom vdiff-diff-extra-args "-u"
-  "Extra arguments to pass to diff. If this is set wrong, you may
-break vdiff. It is \"-u\" by default."
-  :type 'string)
-
-(defcustom vdiff-diff3-extra-args ""
-  "Extra arguments to pass to diff. If this is set wrong, you may
-break vdiff. It is empty by default."
-  :type 'string)
+(defcustom vdiff-diff3-command '("diff3")
+  "diff3 command to use. Specify as a list where the car is the command to use
+and the remaining elements are the arguments to the command."
+  :type '(repeat string))
 
 (defcustom vdiff-disable-folding nil
   "If non-nil, disable folding in vdiff buffers."
@@ -247,6 +261,12 @@ because those are handled differently.")
 
 
 ;; * Utilities
+
+(defsubst vdiff-diff-command ()
+  (let ((cmd-cons (assoc vdiff-diff-algorithm vdiff-diff-algorithms)))
+    (if (stringp (cdr-safe cmd-cons))
+        (split-string (cdr cmd-cons) " ")
+      '("diff" "-u"))))
 
 (defun vdiff--maybe-int (str)
   "Return an int>=0 from STR."
@@ -482,22 +502,17 @@ POST-REFRESH-FUNCTION is called when the process finishes."
            (tmp-b (make-temp-file "vdiff-b-"))
            (tmp-c (when vdiff-3way-mode
                     (make-temp-file "vdiff-c-")))
-           (prgm (if vdiff-3way-mode
-                     vdiff-diff3-program
-                   vdiff-diff-program))
-           (extra-args (if vdiff-3way-mode
-                     vdiff-diff3-extra-args
-                   vdiff-diff-extra-args))
+           (base-cmd (if vdiff-3way-mode
+                         vdiff-diff3-command
+                       (vdiff-diff-command)))
            (ses vdiff--session)
-           (cmd (mapconcat
-                 #'identity
-                 (vdiff--non-nil-list
-                  prgm
-                  (vdiff-session-whitespace-args ses)
-                  (vdiff-session-case-args ses)
-                  extra-args
-                  tmp-a tmp-b tmp-c)
-                 " "))
+           (cmd (append
+                 base-cmd
+                 (vdiff-session-whitespace-args ses)
+                 (vdiff-session-case-args ses)
+                 (list "--" tmp-a tmp-b)
+                 (when tmp-c
+                   (list tmp-c))))
            (buffers (vdiff-session-buffers ses))
            (proc-buf (vdiff-session-process-buffer ses))
            (proc (get-buffer-process proc-buf)))
@@ -513,9 +528,11 @@ POST-REFRESH-FUNCTION is called when the process finishes."
         (kill-process proc))
       (with-current-buffer (get-buffer-create proc-buf)
         (erase-buffer))
-      ;; (setq vdiff--last-command cmd)
       (setq proc
-            (start-process-shell-command proc-buf proc-buf cmd))
+            (make-process
+             :name "*vdiff*"
+             :buffer proc-buf
+             :command cmd))
       (when vdiff-3way-mode
         (process-put proc 'vdiff-3way t))
       (process-put proc 'vdiff-session ses)
@@ -743,8 +760,10 @@ parsing the diff output and triggering the overlay updates."
       (write-region a-words nil tmp-file-a nil 'quietly)
       (write-region b-words nil tmp-file-b nil 'quietly)
       (with-current-buffer out-buffer (erase-buffer))
-      (let ((exit-code (call-process
-                        vdiff-diff-program nil out-buffer nil tmp-file-a tmp-file-b)))
+      (let ((exit-code (apply #'call-process
+                              (car (vdiff-diff-command))
+                              nil out-buffer nil tmp-file-a tmp-file-b
+                              (cdr (vdiff-diff-command)))))
         (delete-file tmp-file-a)
         (delete-file tmp-file-b)
         (when (= exit-code 1)
