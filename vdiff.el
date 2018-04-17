@@ -61,6 +61,7 @@
 
 (defvar vdiff-mode)
 (defvar vdiff-3way-mode)
+(defvar vdiff-debug nil)
 
 (defgroup vdiff nil
   "Diff tool that is like vimdiff"
@@ -610,7 +611,8 @@ an addition when compared to other vdiff buffers."
                          (beg-b (cdr lines)))
                      (while (looking-at-p "+")
                        (setq lines (vdiff--inc-lines lines)))
-                     (cl-assert (or (looking-at-p " ") (eobp)))
+                     (when vdiff-debug
+                       (cl-assert (or (looking-at-p " ") (eobp))))
                      (push
                       ;; there's no context lines at the beginning of the file
                       (list (cons (if (= beg-a 1) 1 (1+ beg-a)) nil)
@@ -628,11 +630,13 @@ an addition when compared to other vdiff buffers."
                           (list (cons beg-a (if (= (car lines) 1) 1 (1- (car lines))))
                                 (cons (1+ beg-b) nil))
                           res)
-                       (cl-assert (or (looking-at-p "+") (eobp)))
+                       (when vdiff-debug
+                         (cl-assert (or (looking-at-p "+") (eobp))))
                        (let ((beg-b (cdr lines)))
                          (while (looking-at-p "+")
                            (setq lines (vdiff--inc-lines lines)))
-                         (cl-assert (or (looking-at-p " ") (eobp)))
+                         (when vdiff-debug
+                           (cl-assert (or (looking-at-p " ") (eobp))))
                          (push
                           (list (cons beg-a (1- (car lines)))
                                 (cons beg-b (1- (cdr lines))))
