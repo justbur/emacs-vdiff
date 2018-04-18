@@ -603,6 +603,12 @@ an addition when compared to other vdiff buffers."
         (let* ((start-line-a (string-to-number (match-string 1)))
                (start-line-b (string-to-number (match-string 2)))
                (lines (cons start-line-a start-line-b)))
+          ;; Adjust starting line in case it's not actually a line of one of the
+          ;; files
+          (when (looking-at-p "+")
+            (setcar lines (1- (car lines))))
+          (when (looking-at-p "-")
+            (setcdr lines (1- (cdr lines))))
           (while (and (not (looking-at-p "@"))
                       (not (eobp)))
             (cond ((looking-at-p "+")
@@ -614,8 +620,7 @@ an addition when compared to other vdiff buffers."
                      (when vdiff-debug
                        (cl-assert (or (looking-at-p " ") (eobp))))
                      (push
-                      ;; there's no context lines at the beginning of the file
-                      (list (cons (if (= beg-a 1) 1 (1+ beg-a)) nil)
+                      (list (cons (car lines) nil)
                             (cons beg-b (1- (cdr lines))))
                       res)))
                   ((looking-at-p "-")
@@ -627,8 +632,8 @@ an addition when compared to other vdiff buffers."
                      (if (or (looking-at-p " ") (eobp))
                          ;; subtraction
                          (push
-                          (list (cons beg-a (if (= (car lines) 1) 1 (1- (car lines))))
-                                (cons (1+ beg-b) nil))
+                          (list (cons beg-a (1- (car lines)))
+                                (cons (cdr lines) nil))
                           res)
                        (when vdiff-debug
                          (cl-assert (or (looking-at-p "+") (eobp))))
@@ -640,8 +645,9 @@ an addition when compared to other vdiff buffers."
                          (push
                           (list (cons beg-a (1- (car lines)))
                                 (cons beg-b (1- (cdr lines))))
-                          res))))))
-            (setq lines (vdiff--inc-lines lines))))))
+                          res)))))
+                  (t
+                   (setq lines (vdiff--inc-lines lines))))))))
     (nreverse res)))
 
 (defun vdiff--parse-diff3 (buf)
