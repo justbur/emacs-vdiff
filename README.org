@@ -36,6 +36,8 @@ A tool like vimdiff for Emacs
    Contributions and suggestions are very welcome.
 
 ** Recent (Significant) Changes
+   - [2018-04-17] Add option to use various git diff algorithms. See
+     =vdiff-diff-algorithm= for options.
    - [2017-05-17] Split =vdiff-magit.el= into [[https://github.com/justbur/emacs-vdiff-magit][separate repository]]. 
    - [2017-02-01] Added magit integration functions in =vdiff-magit.el=.
    - [2016-07-25] Added three-way diff support. See =vdiff-buffers3= and =vdiff-files3=.
@@ -164,18 +166,20 @@ map. Bind =vdiff-hydra/body= directly to customize this key binding.
 
 ** Further customization
    
-The current customization options and there defaults are
+The current customization options and their defaults are
    
 #+BEGIN_SRC emacs-lisp
   ;; Whether to lock scrolling by default when starting vdiff
   (setq vdiff-lock-scrolling t)
 
-  ;; external diff program/command to use
-  (setq vdiff-diff-program "diff")
+  ;; diff program/algorithm to use. Allows choice of diff or git diff along with
+  ;; the various algorithms provided by these commands. See
+  ;; `vdiff-diff-algorithms' for the associated command line arguments.
+  (setq vdiff-diff-algorithm 'diff)
 
-  ;; Extra arguments to pass to diff. If this is set wrong, you may
-  ;; break vdiff.
-  (setq vdiff-diff-program-args "")
+  ;; diff3 command to use. Specify as a list where the car is the command to use
+  ;; and the remaining elements are the arguments to the command.
+  (setq vdiff-diff3-command '("diff3"))
 
   ;; Don't use folding in vdiff buffers if non-nil.
   (setq vdiff-disable-folding nil)
