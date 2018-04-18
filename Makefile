@@ -10,7 +10,7 @@ ELPA_DIR = \
 
 test: elpa
 	$(CASK) exec $(EMACS) -Q -batch $(LOADPATH) \
-		-l evil-vdiff-tests.el -f ert-run-tests-batch-and-exit
+		-l vdiff-tests.el -f ert-run-tests-batch-and-exit
 
 elpa: $(ELPA_DIR)
 $(ELPA_DIR): Cask
