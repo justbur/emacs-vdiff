@@ -107,6 +107,11 @@ commands."
 and the remaining elements are the arguments to the command."
   :type '(repeat string))
 
+(make-obsolete-variable 'vdiff-diff-program 'vdiff-diff-algorithm "2018-04-17")
+(make-obsolete-variable 'vdiff-diff3-program 'vdiff-diff3-command "2018-04-17")
+(make-obsolete-variable 'vdiff-diff-extra-args "See `vdiff-diff-algorithms'." "2018-04-17")
+(make-obsolete-variable 'vdiff-diff3-extra-args 'vdiff-diff3-command "2018-04-17")
+
 (defcustom vdiff-disable-folding nil
   "If non-nil, disable folding in vdiff buffers."
   :type 'boolean)
