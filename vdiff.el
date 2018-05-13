@@ -529,25 +529,25 @@ POST-REFRESH-FUNCTION is called when the process finishes."
       (with-current-buffer (car buffers)
         (write-region nil nil tmp-a nil 'quietly)
         ;; ensure tmp file ends in newline
-        (save-excursion
-          (goto-char (point-max))
-          (unless (looking-at-p "\n")
-            (write-region "\n" nil tmp-a t 'quietly))))
+        (unless (= (char-before (point-max)) ?\n)
+          (message "vdiff: Warning %s does not end in a newline."
+                   (if buffer-file-name buffer-file-name (buffer-name)))
+          (write-region "\n" nil tmp-a t 'quietly)))
       (with-current-buffer (cadr buffers)
         (write-region nil nil tmp-b nil 'quietly)
         ;; ensure tmp file ends in newline
-        (save-excursion
-          (goto-char (point-max))
-          (unless (looking-at-p "\n")
-            (write-region "\n" nil tmp-b t 'quietly))))
+        (unless (= (char-before (point-max)) ?\n)
+          (message "vdiff: Warning %s does not end in a newline."
+                   (if buffer-file-name buffer-file-name (buffer-name)))
+          (write-region "\n" nil tmp-b t 'quietly)))
       (when vdiff-3way-mode
         (with-current-buffer (nth 2 buffers)
           (write-region nil nil tmp-c nil 'quietly)
           ;; ensure tmp file ends in newline
-          (save-excursion
-            (goto-char (point-max))
-            (unless (looking-at-p "\n")
-              (write-region "\n" nil tmp-c t 'quietly)))))
+          (unless (= (char-before (point-max)) ?\n)
+            (message "vdiff: Warning %s does not end in a newline."
+                     (if buffer-file-name buffer-file-name (buffer-name)))
+            (write-region "\n" nil tmp-c t 'quietly))))
       (when proc
         (kill-process proc))
       (with-current-buffer (get-buffer-create proc-buf)
