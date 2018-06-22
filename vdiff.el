@@ -1760,33 +1760,38 @@ with non-nil USE-FOLDS."
                              (next-overlay-change pnt)))))))
     pnt))
 
+(defun vdiff--recenter ()
+  "Wrapped version of `recenter'."
+  (unless vdiff--testing-mode
+    (recenter)))
+
 (defun vdiff-next-hunk (arg)
   "Jump to next change in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
     (goto-char (vdiff--nth-hunk count))
-    (recenter)))
+    (vdiff--recenter)))
 
 (defun vdiff-previous-hunk (arg)
   "Jump to previous change in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-hunk count))
-    (recenter)))
+    (vdiff--recenter)))
 
 (defun vdiff-next-fold (arg)
   "Jump to next fold in this buffer."
   (interactive "p")
   (let ((count (or arg 1)))
     (goto-char (vdiff--nth-hunk count t))
-    (recenter)))
+    (vdiff--recenter)))
 
 (defun vdiff-previous-fold (arg)
   "Jump to previous fold in this buffer."
   (interactive "p")
   (let ((count (or (- arg) -1)))
     (goto-char (vdiff--nth-hunk count t))
-    (recenter)))
+    (vdiff--recenter)))
 
 ;; * Session
 

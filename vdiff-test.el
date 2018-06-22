@@ -81,6 +81,18 @@
 
 (ert-deftest vdiff-test-transmiting ()
   "Test transmitting changes."
+  ;; Test sending first change
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|4|4|5|6|8|8|9|10|"
+   (with-current-buffer buffer-a
+     (goto-char (point-min))
+     (call-interactively 'vdiff-next-hunk)
+     (call-interactively 'vdiff-send-changes))
+   (with-current-buffer buffer-b
+     (should (string= (vdiff-test-buffer-string)
+                      "1|2|3|4|5|6|8|8|9|10|"))))
+  ;; Test sending everything
   (vdiff-test-with-buffers
    "1|2|3|4|5|6|7|8|9|10|"
    "1|2|4|4|5|6|8|8|9|10|"
@@ -92,6 +104,17 @@
 
 (ert-deftest vdiff-test-receiving ()
   "Test receiving changes."
+  ;; Test receiving first change
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|4|4|5|6|8|8|9|10|"
+   (with-current-buffer buffer-b
+     (goto-char (point-min))
+     (call-interactively 'vdiff-next-hunk)
+     (call-interactively 'vdiff-receive-changes)
+     (should (string= (vdiff-test-buffer-string)
+                      "1|2|3|4|5|6|8|8|9|10|"))))
+  ;; Test receiving everything
   (vdiff-test-with-buffers
    "1|2|3|4|5|6|7|8|9|10|"
    "1|2|4|4|5|6|8|8|9|10|"
