@@ -61,12 +61,9 @@
 
 (ert-deftest vdiff-test-transmiting ()
   "Test transmitting changes."
-  (cl-letf ((bufa (get-buffer-create "vdiff-tests-bufa"))
-            (bufb (get-buffer-create "vdiff-tests-bufb"))
-            ;; no need to handle scrolling
-            ((symbol-function 'vdiff--scroll-function) #'ignore)
-            ;; don't process asynchronously
-            (vdiff--synchronous t))
+  (let ((bufa (get-buffer-create "vdiff-tests-bufa"))
+        (bufb (get-buffer-create "vdiff-tests-bufb"))
+        (vdiff--testing-mode t))
     (unwind-protect
         (progn
           (with-current-buffer bufa
@@ -116,12 +113,9 @@
 
 (ert-deftest vdiff-test-receiving ()
   "Test receiving changes."
-  (cl-letf ((bufa (get-buffer-create "vdiff-tests-bufa"))
-            (bufb (get-buffer-create "vdiff-tests-bufb"))
-            ;; no need to handle scrolling
-            ((symbol-function 'vdiff--scroll-function) #'ignore)
-            ;; don't process asynchronously
-            (vdiff--synchronous t))
+  (let ((bufa (get-buffer-create "vdiff-tests-bufa"))
+        (bufb (get-buffer-create "vdiff-tests-bufb"))
+        (vdiff--testing-mode t))
     (unwind-protect
         (progn
           (with-current-buffer bufa

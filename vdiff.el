@@ -241,8 +241,8 @@ because those are handled differently.")
     ("Ignore all whitespace (-w)" . "-w")
     ("Ignore space changes (-b)" . "-b")
     ("Ignore blank lines (-B)" . "-B")))
-(defvar vdiff--synchronous nil
-  "Flag to force synchronous parsing.")
+(defvar vdiff--testing-mode nil
+  "Configure for testing in batch mode.")
 
 ;; Sessions
 (defvar vdiff--temp-session nil
@@ -554,7 +554,7 @@ POST-REFRESH-FUNCTION is called when the process finishes."
         (kill-process proc))
       (with-current-buffer (get-buffer-create proc-buf)
         (erase-buffer))
-      (if vdiff--synchronous
+      (if vdiff--testing-mode
           (progn
             (apply #'call-process (car cmd) nil (list proc-buf) nil (cdr cmd))
             (vdiff--diff-refresh-sync-sentinel
@@ -729,7 +729,7 @@ an addition when compared to other vdiff buffers."
 (defun vdiff--diff-refresh-sync-sentinel
     (buffer session vdiff-3way tmp-a tmp-b &optional tmp-c post-function)
   "This is the sentinel for `vdiff-refresh' when
-`vdiff--synchronous' is non-nil."
+`vdiff--testing-mode' is non-nil."
   (unless vdiff--inhibit-diff-update
     (setf (vdiff-session-diff-data session)
           (funcall (if vdiff-3way
@@ -1585,50 +1585,51 @@ buffer)."
 
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
-  (let* ((window (or window (selected-window)))
-         (update-window-start (null window-start))
-         (window-start (or window-start (progn
-                                          ;; redisplay updates window-start in
-                                          ;; the case where the scroll function
-                                          ;; is called manually
-                                          (redisplay)
-                                          (window-start)))))
-    (when (and (eq window (selected-window))
-               (cl-every #'window-live-p (vdiff--all-windows))
-               (vdiff--buffer-p)
-               (not vdiff--in-scroll-hook)
-               vdiff--new-command)
-      (setq vdiff--new-command nil)
-      (let* ((2-scroll-data (vdiff--other-win-scroll-data
-                             window window-start))
-             (2-win (nth 0 2-scroll-data))
-             (2-start-pos (nth 1 2-scroll-data))
-             (2-pos (nth 2 2-scroll-data))
-             (2-scroll (nth 3 2-scroll-data))
-             ;; 1 is short for this; 2 is the first other and 3 is the second
-             (vdiff--in-scroll-hook t))
-        (when (and 2-pos 2-start-pos)
-          (set-window-point 2-win 2-pos)
-          ;; For some reason without this unless the vscroll gets eff'd
-          (unless (= (progn
-                       (when update-window-start
-                         (redisplay))
-                       (window-start 2-win))
-                     2-start-pos)
-            (set-window-start 2-win 2-start-pos))
-          (vdiff--set-vscroll-and-force-update 2-win 2-scroll))
-        (when vdiff-3way-mode
-          (let*
-              ((3-scroll-data (vdiff--other-win-scroll-data
-                               window window-start t))
-               (3-win (nth 0 3-scroll-data))
-               (3-start-pos (nth 1 3-scroll-data))
-               (3-pos (nth 2 3-scroll-data))
-               (3-scroll (nth 3 3-scroll-data)))
-            (when (and 3-start-pos 3-pos)
-              (set-window-point 3-win 3-pos)
-              (set-window-start 3-win 3-start-pos)
-              (vdiff--set-vscroll-and-force-update 3-win 3-scroll))))))))
+  (unless vdiff--testing-mode
+    (let* ((window (or window (selected-window)))
+           (update-window-start (null window-start))
+           (window-start (or window-start (progn
+                                            ;; redisplay updates window-start in
+                                            ;; the case where the scroll function
+                                            ;; is called manually
+                                            (redisplay)
+                                            (window-start)))))
+      (when (and (eq window (selected-window))
+                 (cl-every #'window-live-p (vdiff--all-windows))
+                 (vdiff--buffer-p)
+                 (not vdiff--in-scroll-hook)
+                 vdiff--new-command)
+        (setq vdiff--new-command nil)
+        (let* ((2-scroll-data (vdiff--other-win-scroll-data
+                               window window-start))
+               (2-win (nth 0 2-scroll-data))
+               (2-start-pos (nth 1 2-scroll-data))
+               (2-pos (nth 2 2-scroll-data))
+               (2-scroll (nth 3 2-scroll-data))
+               ;; 1 is short for this; 2 is the first other and 3 is the second
+               (vdiff--in-scroll-hook t))
+          (when (and 2-pos 2-start-pos)
+            (set-window-point 2-win 2-pos)
+            ;; For some reason without this unless the vscroll gets eff'd
+            (unless (= (progn
+                         (when update-window-start
+                           (redisplay))
+                         (window-start 2-win))
+                       2-start-pos)
+              (set-window-start 2-win 2-start-pos))
+            (vdiff--set-vscroll-and-force-update 2-win 2-scroll))
+          (when vdiff-3way-mode
+            (let*
+                ((3-scroll-data (vdiff--other-win-scroll-data
+                                 window window-start t))
+                 (3-win (nth 0 3-scroll-data))
+                 (3-start-pos (nth 1 3-scroll-data))
+                 (3-pos (nth 2 3-scroll-data))
+                 (3-scroll (nth 3 3-scroll-data)))
+              (when (and 3-start-pos 3-pos)
+                (set-window-point 3-win 3-pos)
+                (set-window-start 3-win 3-start-pos)
+                (vdiff--set-vscroll-and-force-update 3-win 3-scroll)))))))))
 
 ;; (defun vdiff--post-command-hook ()
 ;;   "Sync scroll for `vdiff--force-sync-commands'."
@@ -1875,15 +1876,19 @@ function for ON-QUIT to do something useful with the result."
                                (current-window-configuration)))
         (buffer-a (get-buffer buffer-a))
         (buffer-b (get-buffer buffer-b)))
-    (if (functionp vdiff-2way-layout-function)
-        (funcall vdiff-2way-layout-function buffer-a buffer-b rotate)
+    (cond
+     (vdiff--testing-mode
+      (set-buffer buffer-a))
+     ((functionp vdiff-2way-layout-function)
+      (funcall vdiff-2way-layout-function buffer-a buffer-b rotate))
+     (t
       (delete-other-windows)
       (switch-to-buffer buffer-a)
       (set-window-buffer
        (if rotate
            (split-window-vertically)
          (split-window-horizontally))
-       buffer-b))
+       buffer-b)))
     (setq vdiff--temp-session
           (vdiff--init-session
            buffer-a buffer-b nil
@@ -1942,7 +1947,9 @@ function for ON-QUIT to do something useful with the result."
         (buffer-a (get-buffer buffer-a))
         (buffer-b (get-buffer buffer-b))
         (buffer-c (get-buffer buffer-c)))
-    (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c)
+    (if vdiff--testing-mode
+        (set-buffer buffer-a)
+      (funcall vdiff-3way-layout-function buffer-a buffer-b buffer-c))
     (setq vdiff--temp-session
           (vdiff--init-session
            buffer-a buffer-b buffer-c
@@ -2122,7 +2129,8 @@ nothing to revert then this command fails."
           (when (vdiff-session-kill-buffers-on-quit ses)
             (kill-buffer buf))))
       ;; (run-hooks 'vdiff-quit-hook)
-      (when (vdiff-session-prior-window-config ses)
+      (when (and (not vdiff--testing-mode)
+                 (vdiff-session-prior-window-config ses))
         (set-window-configuration
          (vdiff-session-prior-window-config ses))))
     (setq vdiff--session nil)
@@ -2164,19 +2172,21 @@ nothing to revert then this command fails."
 (defun vdiff--buffer-init ()
   ;; this is a buffer-local var
   (setq vdiff--session vdiff--temp-session)
-  (setq cursor-in-non-selected-windows nil)
-  (add-hook 'after-save-hook #'vdiff-refresh nil t)
-  (add-hook 'after-change-functions #'vdiff--after-change-function nil t)
-  (add-hook 'pre-command-hook #'vdiff--flag-new-command nil t)
-  (setf (vdiff-session-window-config vdiff--session)
-        (current-window-configuration)))
+  (unless vdiff--testing-mode
+    (setq cursor-in-non-selected-windows nil)
+    (add-hook 'after-save-hook #'vdiff-refresh nil t)
+    (add-hook 'after-change-functions #'vdiff--after-change-function nil t)
+    (add-hook 'pre-command-hook #'vdiff--flag-new-command nil t)
+    (setf (vdiff-session-window-config vdiff--session)
+          (current-window-configuration))))
 
 (defun vdiff--buffer-cleanup ()
   (vdiff--remove-all-overlays)
-  (setq cursor-in-non-selected-windows t)
-  (remove-hook 'after-save-hook #'vdiff-refresh t)
-  (remove-hook 'after-change-functions #'vdiff--after-change-function t)
-  (remove-hook 'pre-command-hook #'vdiff--flag-new-command t)
+  (unless vdiff--testing-mode
+    (setq cursor-in-non-selected-windows t)
+    (remove-hook 'after-save-hook #'vdiff-refresh t)
+    (remove-hook 'after-change-functions #'vdiff--after-change-function t)
+    (remove-hook 'pre-command-hook #'vdiff--flag-new-command t))
   (remove-hook 'window-scroll-functions #'vdiff--scroll-function t))
 
 (define-minor-mode vdiff-mode
@@ -2188,7 +2198,8 @@ automatically after calling commands like `vdiff-files' or
   nil " vdiff" 'vdiff-mode-map
   (cond (vdiff-mode
          (vdiff--buffer-init)
-         (when vdiff-lock-scrolling
+         (when (and (not vdiff--testing-mode)
+                    vdiff-lock-scrolling)
           (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)))
         (t
          (vdiff--buffer-cleanup))))
@@ -2202,7 +2213,8 @@ automatically after calling commands like `vdiff-files3' or
   nil " vdiff3" 'vdiff-3way-mode-map
   (cond (vdiff-3way-mode
          (vdiff--buffer-init)
-         (when vdiff-lock-scrolling
+         (when (and (not vdiff--testing-mode)
+                    vdiff-lock-scrolling)
            (add-hook 'window-scroll-functions #'vdiff--scroll-function nil t)))
         (t
          (vdiff--buffer-cleanup))))
