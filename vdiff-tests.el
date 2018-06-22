@@ -24,7 +24,7 @@
 (require 'vdiff)
 
 (ert-deftest vdiff-test-parsing ()
-  ""
+  "Test parsing of unified diff format."
   (with-temp-buffer
     (insert "--- test1.txt	2018-04-13 11:11:41.000000000 -0400
 +++ test2.txt	2018-04-13 11:11:46.000000000 -0400
@@ -58,3 +58,117 @@
 ")
     (should (equal (vdiff--parse-diff-u (current-buffer))
                    '(((1) (1 . 3)) ((12) (15 . 16)) ((19 . 20) (24 . 25)) ((23) (28 . 28)))))))
+
+(ert-deftest vdiff-test-transmiting ()
+  "Test transmitting changes."
+  (cl-letf ((bufa (get-buffer-create "vdiff-tests-bufa"))
+            (bufb (get-buffer-create "vdiff-tests-bufb"))
+            ;; no need to handle scrolling
+            ((symbol-function 'vdiff--scroll-function) #'ignore)
+            ;; don't process asynchronously
+            (vdiff--synchronous t))
+    (unwind-protect
+        (progn
+          (with-current-buffer bufa
+            (erase-buffer)
+            (insert "1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+"))
+          (with-current-buffer bufb
+            (erase-buffer)
+            (insert "1
+2
+4
+4
+5
+6
+8
+8
+9
+10
+"))
+          (vdiff-buffers bufa bufb)
+          (with-current-buffer bufa
+            (vdiff-send-changes (point-min) (point-max)))
+          (with-current-buffer bufb
+            (should (string= (buffer-string)
+                             "1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+"))))
+      (kill-buffer bufa)
+      (kill-buffer bufb))))
+
+(ert-deftest vdiff-test-receiving ()
+  "Test receiving changes."
+  (cl-letf ((bufa (get-buffer-create "vdiff-tests-bufa"))
+            (bufb (get-buffer-create "vdiff-tests-bufb"))
+            ;; no need to handle scrolling
+            ((symbol-function 'vdiff--scroll-function) #'ignore)
+            ;; don't process asynchronously
+            (vdiff--synchronous t))
+    (unwind-protect
+        (progn
+          (with-current-buffer bufa
+            (erase-buffer)
+            (insert "1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+"))
+          (with-current-buffer bufb
+            (erase-buffer)
+            (insert "1
+2
+4
+4
+5
+6
+8
+8
+9
+10
+"))
+          (vdiff-buffers bufa bufb)
+          (with-current-buffer bufb
+            (vdiff-receive-changes (point-min) (point-max)))
+          (with-current-buffer bufb
+            (should (string= (buffer-string)
+                             "1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+"))))
+      (kill-buffer bufa)
+      (kill-buffer bufb))))
+
+
+(provide 'vdiff-tests)
+;;; vdiff-tests.el ends here

@@ -241,6 +241,8 @@ because those are handled differently.")
     ("Ignore all whitespace (-w)" . "-w")
     ("Ignore space changes (-b)" . "-b")
     ("Ignore blank lines (-B)" . "-B")))
+(defvar vdiff--synchronous nil
+  "Flag to force synchronous parsing.")
 
 ;; Sessions
 (defvar vdiff--temp-session nil
@@ -501,7 +503,7 @@ non-nil. Ignore folds if NO-FOLD is non-nil."
 ;; * Main overlay refresh routine
 
 (defun vdiff-refresh (&optional post-refresh-function)
-  "Asynchronously refresh diff information.
+  "Refresh diff information.
 
 POST-REFRESH-FUNCTION is called when the process finishes."
   (interactive)
@@ -552,20 +554,26 @@ POST-REFRESH-FUNCTION is called when the process finishes."
         (kill-process proc))
       (with-current-buffer (get-buffer-create proc-buf)
         (erase-buffer))
-      (setq proc
-            (make-process
-             :name "*vdiff*"
-             :buffer proc-buf
-             :command cmd))
-      (when vdiff-3way-mode
-        (process-put proc 'vdiff-3way t))
-      (process-put proc 'vdiff-session ses)
-      (process-put proc 'vdiff-tmp-a tmp-a)
-      (process-put proc 'vdiff-tmp-b tmp-b)
-      (process-put proc 'vdiff-post-refresh-function post-refresh-function)
-      (when tmp-c
-        (process-put proc 'vdiff-tmp-c tmp-c))
-      (set-process-sentinel proc #'vdiff--diff-refresh-1))))
+      (if vdiff--synchronous
+          (progn
+            (apply #'call-process (car cmd) nil (list proc-buf) nil (cdr cmd))
+            (vdiff--diff-refresh-sync-sentinel
+             proc-buf ses vdiff-3way-mode tmp-a tmp-b
+             tmp-c post-refresh-function))
+        (setq proc
+              (make-process
+               :name "*vdiff*"
+               :buffer proc-buf
+               :command cmd))
+        (when vdiff-3way-mode
+          (process-put proc 'vdiff-3way t))
+        (process-put proc 'vdiff-session ses)
+        (process-put proc 'vdiff-tmp-a tmp-a)
+        (process-put proc 'vdiff-tmp-b tmp-b)
+        (process-put proc 'vdiff-post-refresh-function post-refresh-function)
+        (when tmp-c
+          (process-put proc 'vdiff-tmp-c tmp-c))
+        (set-process-sentinel proc #'vdiff--diff-refresh-async-sentinel)))))
 
 (defun vdiff--encode-range (insert beg &optional end)
   "Normalize BEG and END of range. INSERT indicates that this is
@@ -702,41 +710,62 @@ an addition when compared to other vdiff buffers."
                    (throw 'final-res (nreverse res))))
             (forward-line 1)))))))
 
-(defun vdiff--diff-refresh-1 (proc event)
+(defun vdiff--diff-refresh-finish
+    (session tmp-a tmp-b &optional tmp-c post-function)
+  "Final step in diff refresh."
+  (vdiff--refresh-overlays session)
+  (vdiff--refresh-line-maps session)
+  (let ((vdiff--session session))
+    (when vdiff-auto-refine
+      (vdiff-refine-all-hunks))
+    (when post-function
+      (funcall post-function)))
+  (delete-file tmp-a)
+  (delete-file tmp-b)
+  (when tmp-c
+    (delete-file tmp-c))
+  (setf (vdiff-session-diff-stale session) nil))
+
+(defun vdiff--diff-refresh-sync-sentinel
+    (buffer session vdiff-3way tmp-a tmp-b &optional tmp-c post-function)
+  "This is the sentinel for `vdiff-refresh' when
+`vdiff--synchronous' is non-nil."
+  (unless vdiff--inhibit-diff-update
+    (setf (vdiff-session-diff-data session)
+          (funcall (if vdiff-3way
+                       #'vdiff--parse-diff3
+                     #'vdiff--parse-diff-u) buffer))
+    (vdiff--diff-refresh-finish
+     session tmp-a tmp-b tmp-c post-function)))
+
+(defun vdiff--diff-refresh-async-sentinel (proc event)
   "This is the sentinel for `vdiff-refresh'. It does the job of
 parsing the diff output and triggering the overlay updates."
   (unless vdiff--inhibit-diff-update
     (let ((parse-func (if (process-get proc 'vdiff-3way)
                           #'vdiff--parse-diff3
                         #'vdiff--parse-diff-u))
-          (ses (process-get proc 'vdiff-session))
-          (post-function (process-get proc 'vdiff-post-refresh-function))
+          (session (process-get proc 'vdiff-session))
           finished)
       (cond
        ;; Was getting different exit code conventions depending on the
        ;; version of diff used
        ((or (string= "finished\n" event)
             (string= "exited abnormally with code 1\n" event))
-        (setf (vdiff-session-diff-data ses)
+        (setf (vdiff-session-diff-data session)
               (funcall parse-func (process-buffer proc)))
         (setq finished t))
        ((string-match-p "exited abnormally with code" event)
-        (setf (vdiff-session-diff-data ses) nil)
+        (setf (vdiff-session-diff-data session) nil)
         (setq finished t)
         (message "vdiff process error: %s" event)))
       (when finished
-        (vdiff--refresh-overlays ses)
-        (vdiff--refresh-line-maps ses)
-        (let ((vdiff--session ses))
-          (when vdiff-auto-refine
-            (vdiff-refine-all-hunks))
-          (when post-function
-            (funcall post-function)))
-        (delete-file (process-get proc 'vdiff-tmp-a))
-        (delete-file (process-get proc 'vdiff-tmp-b))
-        (when (process-get proc 'vdiff-tmp-c)
-          (delete-file (process-get proc 'vdiff-tmp-c))))
-      (setf (vdiff-session-diff-stale ses) nil))))
+        (vdiff--diff-refresh-finish
+         session
+         (process-get proc 'vdiff-tmp-a)
+         (process-get proc 'vdiff-tmp-b)
+         (process-get proc 'vdiff-tmp-c)
+         (process-get proc 'vdiff-post-refresh-function))))))
 
 (defun vdiff--remove-all-overlays ()
   "Remove all vdiff overlays in both vdiff buffers."
