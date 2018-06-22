@@ -23,10 +23,8 @@
 (require 'ert)
 (require 'vdiff)
 
-(defun vdiff-test-buffer-string ()
-  (replace-regexp-in-string "\n" "|" (buffer-string)))
-
-(defmacro vdiff-test-with-buffers (a-string b-string &rest body)
+(defmacro vdiff-test-with-buffers
+    (a-string b-string operation final-a-string final-b-string)
   `(let ((buffer-a (get-buffer-create "vdiff-tests-buffer-a"))
          (buffer-b (get-buffer-create "vdiff-tests-buffer-b"))
          (vdiff--testing-mode t))
@@ -39,7 +37,13 @@
              (erase-buffer)
              (insert ,(replace-regexp-in-string "|" "\n" b-string)))
            (vdiff-buffers buffer-a buffer-b nil nil nil t)
-           ,@body)
+           ,operation
+           (with-current-buffer buffer-a
+             (should (string= (buffer-string)
+                              ,(replace-regexp-in-string "|" "\n" final-a-string))))
+           (with-current-buffer buffer-b
+             (should (string= (buffer-string)
+                              ,(replace-regexp-in-string "|" "\n" final-b-string)))))
        (with-current-buffer buffer-a
          (vdiff-quit)))))
 
@@ -89,18 +93,16 @@
      (goto-char (point-min))
      (call-interactively 'vdiff-next-hunk)
      (call-interactively 'vdiff-send-changes))
-   (with-current-buffer buffer-b
-     (should (string= (vdiff-test-buffer-string)
-                      "1|2|3|4|5|6|8|8|9|10|"))))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|3|4|5|6|8|8|9|10|")
   ;; Test sending everything
   (vdiff-test-with-buffers
    "1|2|3|4|5|6|7|8|9|10|"
    "1|2|4|4|5|6|8|8|9|10|"
    (with-current-buffer buffer-a
      (vdiff-send-changes (point-min) (point-max)))
-   (with-current-buffer buffer-b
-     (should (string= (vdiff-test-buffer-string)
-                      "1|2|3|4|5|6|7|8|9|10|")))))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|3|4|5|6|7|8|9|10|"))
 
 (ert-deftest vdiff-test-receiving ()
   "Test receiving changes."
@@ -111,18 +113,17 @@
    (with-current-buffer buffer-b
      (goto-char (point-min))
      (call-interactively 'vdiff-next-hunk)
-     (call-interactively 'vdiff-receive-changes)
-     (should (string= (vdiff-test-buffer-string)
-                      "1|2|3|4|5|6|8|8|9|10|"))))
+     (call-interactively 'vdiff-receive-changes))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|3|4|5|6|8|8|9|10|")
   ;; Test receiving everything
   (vdiff-test-with-buffers
    "1|2|3|4|5|6|7|8|9|10|"
    "1|2|4|4|5|6|8|8|9|10|"
    (with-current-buffer buffer-b
      (vdiff-receive-changes (point-min) (point-max)))
-   (with-current-buffer buffer-b
-     (should (string= (vdiff-test-buffer-string)
-                      "1|2|3|4|5|6|7|8|9|10|")))))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|3|4|5|6|7|8|9|10|"))
 
 
 (provide 'vdiff-test)
