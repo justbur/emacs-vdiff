@@ -83,6 +83,29 @@
     (should (equal (vdiff--parse-diff-u (current-buffer))
                    '(((1) (1 . 3)) ((12) (15 . 16)) ((19 . 20) (24 . 25)) ((23) (28 . 28)))))))
 
+(ert-deftest vdiff-test-setup ()
+  "Test setting up `vdiff-mode'."
+  ;; Setup does not change buffers
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|4|4|5|6|8|8|9|10|"
+   nil
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|4|4|5|6|8|8|9|10|"))
+
+(ert-deftest vdiff-test-movement ()
+  "Test movement in buffers."
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|4|4|5|6|8|8|9|10|"
+   (with-current-buffer buffer-a
+     (goto-char (point-min))
+     (call-interactively 'vdiff-next-hunk)
+     (call-interactively 'vdiff-next-hunk)
+     (should (looking-at-p "7")))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|4|4|5|6|8|8|9|10|"))
+
 (ert-deftest vdiff-test-transmiting ()
   "Test transmitting changes."
   ;; Test sending first change
