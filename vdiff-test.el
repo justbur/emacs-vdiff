@@ -24,7 +24,7 @@
 (require 'vdiff)
 
 (defmacro vdiff-test-with-buffers
-    (a-string b-string operation final-a-string final-b-string)
+    (a-string b-string operation final-a-string final-b-string &optional after-quit)
   `(let ((buffer-a (get-buffer-create "vdiff-tests-buffer-a"))
          (buffer-b (get-buffer-create "vdiff-tests-buffer-b"))
          (vdiff--testing-mode t))
@@ -36,7 +36,7 @@
            (with-current-buffer buffer-b
              (erase-buffer)
              (insert ,(replace-regexp-in-string "|" "\n" b-string)))
-           (vdiff-buffers buffer-a buffer-b nil nil nil t)
+           (vdiff-buffers buffer-a buffer-b)
            ,operation
            (with-current-buffer buffer-a
              (should (string= (buffer-string)
@@ -45,7 +45,10 @@
              (should (string= (buffer-string)
                               ,(replace-regexp-in-string "|" "\n" final-b-string)))))
        (with-current-buffer buffer-a
-         (vdiff-quit)))))
+         (vdiff-quit))
+       ,after-quit
+       (kill-buffer buffer-a)
+       (kill-buffer buffer-b))))
 
 (ert-deftest vdiff-test-parsing ()
   "Test parsing of unified diff format."
