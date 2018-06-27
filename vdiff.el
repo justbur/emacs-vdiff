@@ -641,8 +641,7 @@ an addition when compared to other vdiff buffers."
                       (not (eobp)))
             (cond ((looking-at-p "+")
                    ;; addition
-                   (let ((beg-a (car lines))
-                         (beg-b (cdr lines)))
+                   (let ((beg-b (cdr lines)))
                      (while (looking-at-p "+")
                        (setq lines (vdiff--inc-lines lines)))
                      (when vdiff-debug
@@ -653,8 +652,7 @@ an addition when compared to other vdiff buffers."
                       res)))
                   ((looking-at-p "-")
                    ;; subtraction or change
-                   (let ((beg-a (car lines))
-                         (beg-b (cdr lines)))
+                   (let ((beg-a (car lines)))
                      (while (looking-at-p "-")
                        (setq lines (vdiff--inc-lines lines)))
                      (if (or (looking-at-p " ") (eobp))
