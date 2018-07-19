@@ -2174,6 +2174,9 @@ nothing to revert then this command fails."
 
 (defun vdiff--buffer-init ()
   ;; this is a buffer-local var
+  (unless vdiff--temp-session
+    (user-error "Incorrect initialization of vdiff session. \
+See README for entry points into a vdiff session."))
   (setq vdiff--session vdiff--temp-session)
   (unless vdiff--testing-mode
     (setq cursor-in-non-selected-windows nil)
