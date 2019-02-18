@@ -1729,7 +1729,8 @@ toggle all folds in region."
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
       (if (overlay-get ovr 'vdiff-fold-open)
           (vdiff--close-fold ovr)
-        (vdiff--open-fold ovr)))))
+        (vdiff--open-fold ovr))))
+  (vdiff--scroll-function))
 
 (defun vdiff-open-all-folds ()
   "Open all folds in both buffers"
