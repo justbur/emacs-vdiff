@@ -1684,6 +1684,19 @@ buffer)."
   (overlay-put ovr 'intangible t)
   (overlay-put ovr 'display (overlay-get ovr 'vdiff-fold-text)))
 
+(defun vdiff--open-fold (ovr)
+  "Opens fold overlay OVR."
+  (vdiff--set-open-fold-props ovr)
+  (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
+    (vdiff--set-open-fold-props other-fold)))
+
+(defun vdiff--close-fold (ovr)
+  "Closes fold overlay OVR."
+  (setf (vdiff-session-all-folds-open vdiff--session) nil)
+  (vdiff--set-closed-fold-props ovr)
+  (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
+    (vdiff--set-closed-fold-props other-fold)))
+
 (defun vdiff-open-fold (beg end)
   "Open folds between BEG and END, as well as corresponding ones
 in other vdiff buffer. If called interactively, either open fold
@@ -1692,9 +1705,7 @@ in the region."
   (interactive (vdiff--region-or-close-overlay))
   (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
-      (vdiff--set-open-fold-props ovr)
-      (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
-        (vdiff--set-open-fold-props other-fold))))
+      (vdiff--open-fold ovr)))
   (vdiff--scroll-function))
 
 (defun vdiff-close-fold (beg end)
@@ -1705,11 +1716,20 @@ folds in the region."
   (interactive (vdiff--region-or-close-overlay))
   (dolist (ovr (overlays-in beg end))
     (when (eq (overlay-get ovr 'vdiff-type) 'fold)
-      (setf (vdiff-session-all-folds-open vdiff--session) nil)
-      (vdiff--set-closed-fold-props ovr)
-      (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
-        (vdiff--set-closed-fold-props other-fold))))
+      (vdiff--close-fold ovr)))
   (vdiff--scroll-function))
+
+(defun vdiff-toggle-fold (beg end)
+  "Toggles folds between BEG and END, as well as corresponding
+ones in other vdiff buffer. If called interactively, either
+toggle fold at point or on prior line. If the region is active
+toggle all folds in region."
+  (interactive (vdiff--region-or-close-overlay))
+  (dolist (ovr (overlays-in beg end))
+    (when (eq (overlay-get ovr 'vdiff-type) 'fold)
+      (if (overlay-get ovr 'vdiff-fold-open)
+          (vdiff--close-fold ovr)
+        (vdiff--open-fold ovr)))))
 
 (defun vdiff-open-all-folds ()
   "Open all folds in both buffers"
@@ -1735,6 +1755,12 @@ folds in the region."
       (vdiff--set-closed-fold-props ovr)
       (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
         (vdiff--set-closed-fold-props other-fold)))))
+
+(defun vdiff-toggle-all-folds ()
+  "Toggle all folds in both buffers"
+  (interactive)
+  (save-excursion
+    (vdiff-toggle-fold (point-min) (point-max))))
 
 ;; * Movement
 
