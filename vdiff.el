@@ -1403,15 +1403,33 @@ immediately preceding line."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
-           (beg (overlay-start ovr))
-           (end (overlay-end ovr))
-           (text (buffer-substring-no-properties beg end)))
+           (beg (and (numberp beg) beg))
+           (end (and (numberp end) end))
+           (this-beg (if beg
+                         (max beg (overlay-start ovr))
+                       (overlay-start ovr)))
+           (this-end (if end
+                         (min end (overlay-end ovr))
+                       (overlay-end ovr)))
+           (text (buffer-substring-no-properties this-beg this-end))
+           (target-beg-line
+            (when beg
+              (caar (vdiff--translate-line (line-number-at-pos beg)))))
+           (target-end-line
+            (when end
+              (caar (vdiff--translate-line (line-number-at-pos end))))))
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
           (save-excursion
-            (goto-char (overlay-start target))
-            (delete-region (overlay-start target)
-                           (overlay-end target))
+            (if target-beg-line
+                (vdiff--move-to-line target-beg-line)
+              (goto-char (overlay-start target)))
+            (delete-region (point)
+                           (save-excursion
+                             (if target-end-line
+                                 (vdiff--move-to-line target-end-line)
+                               (goto-char (overlay-end target)))
+                             (point)))
             (insert text))
           (delete-overlay target)))
       (delete-overlay ovr))))
