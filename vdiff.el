@@ -1378,18 +1378,35 @@ immediately preceding line."
   (call-interactively 'vdiff-receive-changes)
   (call-interactively 'vdiff-next-hunk))
 
+(defun vdiff--maybe-beginning-of-line (beg)
+  (when (number-or-marker-p beg)
+    (save-excursion
+      (goto-char beg)
+      (line-beginning-position))))
+
+(defun vdiff--maybe-end-of-line (end)
+  (when (number-or-marker-p end)
+    (save-excursion
+      (goto-char end)
+      (unless (= (char-before) ?\n)
+        (forward-line))
+      (point))))
+
 (defun vdiff--transmit-addition (ovr &optional targets beg end)
   "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
-           (beg (if (numberp beg)
-                    (max beg (overlay-start ovr))
-                  (overlay-start ovr)))
-           (end (if (numberp end)
-                    (min end (overlay-end ovr))
-                  (overlay-end ovr)))
-           (text (buffer-substring-no-properties beg end)))
+           ;; Expand to full line
+           (beg (vdiff--maybe-beginning-of-line beg))
+           (end (vdiff--maybe-end-of-line end))
+           (text (buffer-substring-no-properties
+                  (if beg
+                      (max beg (overlay-start ovr))
+                    (overlay-start ovr))
+                  (if end
+                      (min end (overlay-end ovr))
+                    (overlay-end ovr)))))
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
           (save-excursion
@@ -1403,15 +1420,15 @@ immediately preceding line."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
-           (beg (and (numberp beg) beg))
-           (end (and (numberp end) end))
-           (this-beg (if beg
-                         (max beg (overlay-start ovr))
-                       (overlay-start ovr)))
-           (this-end (if end
+           (beg (vdiff--maybe-beginning-of-line beg))
+           (end (vdiff--maybe-end-of-line end))
+           (text (buffer-substring-no-properties
+                  (if beg
+                      (max beg (overlay-start ovr))
+                    (overlay-start ovr))
+                  (if end
                          (min end (overlay-end ovr))
-                       (overlay-end ovr)))
-           (text (buffer-substring-no-properties this-beg this-end))
+                       (overlay-end ovr))))
            (target-beg-line
             (when beg
               (caar (vdiff--translate-line (line-number-at-pos beg)))))
