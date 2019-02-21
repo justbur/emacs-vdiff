@@ -1435,14 +1435,18 @@ immediately preceding line."
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
           (let* ((target-buffer (vdiff--buffer-p))
+                 (min-line (line-number-at-pos (overlay-start ovr)))
                  (target-beg-line
                   (when beg-line
-                    (car (vdiff--translate-line
-                          beg-line from-buffer target-buffer))))
+                    (max min-line
+                         (car (vdiff--translate-line
+                               beg-line from-buffer target-buffer)))))
+                 (max-line (line-number-at-pos (overlay-end ovr)))
                  (target-end-line
                   (when end-line
-                    (car (vdiff--translate-line
-                          end-line from-buffer target-buffer)))))
+                    (min max-line
+                         (car (vdiff--translate-line
+                               end-line from-buffer target-buffer))))))
             (save-excursion
               (if target-beg-line
                   (vdiff--move-to-line target-beg-line)
