@@ -1378,35 +1378,30 @@ immediately preceding line."
   (call-interactively 'vdiff-receive-changes)
   (call-interactively 'vdiff-next-hunk))
 
-(defun vdiff--maybe-beginning-of-line (beg)
-  (when (number-or-marker-p beg)
-    (save-excursion
-      (goto-char beg)
-      (line-beginning-position))))
+(defun vdiff--maybe-beginning-of-line (beg min)
+  (let ((beg (when (number-or-marker-p beg)
+               (save-excursion
+                 (goto-char beg)
+                 (line-beginning-position)))))
+    (if (and beg (> beg min)) beg min)))
 
-(defun vdiff--maybe-end-of-line (end)
-  (when (number-or-marker-p end)
-    (save-excursion
-      (goto-char end)
-      (unless (= (char-before) ?\n)
-        (forward-line))
-      (point))))
+(defun vdiff--maybe-end-of-line (end max)
+  (let ((end (when (number-or-marker-p end)
+               (save-excursion
+                 (goto-char end)
+                 (unless (= (char-before) ?\n)
+                   (forward-line))
+                 (point)))))
+    (if (and end (< end max)) end max)))
 
 (defun vdiff--transmit-addition (ovr &optional targets beg end)
   "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
-           ;; Expand to full line
-           (beg (vdiff--maybe-beginning-of-line beg))
-           (end (vdiff--maybe-end-of-line end))
-           (text (buffer-substring-no-properties
-                  (if beg
-                      (max beg (overlay-start ovr))
-                    (overlay-start ovr))
-                  (if end
-                      (min end (overlay-end ovr))
-                    (overlay-end ovr)))))
+           (beg (vdiff--maybe-beginning-of-line beg (overlay-start ovr)))
+           (end (vdiff--maybe-end-of-line end (overlay-end ovr)))
+           (text (buffer-substring-no-properties beg end)))
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
           (save-excursion
@@ -1420,18 +1415,13 @@ immediately preceding line."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
-           (beg (vdiff--maybe-beginning-of-line beg))
-           (beg-line (when beg (line-number-at-pos beg)))
-           (end (vdiff--maybe-end-of-line end))
-           (end-line (when end (line-number-at-pos end)))
+           (region (not (null beg)))
+           (beg (vdiff--maybe-beginning-of-line beg (overlay-start ovr)))
+           (beg-line (when region (line-number-at-pos beg)))
+           (end (vdiff--maybe-end-of-line end (overlay-end ovr)))
+           (end-line (when region (line-number-at-pos end)))
            (from-buffer (vdiff--buffer-p))
-           (text (buffer-substring-no-properties
-                  (if beg
-                      (max beg (overlay-start ovr))
-                    (overlay-start ovr))
-                  (if end
-                      (min end (overlay-end ovr))
-                    (overlay-end ovr)))))
+           (text (buffer-substring-no-properties beg end)))
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
           (let* ((target-buffer (vdiff--buffer-p))
