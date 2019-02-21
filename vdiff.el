@@ -1549,7 +1549,7 @@ just deleting text in another buffer."
               (list (list 'a (cons 'b a-b))
                     (list 'b (cons 'a b-a))))))))
 
-(defun vdiff--translate-line (line &optional from-buffer)
+(defun vdiff--translate-line (line &optional from-buffer to-buffer)
   "Translate LINE in buffer A to corresponding line in buffer
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos)))
@@ -1557,7 +1557,7 @@ B. Go from buffer B to A if B-to-A is non nil."
          (maps
           (cdr
            (assq from-buffer (vdiff-session-line-maps vdiff--session))))
-         last-entry res-1 res-2)
+         last-entry res-1 res-2 res)
     (dolist (map maps)
       (setq last-entry
             (catch 'closest
@@ -1584,16 +1584,22 @@ B. Go from buffer B to A if B-to-A is non nil."
     (when (called-interactively-p 'interactive)
       (message "This line: %s (%s); Other line %s (%s); vscroll-state %s; entry %s"
                line from-buffer res-1 (car res-1) (cdr res-1) last-entry))
-    (cons res-1 res-2)))
+    (setq res (cons res-1 res-2))
+    (if to-buffer
+        (cdr (assq to-buffer res))
+      res)))
 
 (defun vdiff-switch-buffer (line)
   "Jump to the line in another vdiff buffer that corresponds to
 the current one."
   (interactive (list (line-number-at-pos)))
-  (let ((line (nth 1 (car (vdiff--translate-line line)))))
+  (let ((from-buffer (vdiff--buffer-p)))
     (select-window (car (vdiff--unselected-windows)))
-    (when line
-      (vdiff--move-to-line line))))
+    (let ((target-line
+           (car
+            (vdiff--translate-line line from-buffer (vdiff--buffer-p)))))
+         (when target-line
+           (vdiff--move-to-line target-line)))))
 
 (defun vdiff-restore-windows ()
   "Restore initial window configuration."
@@ -1649,8 +1655,8 @@ buffer)."
            (update-window-start (null window-start))
            (window-start (or window-start (progn
                                             ;; redisplay updates window-start in
-                                            ;; the case where the scroll function
-                                            ;; is called manually
+                                            ;; the case where the scroll
+                                            ;; function is called manually
                                             (redisplay)
                                             (window-start)))))
       (when (and (eq window (selected-window))
