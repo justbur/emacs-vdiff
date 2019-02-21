@@ -1361,7 +1361,7 @@ use the hunk under point or on the immediately preceding line."
   (call-interactively 'vdiff-send-changes)
   (call-interactively 'vdiff-next-hunk))
 
-(defun vdiff-receive-changes (beg end &optional region)
+(defun vdiff-receive-changes (beg end &optional _)
   "Receive the changes corresponding to this position from
 another vdiff buffer. This is equivalent to jumping to the
 corresponding buffer and sending from there. If the region is
@@ -1766,7 +1766,7 @@ buffer)."
   (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
     (vdiff--set-closed-fold-props other-fold)))
 
-(defun vdiff-open-fold (beg end &optional region)
+(defun vdiff-open-fold (beg end &optional _)
   "Open folds between BEG and END, as well as corresponding ones
 in other vdiff buffer. If called interactively, either open fold
 at point or on prior line. If the region is active open all folds
@@ -1777,7 +1777,7 @@ in the region."
       (vdiff--open-fold ovr)))
   (vdiff--scroll-function))
 
-(defun vdiff-close-fold (beg end &optional region)
+(defun vdiff-close-fold (beg end &optional _)
   "Close folds between BEG and END, as well as corresponding ones
 in other vdiff buffer. If called interactively, either close fold
 at point or on prior line. If the region is active close all
@@ -1788,7 +1788,7 @@ folds in the region."
       (vdiff--close-fold ovr)))
   (vdiff--scroll-function))
 
-(defun vdiff-toggle-fold (beg end &optional region)
+(defun vdiff-toggle-fold (beg end &optional _)
   "Toggles folds between BEG and END, as well as corresponding
 ones in other vdiff buffer. If called interactively, either
 toggle fold at point or on prior line. If the region is active
