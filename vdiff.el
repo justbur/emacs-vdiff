@@ -1421,33 +1421,39 @@ immediately preceding line."
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
            (beg (vdiff--maybe-beginning-of-line beg))
+           (beg-line (when beg (line-number-at-pos beg)))
            (end (vdiff--maybe-end-of-line end))
+           (end-line (when end (line-number-at-pos end)))
+           (from-buffer (vdiff--buffer-p))
            (text (buffer-substring-no-properties
                   (if beg
                       (max beg (overlay-start ovr))
                     (overlay-start ovr))
                   (if end
-                         (min end (overlay-end ovr))
-                       (overlay-end ovr))))
-           (target-beg-line
-            (when beg
-              (caar (vdiff--translate-line (line-number-at-pos beg)))))
-           (target-end-line
-            (when end
-              (caar (vdiff--translate-line (line-number-at-pos end))))))
+                      (min end (overlay-end ovr))
+                    (overlay-end ovr)))))
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
-          (save-excursion
-            (if target-beg-line
-                (vdiff--move-to-line target-beg-line)
-              (goto-char (overlay-start target)))
-            (delete-region (point)
-                           (save-excursion
-                             (if target-end-line
-                                 (vdiff--move-to-line target-end-line)
-                               (goto-char (overlay-end target)))
-                             (point)))
-            (insert text))
+          (let* ((target-buffer (vdiff--buffer-p))
+                 (target-beg-line
+                  (when beg-line
+                    (car (vdiff--translate-line
+                          beg-line from-buffer target-buffer))))
+                 (target-end-line
+                  (when end-line
+                    (car (vdiff--translate-line
+                          end-line from-buffer target-buffer)))))
+            (save-excursion
+              (if target-beg-line
+                  (vdiff--move-to-line target-beg-line)
+                (goto-char (overlay-start target)))
+              (delete-region (point)
+                             (save-excursion
+                               (if target-end-line
+                                   (vdiff--move-to-line target-end-line)
+                                 (goto-char (overlay-end target)))
+                               (point)))
+              (insert text)))
           (delete-overlay target)))
       (delete-overlay ovr))))
 
