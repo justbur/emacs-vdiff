@@ -152,5 +152,55 @@
    "1|2|3|4|5|6|7|8|9|10|"))
 
 
+(ert-deftest vdiff-test-selective-transmiting ()
+  "Test transmitting changes when region is active."
+  ;; Test sending first line of first change
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|x|x|x|5|6|8|8|9|10|"
+   (with-current-buffer buffer-a
+     (goto-char (point-min))
+     (forward-line)
+     (set-mark (point))
+     (forward-line)
+     (call-interactively 'vdiff-send-changes))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|x|x|5|6|8|8|9|10|")
+  ;; Test sending second line of first change
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|x|x|x|5|6|8|8|9|10|"
+   (with-current-buffer buffer-a
+     (goto-char (point-min))
+     (forward-line 2)
+     (set-mark (point))
+     (forward-line)
+     (call-interactively 'vdiff-send-changes))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|x|3|x|5|6|8|8|9|10|")
+  ;; Test sending first line of first change when region begins before
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|x|x|x|5|6|8|8|9|10|"
+   (with-current-buffer buffer-a
+     (goto-char (point-min))
+     (set-mark (point))
+     (forward-line 2)
+     (call-interactively 'vdiff-send-changes))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|2|x|x|5|6|8|8|9|10|")
+  ;; Test sending last two lines of first change when region ends after
+  (vdiff-test-with-buffers
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|x|x|x|5|6|8|8|9|10|"
+   (with-current-buffer buffer-a
+     (goto-char (point-min))
+     (forward-line 2)
+     (set-mark (point))
+     (forward-line 3)
+     (call-interactively 'vdiff-send-changes))
+   "1|2|3|4|5|6|7|8|9|10|"
+   "1|x|3|4|5|6|8|8|9|10|"))
+
 (provide 'vdiff-test)
 ;;; vdiff-test.el ends here
