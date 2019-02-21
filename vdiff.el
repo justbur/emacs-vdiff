@@ -1543,11 +1543,11 @@ just deleting text in another buffer."
                 (setq c-b (nconc c-b (cdr new-b-c))))))))
       (setf (vdiff-session-line-maps session)
             (if vdiff-3way-mode
-                (list (list 'a a-b a-c)
-                      (list 'b b-a b-c)
-                      (list 'c c-a c-b))
-              (list (list 'a a-b)
-                    (list 'b b-a)))))))
+                (list (list 'a (cons 'b a-b) (cons 'c a-c))
+                      (list 'b (cons 'a b-a) (cons 'c b-c))
+                      (list 'c (cons 'a c-a) (cons 'b c-b)))
+              (list (list 'a (cons 'b a-b))
+                    (list 'b (cons 'a b-a))))))))
 
 (defun vdiff--translate-line (line &optional from-buffer)
   "Translate LINE in buffer A to corresponding line in buffer
@@ -1562,7 +1562,7 @@ B. Go from buffer B to A if B-to-A is non nil."
       (setq last-entry
             (catch 'closest
               (let (prev-entry)
-                (dolist (entry map)
+                (dolist (entry (cdr map))
                   (let ((map-line (car entry)))
                     (cond ((< map-line line)
                            (setq prev-entry entry))
@@ -1575,20 +1575,22 @@ B. Go from buffer B to A if B-to-A is non nil."
         (setq last-entry (list line line))
         (message "Error in line translation %s %s" line from-buffer))
       (if res-1
-          (setq res-2 (cons (+ (- line (car last-entry)) (cadr last-entry))
+          (setq res-2 (list (car map)
+                            (+ (- line (car last-entry)) (cadr last-entry))
                             (nth 2 last-entry)))
-        (setq res-1 (cons (+ (- line (car last-entry)) (cadr last-entry))
+        (setq res-1 (list (car map)
+                          (+ (- line (car last-entry)) (cadr last-entry))
                           (nth 2 last-entry)))))
     (when (called-interactively-p 'interactive)
-      (message "This line: %s; Other line %s; vscroll-state %s; entry %s"
-               line res-1 (cdr res-1) last-entry))
+      (message "This line: %s (%s); Other line %s (%s); vscroll-state %s; entry %s"
+               line from-buffer res-1 (car res-1) (cdr res-1) last-entry))
     (cons res-1 res-2)))
 
 (defun vdiff-switch-buffer (line)
   "Jump to the line in another vdiff buffer that corresponds to
 the current one."
   (interactive (list (line-number-at-pos)))
-  (let ((line (caar (vdiff--translate-line line))))
+  (let ((line (nth 1 (car (vdiff--translate-line line)))))
     (select-window (car (vdiff--unselected-windows)))
     (when line
       (vdiff--move-to-line line))))
@@ -1629,18 +1631,16 @@ buffer)."
          (other-win (nth (if buf-c 1 0) (vdiff--unselected-windows)))
          (start-line (line-number-at-pos window-start))
          (start-trans (vdiff--translate-line start-line))
-         (start-trans (if buf-c
-                          (cdr start-trans)
-                        (car start-trans)))
+         (start-trans (if buf-c (cddr start-trans) (cdar start-trans)))
          (trans (vdiff--translate-line
                  (+ (count-lines window-start (point))
                     start-line)))
-         (trans (if buf-c (cdr trans) (car trans))))
+         (trans (if buf-c (cddr trans) (cdar trans))))
     (when (and start-trans trans)
       (list other-win
             (vdiff--pos-at-line-beginning (car start-trans) other-buf)
             (vdiff--pos-at-line-beginning (car trans) other-buf)
-            (cdr start-trans)))))
+            (cadr start-trans)))))
 
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
