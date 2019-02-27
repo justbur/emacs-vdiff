@@ -1314,7 +1314,7 @@ of a \"word\"."
 overlay at point and return it if there is. If this fails check a
 line above. Always search to the end of the current line as
 well. This only returns bounds for `interactive'."
-  (if (region-active-p)
+  (if (use-region-p)
       (prog1
           (list (region-beginning) (region-end) t)
         (deactivate-mark))
