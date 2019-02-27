@@ -1314,9 +1314,9 @@ of a \"word\"."
 overlay at point and return it if there is. If this fails check a
 line above. Always search to the end of the current line as
 well. This only returns bounds for `interactive'."
-  (if (region-active-p)
+  (if (use-region-p)
       (prog1
-          (list (region-beginning) (region-end))
+          (list (region-beginning) (region-end) t)
         (deactivate-mark))
     (list (if (or (= (line-number-at-pos) 1)
                   (vdiff--overlay-at-pos
@@ -1327,9 +1327,11 @@ well. This only returns bounds for `interactive'."
               (line-beginning-position)))
           (save-excursion
             (forward-line 1)
-            (point)))))
+            (point))
+          nil)))
 
-(defun vdiff-send-changes (beg end &optional receive targets dont-refresh)
+(defun vdiff-send-changes
+    (beg end &optional region receive targets dont-refresh)
   "Send changes in this hunk to another vdiff buffer. If the
 region is active, send all changes found in the region. Otherwise
 use the hunk under point or on the immediately preceding line."
@@ -1342,10 +1344,13 @@ use the hunk under point or on the immediately preceding line."
                         (or targets (vdiff--target-overlays ovr t))))
              (let ((pos (overlay-start (car target-ovrs))))
                (with-current-buffer (overlay-buffer (car target-ovrs))
-                 (vdiff-send-changes pos (1+ pos) nil nil t))))
-            ((memq (overlay-get ovr 'vdiff-type)
-                   '(change addition))
-             (vdiff--transmit-change ovr targets))
+                 (vdiff-send-changes pos (1+ pos) nil nil nil t))))
+            ((eq (overlay-get ovr 'vdiff-type) 'addition)
+             (vdiff--transmit-addition
+              ovr targets (when region beg) (when region end)))
+            ((eq (overlay-get ovr 'vdiff-type) 'change)
+             (vdiff--transmit-change
+              ovr targets (when region beg) (when region end)))
             ((eq (overlay-get ovr 'vdiff-type) 'subtraction)
              (vdiff--transmit-subtraction ovr targets))))
     (unless dont-refresh
@@ -1357,7 +1362,7 @@ use the hunk under point or on the immediately preceding line."
   (call-interactively 'vdiff-send-changes)
   (call-interactively 'vdiff-next-hunk))
 
-(defun vdiff-receive-changes (beg end)
+(defun vdiff-receive-changes (beg end &optional _)
   "Receive the changes corresponding to this position from
 another vdiff buffer. This is equivalent to jumping to the
 corresponding buffer and sending from there. If the region is
@@ -1365,7 +1370,7 @@ active, receive all corresponding changes found in the
 region. Otherwise use the changes under point or on the
 immediately preceding line."
   (interactive (vdiff--region-or-close-overlay))
-  (vdiff-send-changes beg end t nil t)
+  (vdiff-send-changes beg end nil t nil t)
   (vdiff-refresh #'vdiff--scroll-function))
 
 (defun vdiff-receive-changes-and-step ()
@@ -1374,24 +1379,76 @@ immediately preceding line."
   (call-interactively 'vdiff-receive-changes)
   (call-interactively 'vdiff-next-hunk))
 
-(defun vdiff--transmit-change (ovr &optional targets)
+(defun vdiff--maybe-beginning-of-line (beg min)
+  (let ((beg (when (number-or-marker-p beg)
+               (save-excursion
+                 (goto-char beg)
+                 (line-beginning-position)))))
+    (if (and beg (> beg min)) beg min)))
+
+(defun vdiff--maybe-end-of-line (end max)
+  (let ((end (when (number-or-marker-p end)
+               (save-excursion
+                 (goto-char end)
+                 (unless (= (char-before) ?\n)
+                   (forward-line))
+                 (point)))))
+    (if (and end (< end max)) end max)))
+
+(defun vdiff--transmit-addition (ovr &optional targets beg end)
   "Send text in OVR to corresponding overlay in other buffer."
   (if (not (overlayp ovr))
       (message "No change found")
     (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
-           (text (buffer-substring-no-properties
-                  (overlay-start ovr)
-                  (overlay-end ovr))))
+           (beg (vdiff--maybe-beginning-of-line beg (overlay-start ovr)))
+           (end (vdiff--maybe-end-of-line end (overlay-end ovr)))
+           (text (buffer-substring-no-properties beg end)))
       (dolist (target target-ovrs)
         (with-current-buffer (overlay-buffer target)
           (save-excursion
             (goto-char (overlay-start target))
-            ;; subtractions are one char too big on purpose
-            (unless (eq (overlay-get target 'vdiff-type)
-                        'subtraction)
-              (delete-region (overlay-start target)
-                             (overlay-end target)))
             (insert text))
+          (delete-overlay target)))
+      (delete-overlay ovr))))
+
+(defun vdiff--transmit-change (ovr &optional targets beg end)
+  "Send text in OVR to corresponding overlay in other buffer."
+  (if (not (overlayp ovr))
+      (message "No change found")
+    (let* ((target-ovrs (or targets (vdiff--target-overlays ovr)))
+           (region (not (null beg)))
+           (beg (vdiff--maybe-beginning-of-line beg (overlay-start ovr)))
+           (beg-line (when region (line-number-at-pos beg)))
+           (end (vdiff--maybe-end-of-line end (overlay-end ovr)))
+           (end-line (when region (line-number-at-pos end)))
+           (from-buffer (vdiff--buffer-p))
+           (text (buffer-substring-no-properties beg end)))
+      (dolist (target target-ovrs)
+        (with-current-buffer (overlay-buffer target)
+          (let* ((target-buffer (vdiff--buffer-p))
+                 (min-line (line-number-at-pos (overlay-start ovr)))
+                 (target-beg-line
+                  (when beg-line
+                    (max min-line
+                         (car (vdiff--translate-line
+                               beg-line from-buffer target-buffer)))))
+                 (max-line (line-number-at-pos (overlay-end ovr)))
+                 (target-end-line
+                  (when end-line
+                    (min max-line
+                         (car (vdiff--translate-line
+                               end-line from-buffer target-buffer))))))
+            (save-excursion
+              (if target-beg-line
+                  (vdiff--move-to-line target-beg-line)
+                (goto-char (overlay-start target)))
+              (delete-region (point)
+                             (save-excursion
+                               (if target-end-line
+                                   (vdiff--move-to-line target-end-line)
+                                 (goto-char (overlay-end target)))
+                               (point)))
+              (insert text)))
           (delete-overlay target)))
       (delete-overlay ovr))))
 
@@ -1487,13 +1544,13 @@ just deleting text in another buffer."
                 (setq c-b (nconc c-b (cdr new-b-c))))))))
       (setf (vdiff-session-line-maps session)
             (if vdiff-3way-mode
-                (list (list 'a a-b a-c)
-                      (list 'b b-a b-c)
-                      (list 'c c-a c-b))
-              (list (list 'a a-b)
-                    (list 'b b-a)))))))
+                (list (list 'a (cons 'b a-b) (cons 'c a-c))
+                      (list 'b (cons 'a b-a) (cons 'c b-c))
+                      (list 'c (cons 'a c-a) (cons 'b c-b)))
+              (list (list 'a (cons 'b a-b))
+                    (list 'b (cons 'a b-a))))))))
 
-(defun vdiff--translate-line (line &optional from-buffer)
+(defun vdiff--translate-line (line &optional from-buffer to-buffer)
   "Translate LINE in buffer A to corresponding line in buffer
 B. Go from buffer B to A if B-to-A is non nil."
   (interactive (list (line-number-at-pos)))
@@ -1501,12 +1558,12 @@ B. Go from buffer B to A if B-to-A is non nil."
          (maps
           (cdr
            (assq from-buffer (vdiff-session-line-maps vdiff--session))))
-         last-entry res-1 res-2)
+         last-entry res-1 res-2 res)
     (dolist (map maps)
       (setq last-entry
             (catch 'closest
               (let (prev-entry)
-                (dolist (entry map)
+                (dolist (entry (cdr map))
                   (let ((map-line (car entry)))
                     (cond ((< map-line line)
                            (setq prev-entry entry))
@@ -1519,23 +1576,31 @@ B. Go from buffer B to A if B-to-A is non nil."
         (setq last-entry (list line line))
         (message "Error in line translation %s %s" line from-buffer))
       (if res-1
-          (setq res-2 (cons (+ (- line (car last-entry)) (cadr last-entry))
+          (setq res-2 (list (car map)
+                            (+ (- line (car last-entry)) (cadr last-entry))
                             (nth 2 last-entry)))
-        (setq res-1 (cons (+ (- line (car last-entry)) (cadr last-entry))
+        (setq res-1 (list (car map)
+                          (+ (- line (car last-entry)) (cadr last-entry))
                           (nth 2 last-entry)))))
     (when (called-interactively-p 'interactive)
-      (message "This line: %s; Other line %s; vscroll-state %s; entry %s"
-               line res-1 (cdr res-1) last-entry))
-    (cons res-1 res-2)))
+      (message "This line: %s (%s); Other line %s (%s); vscroll-state %s; entry %s"
+               line from-buffer res-1 (car res-1) (cdr res-1) last-entry))
+    (setq res (cons res-1 res-2))
+    (if to-buffer
+        (cdr (assq to-buffer res))
+      res)))
 
 (defun vdiff-switch-buffer (line)
   "Jump to the line in another vdiff buffer that corresponds to
 the current one."
   (interactive (list (line-number-at-pos)))
-  (let ((line (caar (vdiff--translate-line line))))
+  (let ((from-buffer (vdiff--buffer-p)))
     (select-window (car (vdiff--unselected-windows)))
-    (when line
-      (vdiff--move-to-line line))))
+    (let ((target-line
+           (car
+            (vdiff--translate-line line from-buffer (vdiff--buffer-p)))))
+         (when target-line
+           (vdiff--move-to-line target-line)))))
 
 (defun vdiff-restore-windows ()
   "Restore initial window configuration."
@@ -1573,18 +1638,16 @@ buffer)."
          (other-win (nth (if buf-c 1 0) (vdiff--unselected-windows)))
          (start-line (line-number-at-pos window-start))
          (start-trans (vdiff--translate-line start-line))
-         (start-trans (if buf-c
-                          (cdr start-trans)
-                        (car start-trans)))
+         (start-trans (if buf-c (cddr start-trans) (cdar start-trans)))
          (trans (vdiff--translate-line
                  (+ (count-lines window-start (point))
                     start-line)))
-         (trans (if buf-c (cdr trans) (car trans))))
+         (trans (if buf-c (cddr trans) (cdar trans))))
     (when (and start-trans trans)
       (list other-win
             (vdiff--pos-at-line-beginning (car start-trans) other-buf)
             (vdiff--pos-at-line-beginning (car trans) other-buf)
-            (cdr start-trans)))))
+            (cadr start-trans)))))
 
 (defun vdiff--scroll-function (&optional window window-start)
   "Sync scrolling of all vdiff windows."
@@ -1593,8 +1656,8 @@ buffer)."
            (update-window-start (null window-start))
            (window-start (or window-start (progn
                                             ;; redisplay updates window-start in
-                                            ;; the case where the scroll function
-                                            ;; is called manually
+                                            ;; the case where the scroll
+                                            ;; function is called manually
                                             (redisplay)
                                             (window-start)))))
       (when (and (eq window (selected-window))
@@ -1698,7 +1761,7 @@ buffer)."
   (dolist (other-fold (overlay-get ovr 'vdiff-other-folds))
     (vdiff--set-closed-fold-props other-fold)))
 
-(defun vdiff-open-fold (beg end)
+(defun vdiff-open-fold (beg end &optional _)
   "Open folds between BEG and END, as well as corresponding ones
 in other vdiff buffer. If called interactively, either open fold
 at point or on prior line. If the region is active open all folds
@@ -1709,7 +1772,7 @@ in the region."
       (vdiff--open-fold ovr)))
   (vdiff--scroll-function))
 
-(defun vdiff-close-fold (beg end)
+(defun vdiff-close-fold (beg end &optional _)
   "Close folds between BEG and END, as well as corresponding ones
 in other vdiff buffer. If called interactively, either close fold
 at point or on prior line. If the region is active close all
@@ -1720,7 +1783,7 @@ folds in the region."
       (vdiff--close-fold ovr)))
   (vdiff--scroll-function))
 
-(defun vdiff-toggle-fold (beg end)
+(defun vdiff-toggle-fold (beg end &optional _)
   "Toggles folds between BEG and END, as well as corresponding
 ones in other vdiff buffer. If called interactively, either
 toggle fold at point or on prior line. If the region is active
