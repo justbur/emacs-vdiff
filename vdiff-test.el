@@ -32,9 +32,13 @@
          (progn
            (with-current-buffer buffer-a
              (erase-buffer)
+             ;; this seems necessary for batch mode
+             (transient-mark-mode 1)
              (insert ,(replace-regexp-in-string "|" "\n" a-string)))
            (with-current-buffer buffer-b
              (erase-buffer)
+             ;; this seems necessary for batch mode
+             (transient-mark-mode 1)
              (insert ,(replace-regexp-in-string "|" "\n" b-string)))
            (vdiff-buffers buffer-a buffer-b)
            ,operation
