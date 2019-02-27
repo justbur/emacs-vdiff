@@ -36,6 +36,10 @@ A tool like vimdiff for Emacs
    Contributions and suggestions are very welcome.
 
 ** Recent (Significant) Changes
+   - [2019-02-26] If the region is active when changes are sent to other
+     buffers, only lines in the intersection of the region and any hunks are
+     sent. This allows sending individual lines, similar to how individual lines
+     can be staged in magit.
    - [2018-04-17] Add option to use various git diff algorithms. See
      =vdiff-diff-algorithm= for options.
    - [2017-05-17] Split =vdiff-magit.el= into [[https://github.com/justbur/emacs-vdiff-magit][separate repository]]. 
