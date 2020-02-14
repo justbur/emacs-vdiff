@@ -1930,6 +1930,18 @@ arguments."
                  (find-file-noselect file-b)
                  rotate on-quit))
 
+(defun vdiff-temp-files ()
+  "Start a vidff session for two new temp files.
+
+This might be useful if you want to paste compare text pasted
+from another source."
+  (interactive)
+  (let ((file-a (make-temp-file "vdiff-"))
+        (file-b (make-temp-file "vdiff-")))
+    (write-region "\n" nil file-a)
+    (write-region "\n" nil file-b)
+    (vdiff-files file-a file-b)))
+
 (defcustom vdiff-2way-layout-function 'vdiff-2way-layout-function-default
   "Function to layout windows in 2way diffs.
 
