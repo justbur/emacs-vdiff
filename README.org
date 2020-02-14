@@ -1,4 +1,4 @@
-[[https://melpa.org/#/vdiff][file:https://melpa.org/packages/vdiff-badge.svg]] [[https://travis-ci.org/justbur/emacs-vdiff][https://travis-ci.org/justbur/emacs-vdiff.svg?branch=master]]
+[[https://melpa.org/#/vdiff][file:https://melpa.org/packages/vdiff-badge.svg]] [[evil-vdiff-test][https://github.com/justbur/emacs-vdiff/workflows/evil-vdiff-test/badge.svg]]
 
 * vdiff
 
