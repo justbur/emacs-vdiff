@@ -536,14 +536,16 @@ POST-REFRESH-FUNCTION is called when the process finishes."
       (with-current-buffer (car buffers)
         (write-region nil nil tmp-a nil 'quietly)
         ;; ensure tmp file ends in newline
-        (unless (= (char-before (point-max)) ?\n)
+        (when (or (= (point-min) (point-max))
+                  (/= (char-before (point-max)) ?\n))
           (message "vdiff: Warning %s does not end in a newline."
                    (if buffer-file-name buffer-file-name (buffer-name)))
           (write-region "\n" nil tmp-a t 'quietly)))
       (with-current-buffer (cadr buffers)
         (write-region nil nil tmp-b nil 'quietly)
         ;; ensure tmp file ends in newline
-        (unless (= (char-before (point-max)) ?\n)
+        (when (or (= (point-min) (point-max))
+                  (/= (char-before (point-max)) ?\n))
           (message "vdiff: Warning %s does not end in a newline."
                    (if buffer-file-name buffer-file-name (buffer-name)))
           (write-region "\n" nil tmp-b t 'quietly)))
@@ -551,7 +553,8 @@ POST-REFRESH-FUNCTION is called when the process finishes."
         (with-current-buffer (nth 2 buffers)
           (write-region nil nil tmp-c nil 'quietly)
           ;; ensure tmp file ends in newline
-          (unless (= (char-before (point-max)) ?\n)
+          (when (or (= (point-min) (point-max))
+                    (/= (char-before (point-max)) ?\n))
             (message "vdiff: Warning %s does not end in a newline."
                      (if buffer-file-name buffer-file-name (buffer-name)))
             (write-region "\n" nil tmp-c t 'quietly))))
@@ -1390,7 +1393,8 @@ immediately preceding line."
   (let ((end (when (number-or-marker-p end)
                (save-excursion
                  (goto-char end)
-                 (unless (= (char-before) ?\n)
+                 (when (and (char-before)
+                            (/= (char-before) ?\n))
                    (forward-line))
                  (point)))))
     (if (and end (< end max)) end max)))
