@@ -2320,7 +2320,7 @@ buffers. This sets up key bindings in `vdiff-mode-map' and adds
 hooks to refresh diff on changes. This will be enabled
 automatically after calling commands like `vdiff-files' or
 `vdiff-buffers'."
-  nil " vdiff" 'vdiff-mode-map
+  :lighter " vdiff"
   (if vdiff-mode
       (vdiff--buffer-init)
     (vdiff--buffer-cleanup)))
@@ -2331,7 +2331,7 @@ buffers. This sets up key bindings in `vdiff-3way-mode-map' and
 adds hooks to refresh diff on changes. This will be enabled
 automatically after calling commands like `vdiff-files3' or
 `vdiff-buffers3'."
-  nil " vdiff3" 'vdiff-3way-mode-map
+  :lighter " vdiff3"
   (if vdiff-3way-mode
       (vdiff--buffer-init)
     (vdiff--buffer-cleanup)))
@@ -2339,7 +2339,8 @@ automatically after calling commands like `vdiff-files3' or
 (define-minor-mode vdiff-scroll-lock-mode
   "Lock scrolling between vdiff buffers. This minor mode will be
 enabled automatically if `vdiff-lock-scrolling' is non-nil."
-  nil nil nil
+  :lighter nil
+  :keymap nil
   (cond (vdiff-scroll-lock-mode
          (unless (or vdiff-mode vdiff-3way-mode)
            (user-error "Must enable vdiff-mode first"))
