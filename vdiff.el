@@ -254,6 +254,7 @@ because those are handled differently.")
   "Temporarily stores new vdiff session globally.")
 (defvar-local vdiff--session nil
   "Holds reference to local vdiff session in each vdiff buffer.")
+(put 'vdiff--session 'permanent-local t)
 (cl-defstruct vdiff-session
   ;; buffers
   buffers
