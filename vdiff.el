@@ -506,6 +506,11 @@ non-nil. Ignore folds if NO-FOLD is non-nil."
   (when vdiff-mode
     (vdiff-refresh)))
 
+(defun vdiff--nonempty-str-to-list (str)
+  "Return a list for a non-empty `STR' or else nil."
+  (unless (string-empty-p str)
+    (ensure-list str)))
+
 ;; * Main overlay refresh routine
 
 (defun vdiff-refresh (&optional post-refresh-function)
@@ -524,9 +529,9 @@ POST-REFRESH-FUNCTION is called when the process finishes."
            (ses vdiff--session)
            (cmd (append
                  base-cmd
-                 (vdiff-session-whitespace-args ses)
+                 (vdiff--nonempty-str-to-list (vdiff-session-whitespace-args ses))
                  (unless (string= (car base-cmd) "git")
-                   (vdiff-session-case-args ses))
+                   (vdiff--nonempty-str-to-list (vdiff-session-case-args ses)))
                  (list "--" tmp-a tmp-b)
                  (when tmp-c
                    (list tmp-c))))
