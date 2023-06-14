@@ -296,6 +296,10 @@ because those are handled differently.")
   "Make ARGS into list and remove nils."
   (delq nil (apply #'list args)))
 
+(defun vdiff--maybe-list (str)
+  "Return a list with STR as the sole element, or an empty list."
+  (if (string= str "") '() (list str)))
+
 (defun vdiff--buffer-a-p ()
   (when (and
          vdiff--session
@@ -489,7 +493,7 @@ non-nil. Ignore folds if NO-FOLD is non-nil."
                             vdiff--case-options)
            vdiff--case-options))))
   (setf (vdiff-session-case-args vdiff--session)
-        command-line-arg)
+        (vdiff--maybe-list command-line-arg))
   (when vdiff-mode
     (vdiff-refresh)))
 
@@ -502,14 +506,9 @@ non-nil. Ignore folds if NO-FOLD is non-nil."
                             vdiff--whitespace-options)
            vdiff--whitespace-options))))
   (setf (vdiff-session-whitespace-args vdiff--session)
-        command-line-arg)
+        (vdiff--maybe-list command-line-arg))
   (when vdiff-mode
     (vdiff-refresh)))
-
-(defun vdiff--nonempty-str-to-list (str)
-  "Return a list for a non-empty `STR' or else nil."
-  (unless (string-empty-p str)
-    (ensure-list str)))
 
 ;; * Main overlay refresh routine
 
@@ -529,9 +528,9 @@ POST-REFRESH-FUNCTION is called when the process finishes."
            (ses vdiff--session)
            (cmd (append
                  base-cmd
-                 (vdiff--nonempty-str-to-list (vdiff-session-whitespace-args ses))
+                 (vdiff-session-whitespace-args ses)
                  (unless (string= (car base-cmd) "git")
-                   (vdiff--nonempty-str-to-list (vdiff-session-case-args ses)))
+                   (vdiff-session-case-args ses))
                  (list "--" tmp-a tmp-b)
                  (when tmp-c
                    (list tmp-c))))
@@ -1906,8 +1905,8 @@ with non-nil USE-FOLDS."
    :process-buffer (generate-new-buffer-name " *vdiff* ")
    :word-diff-output-buffer (generate-new-buffer-name " *vdiff-word* ")
    :folds (make-hash-table :test 'equal :weakness 'value)
-   :case-args ""
-   :whitespace-args ""
+   :case-args nil
+   :whitespace-args nil
    :prior-window-config prior-window-config
    :on-quit on-quit
    :kill-buffers-on-quit kill-buffers-on-quit))
@@ -2364,7 +2363,7 @@ enabled automatically if `vdiff-lock-scrolling' is non-nil."
     "on (-i)"))
 
 (defun vdiff--current-whitespace ()
-  (pcase (vdiff-session-whitespace-args vdiff--session)
+  (pcase (car (vdiff-session-whitespace-args vdiff--session))
     ("" "off")
     ("-w" "all (-w)")
     ("-b" "space changes (-b)")
