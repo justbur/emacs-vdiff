@@ -297,7 +297,7 @@ because those are handled differently.")
   (delq nil (apply #'list args)))
 
 (defun vdiff--maybe-list (str)
-  "Return a list with STR as the sole element, or an empty list."
+  "Return a list with STR as the sole element, or an empty list if STR is empty."
   (if (string= str "") '() (list str)))
 
 (defun vdiff--buffer-a-p ()
